@@ -6,7 +6,7 @@ import { SchoolStateService } from './services/school-state.service';
 import { tap, catchError } from 'rxjs/operators';
 import { of } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { stripRegionPrefix } from './region-path';
+import { regionSwitchUrl } from './region-path';
 
 export interface Currency {
   code: string;
@@ -142,8 +142,7 @@ export class RegionService {
         // branch), so this is the second lock rather than the first.
         if (!/^[a-z0-9-]{1,16}$/.test(code)) return;
 
-        const urlWithoutRegion = stripRegionPrefix(this.router.url);
-        const target = `/${code}${urlWithoutRegion === '/' ? '' : urlWithoutRegion}`;
+        const target = regionSwitchUrl(this.router.url, code);
         // A full document load, not router.navigateByUrl. Every route lives
         // under the `:region` segment, so switching TW→HK only changes a
         // parameter: Angular reuses the component, ngOnInit never re-runs and

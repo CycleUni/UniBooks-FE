@@ -22,7 +22,41 @@ export function stripRegionPrefix(url: string): string {
   return stripped || '/';
 }
 
-import { Router, UrlTree } from '@angular/router';
+import { DefaultUrlSerializer, Router, UrlTree } from '@angular/router';
+
+/**
+ * Query parameters that point at state belonging to the region being left.
+ *
+ * `local_cache=true` tells the book page to render the preview a list page
+ * stashed in sessionStorage — a preview built from the old region's search
+ * results, waitlist count and subscription included. Carried across, the new
+ * region's page would show those numbers until (and, if its lookup failed,
+ * instead of) its own.
+ */
+const REGION_BOUND_QUERY_PARAMS = ['local_cache'];
+
+/**
+ * The URL to load after switching to `region`: same page, same query string
+ * and fragment, different region prefix.
+ *
+ * Built on stripRegionPrefix alone, the switch used to discard the query —
+ * `/tw/book?isbn=…` became a bare `/hk/book` with nothing to show, and the
+ * same happened to search terms and every other page that is addressed by
+ * its query string.
+ */
+export function regionSwitchUrl(url: string, region: string): string {
+  const serializer = new DefaultUrlSerializer();
+  const tree = serializer.parse(url);
+  for (const key of REGION_BOUND_QUERY_PARAMS) {
+    delete tree.queryParams[key];
+  }
+  const serialized = serializer.serialize(tree);
+  const cut = serialized.search(/[?#]/);
+  const path = cut < 0 ? serialized : serialized.slice(0, cut);
+  const suffix = cut < 0 ? '' : serialized.slice(cut);
+  const rest = stripRegionPrefix(path);
+  return `/${region}${rest === '/' ? '' : rest}${suffix}`;
+}
 
 /**
  * Creates a UrlTree with the current region prefixed.
