@@ -397,6 +397,13 @@ export class MessageService {
     if (!isPlatformBrowser(this.platformId)) return;
     if (this.hubWs && this.currentHubUserId === userId) return;
     this.disconnectHub();
+    // disconnectHub() raises the "this close was deliberate" flag for the
+    // socket it is tearing down. Lower it again for the one about to be
+    // opened: left raised, the first time this connection dropped on its own
+    // onclose would read the drop as deliberate and schedule no reconnect,
+    // leaving the hub down (and its user looking away to CFEdgeChat, which
+    // would then email them) until the next login or page load.
+    this.hubClosingIntentionally = false;
 
     this.currentHubToken = token;
     this.currentHubUserId = userId;
@@ -481,9 +488,23 @@ export class MessageService {
     this.hubReconnectTimeout = setTimeout(() => {
       this.hubReconnectTimeout = null;
       this.hubReconnectAttempts++;
-      if (this.currentHubToken && this.currentHubUserId && this.currentHubEdgeChatUrl) {
-        this.connectHub(this.currentHubToken, this.currentHubUserId, this.currentHubEdgeChatUrl);
-      }
+      const userId = this.currentHubUserId;
+      const edgeChatUrl = this.currentHubEdgeChatUrl;
+      const staleToken = this.currentHubToken;
+      if (!userId || !edgeChatUrl || !staleToken) return;
+
+      // Mint a fresh token rather than replaying the cached one: the hub
+      // token expires after two hours, so a tab left open past that could
+      // never reconnect — every attempt 401s and the retry loop just keeps
+      // backing off. That is not only a dead badge: with nothing connected
+      // to the hub, CFEdgeChat counts the user as away and starts emailing
+      // them about messages arriving in a page they are looking at.
+      this.getHubToken().subscribe({
+        next: (res) => this.connectHub(res.token, userId, res.edge_chat_url || edgeChatUrl),
+        // Django unreachable (offline, or a blip): the cached token may still
+        // be valid, and if it isn't, the next backoff round tries again.
+        error: () => this.connectHub(staleToken, userId, edgeChatUrl),
+      });
     }, delay);
   }
 
