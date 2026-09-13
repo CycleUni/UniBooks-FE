@@ -1,5 +1,5 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, PRIMARY_OUTLET, Router, UrlSegment, UrlTree } from '@angular/router';
+import { ActivatedRouteSnapshot, CanActivateFn, PRIMARY_OUTLET, Route, Router, UrlSegment, UrlTree } from '@angular/router';
 import { RegionService } from './region.service';
 
 /**
@@ -25,6 +25,60 @@ function withRegion(router: Router, url: string, region: string): UrlTree {
   return tree;
 }
 
+/**
+ * Prefix the region instead of overwriting the first segment.
+ *
+ * Same tree editing as withRegion, and the same reason for doing it that way.
+ */
+function prefixedWithRegion(router: Router, url: string, region: string): UrlTree {
+  const tree = router.parseUrl(url);
+  const primary = tree.root.children[PRIMARY_OUTLET];
+  if (!primary || primary.segments.length === 0) {
+    return router.parseUrl(`/${region}`);
+  }
+  primary.segments.unshift(new UrlSegment(region, {}));
+  return tree;
+}
+
+/**
+ * First path segment of a URL, decoded — the thing the `:region` parameter
+ * captured.
+ */
+function firstSegment(router: Router, url: string): string {
+  const primary = router.parseUrl(url).root.children[PRIMARY_OUTLET];
+  return primary?.segments[0]?.path ?? '';
+}
+
+/**
+ * Is this segment the start of one of the app's own routes rather than a
+ * (mistyped) region code?
+ *
+ * Every feature route is mounted under `:region`, so a link without the
+ * prefix — `/messages?chat=…` in a notification email, `/verify?token=…` in
+ * an activation email, an old bookmark — arrives here with `region` bound to
+ * `messages` / `verify`. Overwriting that segment with the fallback region
+ * (which is what an unrecognised region code deserves) silently drops the
+ * page the link was for and lands on the homepage instead, query string and
+ * all. Recognising it as a route means prefixing rather than replacing.
+ *
+ * Read off the live route table at call time rather than importing it: the
+ * route table imports this guard, and importing it back would be a cycle
+ * whose failure mode is a module-initialisation error, not a warning.
+ */
+function isFeatureRoutePath(route: ActivatedRouteSnapshot, router: Router, segment: string): boolean {
+  const children: Route[] =
+    route.routeConfig?.children ??
+    router.config.find(r => r.path === ':region')?.children ??
+    [];
+  return children.some(child => {
+    const path = child.path;
+    if (!path || path === '**') return false;
+    // `listing/:id` is reached as `/listing/<uuid>`; only its first segment
+    // can be compared against the one segment we have here.
+    return path.split('/')[0] === segment;
+  });
+}
+
 export const regionGuard: CanActivateFn = (route, state) => {
   const regionService = inject(RegionService);
   const router = inject(Router);
@@ -41,14 +95,19 @@ export const regionGuard: CanActivateFn = (route, state) => {
   // then RegionService enforces.
   // Actually, we can just enforce 'tw' or 'hk' or what is in regions().
   
-  if (regs.length > 0) {
-    if (!regs.some(r => r.code.toLowerCase() === code)) {
-      return withRegion(router, state.url, regs[0].code.toLowerCase());
+  const known = regs.length > 0
+    ? regs.some(r => r.code.toLowerCase() === code)
+    : code === 'tw' || code === 'hk';
+
+  if (!known) {
+    // A route path that simply arrived without its region prefix keeps its
+    // path and gains the viewer's current region; anything else is treated
+    // as a bad region code and replaced, as before.
+    if (isFeatureRoutePath(route, router, firstSegment(router, state.url))) {
+      const current = (regionService.region() || regs[0]?.code || 'tw').toLowerCase();
+      return prefixedWithRegion(router, state.url, current);
     }
-  } else {
-    if (code !== 'tw' && code !== 'hk') {
-      return withRegion(router, state.url, 'tw');
-    }
+    return withRegion(router, state.url, (regs[0]?.code || 'tw').toLowerCase());
   }
   
   // Also notify RegionService of current region in URL so they stay in sync

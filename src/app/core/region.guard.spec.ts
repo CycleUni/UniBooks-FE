@@ -1,11 +1,22 @@
 import { TestBed } from '@angular/core/testing';
-import { Router, UrlTree, convertToParamMap } from '@angular/router';
+import { Route, Router, UrlTree, convertToParamMap } from '@angular/router';
 import { regionGuard, rootRedirectGuard } from './region.guard';
 import { RegionService } from './region.service';
+import { routes } from '../app.routes';
 
-/** The guard reads only the `region` path parameter off the snapshot. */
-const routeWith = (region: string | null) =>
-  ({ paramMap: convertToParamMap(region === null ? {} : { region }) }) as any;
+/**
+ * The `:region` route the guard is attached to, with the whole feature route
+ * table hanging off it — that is how the guard tells "a path that lost its
+ * region prefix" from "a region code that does not exist".
+ */
+const REGION_ROUTE = routes.find(r => r.path === ':region')!;
+
+/** The guard reads the `region` path parameter and its own route config. */
+const routeWith = (region: string | null, routeConfig: Route | null = REGION_ROUTE) =>
+  ({
+    paramMap: convertToParamMap(region === null ? {} : { region }),
+    routeConfig,
+  }) as any;
 
 const stateWith = (url: string) => ({ url }) as any;
 
@@ -13,8 +24,8 @@ describe('regionGuard', () => {
   let mockRegionService: any;
   let router: Router;
 
-  const run = (region: string | null, url: string) =>
-    TestBed.runInInjectionContext(() => regionGuard(routeWith(region), stateWith(url)));
+  const run = (region: string | null, url: string, routeConfig: Route | null = REGION_ROUTE) =>
+    TestBed.runInInjectionContext(() => regionGuard(routeWith(region, routeConfig), stateWith(url)));
 
   beforeEach(() => {
     mockRegionService = {
@@ -77,6 +88,55 @@ describe('regionGuard', () => {
 
   it('passes through when there is no region parameter at all', () => {
     expect(run(null, '/')).toBe(true);
+  });
+
+  // Every feature route lives under `:region`, so a link that arrives without
+  // the prefix binds `region` to the *page name*. These used to be rewritten
+  // as if they were bad region codes, which dropped the page: every link the
+  // backend puts in an email (`/verify?token=…`, `/reset-password?token=…`,
+  // `/messages?chat=…`, `/book?isbn=…`) landed on the homepage instead.
+  describe('a route path that arrived without its region prefix', () => {
+    it('keeps the page and gains the region, rather than replacing the page', () => {
+      expect((run('messages', '/messages') as UrlTree).toString()).toBe('/tw/messages');
+    });
+
+    it('keeps the query string that the page needs', () => {
+      const result = run('messages', '/messages?chat=abc-123') as UrlTree;
+      expect(result.toString()).toBe('/tw/messages?chat=abc-123');
+    });
+
+    it('fixes the activation link in the registration email', () => {
+      const result = run('verify', '/verify?token=t0ken&type=register') as UrlTree;
+      const s = result.toString();
+      expect(s.startsWith('/tw/verify')).toBe(true);
+      expect(s).toContain('token=t0ken');
+      expect(s).toContain('type=register');
+    });
+
+    it('fixes the waitlist email link', () => {
+      expect((run('book', '/book?isbn=9780134685991') as UrlTree).toString())
+        .toBe('/tw/book?isbn=9780134685991');
+    });
+
+    it('keeps every segment of a deeper path', () => {
+      // Previously became `/tw/settings`, a route that does not exist.
+      expect((run('account', '/account/settings') as UrlTree).toString()).toBe('/tw/account/settings');
+    });
+
+    it('matches a route with parameters by its first segment', () => {
+      expect((run('listing', '/listing/9f1c') as UrlTree).toString()).toBe('/tw/listing/9f1c');
+    });
+
+    it('uses the region the viewer is currently in', () => {
+      mockRegionService.region.mockReturnValue('hk');
+      expect((run('messages', '/messages') as UrlTree).toString()).toBe('/hk/messages');
+    });
+
+    it('still replaces a segment that is not a route of this app', () => {
+      // A genuinely wrong region code keeps the old behaviour: `/xx/search`
+      // is a mistyped region, not a page called `xx`.
+      expect((run('xx', '/xx/search') as UrlTree).toString()).toBe('/tw/search');
+    });
   });
 });
 
