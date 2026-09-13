@@ -1,6 +1,6 @@
 import { Injectable, inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Observable, Subject, BehaviorSubject, from } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
@@ -500,12 +500,39 @@ export class MessageService {
       // to the hub, CFEdgeChat counts the user as away and starts emailing
       // them about messages arriving in a page they are looking at.
       this.getHubToken().subscribe({
-        next: (res) => this.connectHub(res.token, userId, res.edge_chat_url || edgeChatUrl),
-        // Django unreachable (offline, or a blip): the cached token may still
-        // be valid, and if it isn't, the next backoff round tries again.
-        error: () => this.connectHub(staleToken, userId, edgeChatUrl),
+        next: (res) => this.reconnectHub(res.token, userId, res.edge_chat_url || edgeChatUrl),
+        error: (err: unknown) => {
+          // Only a failure that says nothing about the session is worth
+          // retrying with the cached token: the backend unreachable (status
+          // 0), throttled, or erroring. Anything else means the session is
+          // gone — a 401/403 arrives here only after AuthInterceptor tried to
+          // refresh and failed, and with no refresh token left it throws a
+          // plain Error rather than an HTTP one. Treating those as transient
+          // turned every signed-out tab into a request to the backend every
+          // couple of seconds, forever. Stop; signing in again reconnects the
+          // hub from the layout.
+          const transient = err instanceof HttpErrorResponse &&
+            (err.status === 0 || err.status === 429 || err.status >= 500);
+          if (!transient) return;
+          this.reconnectHub(staleToken, userId, edgeChatUrl);
+        },
       });
     }, delay);
+  }
+
+  // The reconnect path into connectHub, which differs from a fresh connect
+  // in two ways that both matter for not hammering the backend:
+  //  - it keeps the retry count. connectHub resets it (via disconnectHub,
+  //    and again itself), so the delay above was 1s on every attempt and
+  //    never backed off at all; onopen resets it once a connection succeeds.
+  //  - it does nothing if the hub was deliberately disconnected while the
+  //    token request was in flight (sign-out clears currentHubUserId),
+  //    which would otherwise reopen a hub the layout had just closed.
+  private reconnectHub(token: string, userId: string, edgeChatUrl: string) {
+    if (this.currentHubUserId !== userId) return;
+    const attempts = this.hubReconnectAttempts;
+    this.connectHub(token, userId, edgeChatUrl);
+    this.hubReconnectAttempts = attempts;
   }
 
   disconnectHub() {

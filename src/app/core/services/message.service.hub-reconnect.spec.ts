@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpClient } from '@angular/common/http';
-import { of, throwError } from 'rxjs';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Subject, of, throwError } from 'rxjs';
 import { MessageService } from './message.service';
 
 // A hub token is valid for two hours. Reconnecting with the cached copy of it
@@ -72,9 +72,11 @@ describe('MessageService hub reconnect', () => {
     // Backend unreachable is the common case here (the network dropped, which
     // is why the socket closed) — retry with what we have rather than giving
     // up on the hub until the next page load.
+    // What HttpClient actually reports when the request never reached a
+    // server: an HttpErrorResponse with status 0.
     http.get.mockImplementation((url: string) =>
       url.includes('/messaging/hub-token/')
-        ? throwError(() => new Error('offline'))
+        ? throwError(() => new HttpErrorResponse({ status: 0, statusText: 'Unknown Error' }))
         : of({ unread: [], lastReadAt: {}, count: 0 })
     );
 
@@ -82,6 +84,116 @@ describe('MessageService hub reconnect', () => {
 
     expect(sockets).toHaveLength(2);
     expect(sockets[1].protocols).toEqual(['stale-token']);
+  });
+
+  const tokenResponse = (respond: (url: string) => unknown) =>
+    http.get.mockImplementation((url: string) =>
+      url.includes('/messaging/hub-token/') ? respond(url) : of({ unread: [], lastReadAt: {}, count: 0 })
+    );
+
+  it.each([401, 403])('stops reconnecting once the session is gone (hub-token %i)', (status) => {
+    // AuthInterceptor has already tried to refresh by the time a 401 reaches
+    // here, and cleared the session. Falling back to the cached token made a
+    // signed-out tab call the backend every two seconds, forever.
+    tokenResponse(() => throwError(() => new HttpErrorResponse({ status })));
+
+    dropTheConnection();
+    vi.advanceTimersByTime(10 * 60_000);
+
+    const tokenCalls = http.get.mock.calls.filter(([url]) => String(url).includes('/messaging/hub-token/'));
+    expect(tokenCalls).toHaveLength(1);
+    expect(sockets).toHaveLength(1);
+  });
+
+  it('stops reconnecting when there is no refresh token left to try', () => {
+    // AuthInterceptor's refresh path throws a plain Error, not an HTTP one,
+    // once the refresh token is gone — the steady state of a signed-out tab.
+    tokenResponse(() => throwError(() => new Error('No refresh token available')));
+
+    dropTheConnection();
+    vi.advanceTimersByTime(10 * 60_000);
+
+    expect(sockets).toHaveLength(1);
+  });
+
+  it.each([429, 503])('keeps retrying through a transient backend failure (%i)', (status) => {
+    tokenResponse(() => throwError(() => new HttpErrorResponse({ status })));
+
+    dropTheConnection();
+
+    expect(sockets).toHaveLength(2);
+    expect(sockets[1].protocols).toEqual(['stale-token']);
+  });
+
+  it('backs off between repeated failures instead of retrying every second', () => {
+    // connectHub resets the retry count, so the reconnect path used to start
+    // over at a one-second delay on every attempt.
+    const closeLatest = () => sockets[sockets.length - 1].onclose?.();
+
+    closeLatest();
+    vi.advanceTimersByTime(1_000);
+    expect(sockets).toHaveLength(2);
+
+    closeLatest();
+    vi.advanceTimersByTime(1_999);
+    expect(sockets).toHaveLength(2); // a second failure waits 2s, not 1s
+    vi.advanceTimersByTime(1);
+    expect(sockets).toHaveLength(3);
+
+    closeLatest();
+    vi.advanceTimersByTime(3_999);
+    expect(sockets).toHaveLength(3); // and a third waits 4s
+    vi.advanceTimersByTime(1);
+    expect(sockets).toHaveLength(4);
+  });
+
+  it('starts the backoff over once a reconnect actually succeeds', () => {
+    const closeLatest = () => sockets[sockets.length - 1].onclose?.();
+    closeLatest();
+    vi.advanceTimersByTime(1_000);
+    closeLatest();
+    vi.advanceTimersByTime(2_000);
+    expect(sockets).toHaveLength(3);
+
+    sockets[2].onopen?.();
+    closeLatest();
+    vi.advanceTimersByTime(1_000);
+    expect(sockets).toHaveLength(4);
+  });
+
+  it('does not reopen a hub that was disconnected while the token request was in flight', () => {
+    // Sign-out calls disconnectHub; a token response arriving afterwards used
+    // to open the hub again behind the layout's back.
+    const pending = new Subject<{ token: string; edge_chat_url: string }>();
+    tokenResponse(() => pending);
+
+    sockets[0].onclose?.();
+    vi.advanceTimersByTime(1_000);
+    service.disconnectHub();
+    pending.next({ token: 'fresh-token', edge_chat_url: 'https://edge.example' });
+    vi.advanceTimersByTime(60_000);
+
+    expect(sockets).toHaveLength(1);
+  });
+
+  it('leaves alone a connection opened while the token request was in flight', () => {
+    // Sign out and straight back in as the same user: the layout opens a fresh
+    // connection (retry count 0) before the old reconnect's token arrives.
+    // The late reconnect must neither open a second socket nor disturb the
+    // fresh connection's retry count, or its next drop would wait longer.
+    const pending = new Subject<{ token: string; edge_chat_url: string }>();
+    tokenResponse(() => pending);
+
+    sockets[0].onclose?.();
+    vi.advanceTimersByTime(1_000);
+    service.connectHub('new-login-token', '42', 'https://edge.example');
+    pending.next({ token: 'late-token', edge_chat_url: 'https://edge.example' });
+    expect(sockets).toHaveLength(2);
+
+    tokenResponse(() => of({ token: 'fresh-token', edge_chat_url: 'https://edge.example' }));
+    sockets[1].onclose?.();
+    vi.advanceTimersByTime(1_000);
+    expect(sockets).toHaveLength(3);
   });
 
   it('does not reconnect after an intentional disconnect', () => {
