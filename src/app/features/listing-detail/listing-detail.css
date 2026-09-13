@@ -191,6 +191,31 @@
       opacity: 0.8;
     }
 
+    .region-mismatch {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      background-color: var(--flag-light);
+      border: 1px solid var(--flag-border);
+      border-radius: 8px;
+      color: var(--ink);
+    }
+    .region-mismatch-title {
+      margin: 0;
+      font-size: var(--text-base);
+      font-weight: 600;
+      color: var(--flag);
+    }
+    .region-mismatch-desc {
+      margin: 0 0 4px;
+      font-size: var(--text-base);
+      line-height: 1.5;
+      color: var(--ink-soft);
+    }
+
     .price-condition-row {
       display: flex;
       align-items: center;

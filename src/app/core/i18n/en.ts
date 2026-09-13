@@ -434,6 +434,9 @@ export const en: Record<string, string> = {
   'listing.errUnsupportedFileType': 'That image format is not supported. Use JPG, PNG, WebP or GIF.',
   'listing.errFileTooLarge': 'That photo is too large. Please choose an image under 5MB.',
   'listing.errNoFile': 'No file was selected. Choose a photo and try again.',
+  'listing.regionMismatchTitle': 'This listing is from {listingRegion}',
+  'listing.regionMismatchDesc': 'You are browsing {pageRegion}, so the price is shown in the listing\'s own currency. To contact the seller or arrange a meetup, switch to {listingRegion} first.',
+  'listing.regionMismatchSwitch': 'Switch to {listingRegion}',
   'sell.createBookFailed': 'Failed to create book record. Please try again. Error: {msg}',
   'sell.unknownError': 'Unknown error occurred',
 
@@ -468,6 +471,7 @@ export const en: Record<string, string> = {
   'checkout.errNoChat': 'You must chat with the seller before placing a meetup order.',
   'checkout.errListingUnavailable': 'This listing is no longer available.',
   'checkout.errOwnListing': 'You cannot buy your own listing.',
+  'checkout.errRegionMismatch': 'This listing belongs to a different region. Switch to that region before sending a meetup request.',
   'checkout.chatFirstHint': 'Chat with the seller first, then send a meetup request.',
   'checkout.loading': 'Loading...',
   'checkout.meetupFormTitle': 'Meetup Request',

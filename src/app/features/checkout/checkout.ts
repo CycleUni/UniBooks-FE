@@ -40,7 +40,7 @@ import { RegionLinkService } from '../../core/region-link.service';
               <div>
                 <h4 class="book-title-serif">{{ listing.book_title }}</h4>
                 <p class="muted">{{ listing.book_authors }}</p>
-                <div class="price">{{ listing.price | price }}</div>
+                <div class="price">{{ listing.price | price: listing.currency }}</div>
               </div>
             </div>
           </div>
@@ -201,7 +201,7 @@ export class CheckoutComponent implements OnInit {
         this.ga.trackPurchase(
           order.id,
           this.listing?.price,
-          'TWD',
+          this.listing?.currency || 'TWD',
           [{
             item_id: this.listing?.isbn || (this.listing?.book != null ? String(this.listing.book) : ''),
             item_name: this.listing?.book_title,

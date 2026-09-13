@@ -18,6 +18,8 @@ import { GoogleAnalyticsService } from '../../core/services/google-analytics.ser
 import { ReportModalComponent } from './report-modal.component';
 import { UiVerificationPrompt } from '../../shared/ui/verification-prompt.component';
 import { RegionLinkService } from '../../core/region-link.service';
+import { RegionService } from '../../core/region.service';
+import { isSameRegion } from '../../core/region-path';
 import { scrollBehavior } from '../../core/reduced-motion';
 
 
@@ -52,6 +54,29 @@ export class ListingDetail implements OnInit, OnDestroy {
     ];
   }
 
+  /** A listing id is global, so `/hk/listing/<id>` loads a TW listing just as
+   *  well as `/tw/listing/<id>` does — a hand-edited URL, or a link shared
+   *  across regions. The page still shows it (in its own currency), but says
+   *  so, and withholds the chat and meetup actions: both are region-scoped on
+   *  the backend and would fail from here. */
+  get regionMismatch(): boolean {
+    return !!this.listing?.region && !isSameRegion(this.listing.region, this.regionService.region());
+  }
+
+  readonly currentRegion = () => this.regionService.region();
+
+  regionName(code: string | null | undefined): string {
+    if (!code) return '';
+    const region = this.regionService.regions().find(r => isSameRegion(r.code, code));
+    return region?.localized_name || code.toUpperCase();
+  }
+
+  switchToListingRegion() {
+    if (this.listing?.region) {
+      this.regionService.setRegion(this.listing.region);
+    }
+  }
+
   showReportModal = false;
   reportConfirmationMsg = '';
   private currentUserId: string | number | null = null;
@@ -64,6 +89,7 @@ export class ListingDetail implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private regionLink = inject(RegionLinkService);
+  private regionService = inject(RegionService);
   private listingService = inject(ListingService);
   private bookService = inject(BookService);
   private accountService = inject(AccountService);
@@ -173,8 +199,12 @@ export class ListingDetail implements OnInit, OnDestroy {
         this.selectedIndex = 0;
 
         // Fetch other listings for the same book — after the main listing loads.
+        // Skipped for a listing from another region: the book lookup is
+        // scoped to the page's region, so it would list that region's sellers
+        // under a listing that belongs to neither them nor their currency.
+        this.otherListings = [];
         const bookIdentifier = data.isbn || data.book;
-        if (bookIdentifier && isPlatformBrowser(this.platformId)) {
+        if (bookIdentifier && isPlatformBrowser(this.platformId) && !this.regionMismatch) {
           this.bookService.getBook(bookIdentifier).subscribe({
             next: (bookData) => {
               if (bookData && bookData.listings) {

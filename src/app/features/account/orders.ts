@@ -64,7 +64,7 @@ import { parseApiError } from '../../core/api-error.util';
                 <p *ngIf="order.meetup_location" class="meetup-detail">{{ 'order.meetupLocation' | t:{location: order.meetup_location} }}</p>
               </div>
               <div class="price">
-                {{ order.total_amount | price }}
+                {{ order.total_amount | price: order.currency }}
               </div>
             </div>
             <div class="order-actions" *ngIf="hasActions(order, 'buyer')">
@@ -92,7 +92,7 @@ import { parseApiError } from '../../core/api-error.util';
                 <p *ngIf="order.meetup_location" class="meetup-detail">{{ 'order.meetupLocation' | t:{location: order.meetup_location} }}</p>
               </div>
               <div class="price">
-                {{ order.total_amount | price }}
+                {{ order.total_amount | price: order.currency }}
               </div>
             </div>
             <div class="order-actions" *ngIf="hasActions(order, 'seller')">

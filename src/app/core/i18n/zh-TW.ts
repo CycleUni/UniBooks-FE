@@ -430,6 +430,9 @@ export const zhTW: Record<string, string> = {
   'listing.errUnsupportedFileType': '不支援這種圖片格式，請改用 JPG、PNG、WebP 或 GIF。',
   'listing.errFileTooLarge': '照片檔案太大，請選擇 5MB 以下的圖片。',
   'listing.errNoFile': '沒有選到檔案，請重新選擇照片。',
+  'listing.regionMismatchTitle': '這件商品在{listingRegion}上架',
+  'listing.regionMismatchDesc': '你目前瀏覽的是{pageRegion}地區，價格以上架地區的幣別顯示。如要聯絡賣家或約面交，請先切換到{listingRegion}。',
+  'listing.regionMismatchSwitch': '切換到{listingRegion}',
   'sell.createBookFailed': '建立書籍資料庫紀錄失敗，請再試一次。錯誤內容：{msg}',
   'sell.unknownError': '發生不明錯誤',
 
@@ -467,6 +470,7 @@ export const zhTW: Record<string, string> = {
   'checkout.errNoChat': '面交前必須先與賣家聊聊',
   'checkout.errListingUnavailable': '此商品已無法購買。',
   'checkout.errOwnListing': '無法購買自己刊登的商品。',
+  'checkout.errRegionMismatch': '這件商品不是在目前選擇的地區上架，請切換到上架地區後再送出面交請求。',
   'checkout.chatFirstHint': '需先與賣家聊過，才能送出面交請求。',
   'checkout.loading': '載入中…',
   'checkout.meetupFormTitle': '面交請求',

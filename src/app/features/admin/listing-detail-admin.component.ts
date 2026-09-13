@@ -24,7 +24,7 @@ import { PricePipe } from '../../shared/pipes/price.pipe';
       <div class="field-grid">
         <div class="field"><label>{{ 'admin.colSeller' | t }}</label><span>{{ listing.seller?.email }}</span></div>
         <div class="field"><label>{{ 'admin.colSchool' | t }}</label><span>{{ listing.school?.name || '—' }}</span></div>
-        <div class="field"><label>{{ 'admin.colPrice' | t }}</label><span>{{ listing.price | price }}</span></div>
+        <div class="field"><label>{{ 'admin.colPrice' | t }}</label><span>{{ listing.price | price: listing.currency }}</span></div>
         <div class="field"><label>{{ 'admin.colCondition' | t }}</label><span>{{ ('cond.' + listing.condition) | t }}</span></div>
       </div>
 

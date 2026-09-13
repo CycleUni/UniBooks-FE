@@ -47,7 +47,7 @@ import { PricePipe } from '../pipes/price.pipe';
           <span *ngIf="!item.photo_url && !item.photos?.length || imageBroken">{{ 'book.noPhoto' | t }}</span>
         </span>
         <span class="listing-header">
-          <span class="price">{{ item.price | price }}</span>
+          <span class="price">{{ item.price | price: item.currency }}</span>
           <span class="condition-badge" [ngClass]="item.condition">{{ getConditionLabel(item.condition) }}</span>
         </span>
         <span class="seller-info">

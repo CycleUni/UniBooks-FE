@@ -14,6 +14,8 @@ export interface Order {
   status?: string;
   cancel_reason?: string;
   total_amount?: number;
+  /** ISO 4217 code; total_amount is in this currency's minor units. */
+  currency?: string;
   meetup_time?: string;
   meetup_location?: string;
   created_at?: string;
