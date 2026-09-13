@@ -43,14 +43,6 @@
 
         <!-- Right Column: Details & Actions -->
         <div class="details-col">
-          <div *ngIf="regionMismatch" class="region-mismatch" role="status">
-            <h2 class="region-mismatch-title">{{ 'listing.regionMismatchTitle' | t:{listingRegion: regionName(listing.region)} }}</h2>
-            <p class="region-mismatch-desc">{{ 'listing.regionMismatchDesc' | t:{listingRegion: regionName(listing.region), pageRegion: regionName(currentRegion())} }}</p>
-            <ui-button variant="white" (onClick)="switchToListingRegion()">
-              {{ 'listing.regionMismatchSwitch' | t:{listingRegion: regionName(listing.region)} }}
-            </ui-button>
-          </div>
-
           <h1 class="book-title-serif">{{ listing.book_title }}</h1>
           <p class="book-authors">{{ listing.book_authors }}</p>
           
@@ -105,7 +97,10 @@
                meetup request from a buyer who has never messaged the seller
                (checkout.errNoChat), so contacting is the primary action and
                arranging the meetup the secondary one. -->
-          <ng-container *ngIf="!regionMismatch">
+          <!-- A listing from another region takes the actions' place with an
+               explanation: chat and meetup are region-scoped on the backend
+               and would be refused from this region's site. -->
+          <ng-container *ngIf="!regionMismatch; else regionMismatchNotice">
           <div class="action-buttons">
             <ui-button  class="flex-1" style="font-size: var(--text-md); padding: 12px;" (onClick)="contactSeller()">
               {{ 'book.contactSeller' | t }}
@@ -116,6 +111,15 @@
           </div>
           <p class="chat-first-hint">{{ 'checkout.chatFirstHint' | t }}</p>
           </ng-container>
+          <ng-template #regionMismatchNotice>
+            <div class="region-mismatch" role="status">
+              <h2 class="region-mismatch-title">{{ 'listing.regionMismatchTitle' | t:{listingRegion: regionName(listing.region)} }}</h2>
+              <p class="region-mismatch-desc">{{ 'listing.regionMismatchDesc' | t:{listingRegion: regionName(listing.region), pageRegion: regionName(currentRegion())} }}</p>
+              <ui-button variant="white" (onClick)="switchToListingRegion()">
+                {{ 'listing.regionMismatchSwitch' | t:{listingRegion: regionName(listing.region)} }}
+              </ui-button>
+            </div>
+          </ng-template>
 
           <button
             *ngIf="canReport()"

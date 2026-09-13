@@ -197,7 +197,8 @@
       align-items: flex-start;
       gap: 8px;
       padding: 16px 20px;
-      margin-bottom: 24px;
+      /* Sits where the action buttons would, so it takes their spacing. */
+      margin-top: auto;
       background-color: var(--flag-light);
       border: 1px solid var(--flag-border);
       border-radius: 8px;
