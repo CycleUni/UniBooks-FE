@@ -130,6 +130,24 @@
       color: var(--ink);
       border-bottom-color: var(--accent);
     }
+    /* Stands in for the signed-in name while the profile loads, so the
+       header does not pass for signed out in the meantime. Same fill and
+       pulse as ui-skeleton. */
+    .nav-label-pending {
+      display: inline-block;
+      width: 5.5em;
+      height: 0.9em;
+      border-radius: 4px;
+      background-color: var(--line-strong);
+      animation: nav-label-pulse 1.5s infinite ease-in-out;
+    }
+    @keyframes nav-label-pulse {
+      0%, 100% { opacity: 0.75; }
+      50% { opacity: 0.5; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .nav-label-pending { animation: none; }
+    }
     .nav-links a.active-link {
       color: var(--ink);
       border-bottom-color: var(--accent);

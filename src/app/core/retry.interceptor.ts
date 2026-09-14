@@ -79,6 +79,13 @@ export class RetryInterceptor implements HttpInterceptor {
     if (!(error instanceof HttpErrorResponse)) {
       return false;
     }
+    // A failed token refresh surfacing through AuthInterceptor has already
+    // been retried there, on its own schedule. Retrying the outer request
+    // re-runs that whole refresh schedule each time — three refresh POSTs
+    // became nine for a single request while the token store was down.
+    if (error.url?.startsWith(`${environment.backendUrl}/auth/refresh/`)) {
+      return false;
+    }
     // Server errors (502/503/504): the classic Lambda cold-start signature
     const is5xx = error.status >= 500 && error.status < 600;
     if (is5xx) {

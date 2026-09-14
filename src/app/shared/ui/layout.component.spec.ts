@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Component, signal } from '@angular/core';
 import { UiLayout } from './layout.component';
 import { Router, provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { EMPTY, of } from 'rxjs';
 import { MetadataService } from '../../core/services/metadata.service';
 import { AuthStore } from '../../core/auth.store';
 import { AccountService } from '../../core/services/account.service';
@@ -103,5 +103,48 @@ describe('UiLayout', () => {
     expect(component.fullBleed).toBe(true);
     const footer = fixture.nativeElement.querySelector('.app-footer');
     expect(footer).toBeNull();
+  });
+
+  describe('account link while the profile is loading', () => {
+    const accountLink = () =>
+      (fixture.nativeElement as HTMLElement).querySelector('.nav-links a[href$="/account"]') as HTMLAnchorElement;
+
+    beforeEach(() => {
+      // Signing in connects the message hub; keep that out of the way.
+      (TestBed.inject(MessageService) as any).getHubToken = () => EMPTY;
+    });
+
+    it('shows a placeholder, not the signed-out label, while signed in without a profile', () => {
+      const auth = TestBed.inject(AuthStore) as any;
+      auth.isAuthenticated.set(true);
+      fixture.detectChanges();
+
+      const link = accountLink();
+      expect(link.querySelector('.nav-label-pending')).not.toBeNull();
+      expect(link.textContent?.trim()).toBe('');
+      // Still named for assistive technology.
+      expect(link.getAttribute('aria-label')).toBe('nav.account');
+      expect(link.getAttribute('aria-busy')).toBe('true');
+    });
+
+    it('shows the name once the profile arrives', () => {
+      const auth = TestBed.inject(AuthStore) as any;
+      auth.isAuthenticated.set(true);
+      auth.user.set({ id: 1, email: 'staff@x.y', display_name: 'Staff Member' });
+      fixture.detectChanges();
+
+      const link = accountLink();
+      expect(link.querySelector('.nav-label-pending')).toBeNull();
+      expect(link.textContent?.trim()).toBe('Staff Member');
+      expect(link.hasAttribute('aria-label')).toBe(false);
+    });
+
+    it('keeps the plain account label when signed out', () => {
+      fixture.detectChanges();
+
+      const link = accountLink();
+      expect(link.querySelector('.nav-label-pending')).toBeNull();
+      expect(link.textContent?.trim()).toBe('nav.account');
+    });
   });
 });

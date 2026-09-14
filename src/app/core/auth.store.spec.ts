@@ -443,3 +443,165 @@ describe('AuthStore session expiry', () => {
     expect(store.user()).toBeNull();
   });
 });
+
+/**
+ * A session can be intact while its profile failed to load — a cold serverless
+ * start failing the first /auth/me/ (or the refresh behind it). Without the
+ * profile the header has no name and staff have no admin link, which reads as
+ * signed out until the page is reloaded.
+ */
+describe('AuthStore profile after a transient failure', () => {
+  @Component({ standalone: true, template: 'stub' })
+  class StubPage {}
+
+  let httpMock: HttpTestingController;
+  let router: Router;
+  let store: AuthStore;
+  const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+  const profileRequests = () => httpMock.match('/auth/me/');
+  const unavailable = { status: 503, statusText: 'Service Unavailable' };
+
+  /** Signed in with a live token, bootstrap /auth/me/ in the air, fake timers on. */
+  async function signedInWithProfileOut() {
+    localStorage.setItem('access_token', 'live');
+    localStorage.setItem('refresh_token', 'live-refresh');
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+        provideRouter([{ path: 'tw', children: [{ path: '', component: StubPage }, { path: 'search', component: StubPage }] }]),
+        RegionLinkService,
+        { provide: RegionService, useValue: { region: signal('tw') } },
+      ],
+    });
+    httpMock = TestBed.inject(HttpTestingController);
+    router = TestBed.inject(Router);
+    store = TestBed.inject(AuthStore);
+    await router.navigateByUrl('/tw');
+    await settle();
+    vi.useFakeTimers();
+  }
+
+  beforeEach(() => localStorage.clear());
+  afterEach(() => {
+    vi.useRealTimers();
+    localStorage.clear();
+  });
+
+  it('fetches the profile again on its own after a transient failure', async () => {
+    await signedInWithProfileOut();
+
+    const [first] = profileRequests();
+    first.flush({}, unavailable);
+    expect(store.isAuthenticated()).toBe(true);
+    expect(store.user()).toBeNull();
+
+    // Nobody clicks anything.
+    await vi.advanceTimersByTimeAsync(3000);
+    const [second] = profileRequests();
+    second.flush({ id: 1, email: 'staff@x.y', is_staff: true });
+
+    expect(store.user()?.is_staff).toBe(true);
+  });
+
+  it('keeps trying on a backing-off schedule, then stops', async () => {
+    await signedInWithProfileOut();
+    profileRequests()[0].flush({}, unavailable);
+
+    let attempts = 0;
+    for (let second = 0; second < 120; second++) {
+      await vi.advanceTimersByTimeAsync(1000);
+      for (const req of profileRequests()) {
+        attempts++;
+        req.flush({}, unavailable);
+      }
+    }
+
+    expect(attempts).toBe(3);
+  });
+
+  it('tries again when the visitor navigates, even after the schedule has run out', async () => {
+    await signedInWithProfileOut();
+    profileRequests()[0].flush({}, unavailable);
+    for (let i = 0; i < 3; i++) {
+      await vi.advanceTimersByTimeAsync(30_000);
+      profileRequests().forEach(req => req.flush({}, unavailable));
+    }
+    expect(profileRequests()).toEqual([]);
+
+    await router.navigateByUrl('/tw/search');
+    await vi.advanceTimersByTimeAsync(0);
+
+    const retried = profileRequests();
+    expect(retried.length).toBe(1);
+    retried[0].flush({ id: 1, email: 'a@b.c' });
+    expect(store.user()).not.toBeNull();
+  });
+
+  it('tries again when the visitor comes back to the tab', async () => {
+    await signedInWithProfileOut();
+    profileRequests()[0].flush({}, unavailable);
+
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    expect(profileRequests().length).toBe(1);
+  });
+
+  it('does not stack a second request while one is already out', async () => {
+    await signedInWithProfileOut();
+
+    // Bootstrap request still pending; a navigation asks for the profile too.
+    await router.navigateByUrl('/tw/search');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(profileRequests().length).toBe(1);
+  });
+
+  it('does not retry an answer that will not change by waiting', async () => {
+    await signedInWithProfileOut();
+    profileRequests()[0].flush({}, { status: 404, statusText: 'Not Found' });
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(profileRequests()).toEqual([]);
+  });
+
+  it('gives the next session a full retry schedule of its own', async () => {
+    await signedInWithProfileOut();
+    // First session: fail, then fail its first scheduled retry as well, so it
+    // is two steps into its schedule when it ends.
+    profileRequests()[0].flush({}, unavailable);
+    await vi.advanceTimersByTimeAsync(3000);
+    profileRequests()[0].flush({}, unavailable);
+
+    store.logout().subscribe();
+    httpMock.match(() => true).forEach(req => req.flush({}));
+
+    // Signed straight back in; its profile fails too.
+    store.setAuth({ access: 'fresh', refresh: 'fresh-refresh' });
+    profileRequests()[0].flush({}, unavailable);
+
+    let attempts = 0;
+    for (let second = 0; second < 120; second++) {
+      await vi.advanceTimersByTimeAsync(1000);
+      for (const req of profileRequests()) {
+        attempts++;
+        req.flush({}, unavailable);
+      }
+    }
+
+    expect(attempts).toBe(3);
+  });
+
+  it('stops retrying once the visitor signs out', async () => {
+    await signedInWithProfileOut();
+    profileRequests()[0].flush({}, unavailable);
+
+    store.logout().subscribe();
+    httpMock.match(() => true).forEach(req => req.flush({}));
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(profileRequests()).toEqual([]);
+  });
+});
+

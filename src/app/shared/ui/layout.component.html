@@ -53,12 +53,17 @@
                 <span class="nav-label">{{ 'nav.messages' | t }}</span>
                 <span class="nav-badge" *ngIf="unreadCount > 0">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
               </a>
-              <a regionLink="/account" routerLinkActive="active-link">
+              <a regionLink="/account" routerLinkActive="active-link"
+                 [attr.aria-label]="profilePending ? ('nav.account' | t) : null"
+                 [attr.aria-busy]="profilePending || null">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="17" height="17" aria-hidden="true">
                   <circle cx="12" cy="8" r="3.5"/>
                   <path d="M5 20c0-3.87 3.13-7 7-7s7 3.13 7 7"/>
                 </svg>
-                <span class="nav-label">{{ userName || ('nav.account' | t) }}</span>
+                <span *ngIf="profilePending; else accountLabel" class="nav-label nav-label-pending" aria-hidden="true"></span>
+                <ng-template #accountLabel>
+                  <span class="nav-label">{{ userName || ('nav.account' | t) }}</span>
+                </ng-template>
               </a>
               <a *ngIf="isStaff" regionLink="/admin" routerLinkActive="active-link">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="17" height="17" aria-hidden="true">

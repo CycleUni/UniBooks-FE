@@ -1,6 +1,6 @@
 import { DestroyRef, Injectable, Injector, signal, inject, untracked, runInInjectionContext } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { tap, catchError, filter, take } from 'rxjs/operators';
+import { tap, catchError, filter, take, finalize } from 'rxjs/operators';
 import { Observable, of } from 'rxjs';
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationSkipped, Router } from '@angular/router';
 import { GoogleAnalyticsService } from './services/google-analytics.service';
@@ -88,10 +88,29 @@ export class AuthStore {
         }
       };
       window.addEventListener('storage', onStorage);
+
+      // A profile that failed to load for a reason unrelated to the session
+      // gets another chance whenever the visitor does something: moves to
+      // another page, or comes back to the tab. See retryProfileIfMissing.
+      const onVisible = () => {
+        if (document.visibilityState === 'visible') {
+          this.retryProfileIfMissing();
+        }
+      };
+      document.addEventListener('visibilitychange', onVisible);
+      const navigations = this.router.events
+        .pipe(filter(e => e instanceof NavigationEnd))
+        .subscribe(() => this.retryProfileIfMissing());
+
       // Removed with the injector. A root service outlives nothing in the app,
       // but a destroyed store still listening would act on a dead injector
       // (NG0205) the next time another tab touches the tokens.
-      inject(DestroyRef).onDestroy(() => window.removeEventListener('storage', onStorage));
+      inject(DestroyRef).onDestroy(() => {
+        window.removeEventListener('storage', onStorage);
+        document.removeEventListener('visibilitychange', onVisible);
+        navigations.unsubscribe();
+        this.cancelProfileRetry();
+      });
     }
   }
 
@@ -104,9 +123,16 @@ export class AuthStore {
     if (!token) return;
     if (token === this.fetchedForToken && this._user()) return;
 
+    // One profile request per session at a time. The bootstrap fetch, the
+    // first NavigationEnd and a refresh's setAuth() can all ask within the
+    // same moment; the request already out will fill in the user for all of
+    // them (a 401 on it is refreshed and replayed by the interceptor).
+    if (this.profileRequestGeneration === this._sessionGeneration) return;
+
     this.fetchedForToken = token;
 
     const generation = this._sessionGeneration;
+    this.profileRequestGeneration = generation;
     this.http.get<AuthUser>('/auth/me/').pipe(
       tap(profile => {
         // Signed out while this was in the air (e.g. logout with an expired
@@ -116,6 +142,7 @@ export class AuthStore {
         if (generation !== this._sessionGeneration) {
           return;
         }
+        this.cancelProfileRetry();
         this._user.set(profile);
         // Identify user in GA4 for User Explorer & cross-device reports
         this.ga.setUserId(profile.id);
@@ -129,15 +156,68 @@ export class AuthStore {
         if (err.status === 401) {
           this.endSession();
         } else {
-          // A 5xx here leaves the user logged in with an empty profile and no
-          // visible symptom, which is very hard to diagnose from the UI alone.
           console.error('Failed to load user profile from /auth/me/', err?.status, err);
+          // The session is intact but the profile is missing — which looks
+          // exactly like being signed out: no name in the header, no admin
+          // link. That used to last until a full reload. On a cold serverless
+          // start the first /auth/me/ (and the refresh behind it) can fail
+          // while a request seconds later succeeds, so try again on a timer.
+          if (AuthStore.isTransient(err)) {
+            this.scheduleProfileRetry();
+          }
         }
         // Clear dedup flag so a later login/sign-in can retry
         this.fetchedForToken = null;
         return of(null);
+      }),
+      finalize(() => {
+        if (this.profileRequestGeneration === generation) {
+          this.profileRequestGeneration = null;
+        }
       })
     ).subscribe();
+  }
+
+  /** The session generation a /auth/me/ request is out for, or null. */
+  private profileRequestGeneration: number | null = null;
+  private profileRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private profileRetryIndex = 0;
+
+  /** After a transient failure. Short enough to catch a function warming up,
+   *  spaced enough not to hammer a backend that is actually down. Once these
+   *  run out, the next navigation or return to the tab tries again. */
+  private static readonly PROFILE_RETRY_DELAYS_MS = [3000, 10000, 30000];
+
+  private static isTransient(err: unknown): boolean {
+    const status = (err as { status?: number } | null)?.status;
+    return status === 0 || status === 429 || (typeof status === 'number' && status >= 500);
+  }
+
+  /** Signed in, no profile, nothing already fetching it: fetch it. */
+  private retryProfileIfMissing(): void {
+    if (!this._isAuthenticated() || this._user()) return;
+    untracked(() => this.fetchUserProfile());
+  }
+
+  private scheduleProfileRetry(): void {
+    if (this.profileRetryTimer !== null) return;
+    const delay = AuthStore.PROFILE_RETRY_DELAYS_MS[this.profileRetryIndex];
+    if (delay === undefined) return;
+    this.profileRetryIndex++;
+    this.profileRetryTimer = setTimeout(() => {
+      this.profileRetryTimer = null;
+      // Same reason as the bootstrap fetch: an independent macrotask doing
+      // first-time DI resolution needs an explicit injection context (NG0203).
+      runInInjectionContext(this.injector, () => this.retryProfileIfMissing());
+    }, delay);
+  }
+
+  private cancelProfileRetry(): void {
+    if (this.profileRetryTimer !== null) {
+      clearTimeout(this.profileRetryTimer);
+      this.profileRetryTimer = null;
+    }
+    this.profileRetryIndex = 0;
   }
 
   setAuth(data: { access: string; refresh?: string }) {
@@ -199,6 +279,7 @@ export class AuthStore {
       }
     }
     this._sessionGeneration++;
+    this.cancelProfileRetry();
     this._isAuthenticated.set(false);
     this._user.set(null);
     this.fetchedForToken = null;

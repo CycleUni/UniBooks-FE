@@ -6,6 +6,7 @@ import { Router, Routes, provideRouter } from '@angular/router';
 
 import { AuthInterceptor } from './auth.interceptor';
 import { ApiUrlInterceptor } from './api-url.interceptor';
+import { RetryInterceptor } from './retry.interceptor';
 import { AuthStore } from './auth.store';
 import { RegionLinkService } from './region-link.service';
 import { RegionService } from './region.service';
@@ -296,3 +297,82 @@ describe('AuthInterceptor refresh refusal', () => {
     drain();
   });
 });
+
+/**
+ * The app's real interceptor order: ApiUrl -> Retry -> Auth. RetryInterceptor
+ * wraps AuthInterceptor, so anything AuthInterceptor lets escape gets the whole
+ * chain retried — including a refresh failure it has already retried itself.
+ */
+describe('AuthInterceptor inside the real interceptor chain', () => {
+  const REFRESH_URL = `${environment.backendUrl}/auth/refresh/`;
+  let httpMock: HttpTestingController;
+  let http: HttpClient;
+  let router: Router;
+
+  beforeEach(async () => {
+    localStorage.clear();
+    localStorage.setItem('access_token', 'stale');
+    localStorage.setItem('refresh_token', 'good');
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+        provideRouter([{ path: 'tw', children: [] }]),
+        { provide: HTTP_INTERCEPTORS, useClass: ApiUrlInterceptor, multi: true },
+        { provide: HTTP_INTERCEPTORS, useClass: RetryInterceptor, multi: true },
+        { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true },
+        RegionLinkService,
+        { provide: RegionService, useValue: { region: signal('tw') } },
+        { provide: I18nService, useValue: { lang: () => 'zh-TW' } },
+        // Just the token surface the interceptor uses. The real AuthStore also
+        // fetches and re-fetches the profile on its own schedule, which would
+        // add refresh attempts of its own and blur what this counts.
+        {
+          provide: AuthStore,
+          useValue: {
+            getAccessToken: () => localStorage.getItem('access_token'),
+            getRefreshToken: () => localStorage.getItem('refresh_token'),
+            setAuth: (t: { access: string; refresh?: string }) => {
+              localStorage.setItem('access_token', t.access);
+              if (t.refresh) localStorage.setItem('refresh_token', t.refresh);
+            },
+            endSession: () => localStorage.clear(),
+          },
+        },
+      ],
+    });
+    httpMock = TestBed.inject(HttpTestingController);
+    http = TestBed.inject(HttpClient);
+    router = TestBed.inject(Router);
+    await router.navigateByUrl('/tw');
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    localStorage.clear();
+  });
+
+  it('makes one bounded set of refresh attempts, not one per outer retry', async () => {
+    http.get('/listings/').subscribe({ error: () => {} });
+    const unavailable = { status: 503, statusText: 'Service Unavailable' };
+    let refreshAttempts = 0;
+
+    // Answer every request for a while: listings with 401 (stale token),
+    // every refresh with 503 (token store down).
+    for (let i = 0; i < 40; i++) {
+      for (const req of httpMock.match(r => r.url.endsWith('/listings/'))) {
+        req.flush({}, { status: 401, statusText: 'Unauthorized' });
+      }
+      for (const req of httpMock.match(REFRESH_URL)) {
+        refreshAttempts++;
+        req.flush({}, unavailable);
+      }
+      httpMock.match(() => true).forEach(req => req.flush({}, { status: 401, statusText: 'Unauthorized' }));
+      await vi.advanceTimersByTimeAsync(1000);
+    }
+
+    expect(refreshAttempts).toBe(3);
+  });
+});
+

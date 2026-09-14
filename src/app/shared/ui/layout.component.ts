@@ -87,6 +87,14 @@ export class UiLayout implements OnDestroy {
     return profile.display_name || profile.email || '';
   }
 
+  /** Signed in, but the profile has not arrived (or failed and is being
+   *  retried). Rendering the plain account label here made the header look
+   *  exactly like a signed-out one, most visibly for staff, whose admin link
+   *  also waits on the profile. */
+  get profilePending(): boolean {
+    return this.authStore.isAuthenticated() && !this.authStore.user();
+  }
+
   get isStaff(): boolean {
     if (!this.authStore.isAuthenticated()) return false;
     return this.authStore.user()?.is_staff === true;
