@@ -9,7 +9,7 @@ import { UiConfirmDialog } from './shared/ui/confirm-dialog.component';
 import { NavigationHistoryService } from './core/services/navigation-history.service';
 import { GoogleAuthService } from './core/services/google-auth.service';
 import { GoogleAnalyticsService } from './core/services/google-analytics.service';
-import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
+import { SwUpdate, VersionReadyEvent, VersionInstallationFailedEvent } from '@angular/service-worker';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs/operators';
 import { interval, fromEvent } from 'rxjs';
@@ -89,6 +89,10 @@ export class App {
 
   updateReady = signal(false);
   private lastCheckTime = Date.now();
+  private checkingInstallFailure = false;
+  /** Set when the update prompt comes from a failed install rather than a
+   * ready one; see handleInstallationFailed(). */
+  private unregisterBeforeReload = false;
 
   constructor() {
     effect(() => {
@@ -118,8 +122,6 @@ export class App {
     // for subsequent requests, and then show a prompt. We also automatically reload 
     // the page on the next route change when state loss is no longer a concern.
     if (this.swUpdate.isEnabled) {
-      let updateActivated = false;
-
       this.swUpdate.versionUpdates
         .pipe(
           filter((evt): evt is VersionReadyEvent => evt.type === 'VERSION_READY'),
@@ -127,19 +129,35 @@ export class App {
         )
         .subscribe(() => {
           this.swUpdate.activateUpdate().then(() => {
-            updateActivated = true;
             this.updateReady.set(true);
           });
         });
 
+      // A new version the worker downloads but cannot install. The case that
+      // made this necessary: HTTPS-filtering software (AdGuard's desktop app,
+      // some antivirus) injects a <script> into every HTML response, carrying
+      // the request URL — and the worker fetches index.html with a random
+      // ngsw-cache-bust parameter, so the injected text, and with it the hash,
+      // differs on every attempt. The worker rejects the version as corrupt
+      // and degrades, and on that browser the site never updates or prompts.
+      // Nothing the site serves can stop the rewrite, so recover instead: if
+      // this page is older than what is deployed, offer the update, and
+      // reload without the worker so the page comes from the network.
+      this.swUpdate.versionUpdates
+        .pipe(
+          filter((evt): evt is VersionInstallationFailedEvent => evt.type === 'VERSION_INSTALLATION_FAILED'),
+          takeUntilDestroyed(this.destroyRef)
+        )
+        .subscribe(() => this.handleInstallationFailed());
+
       this.router.events
         .pipe(
           filter(event => event instanceof NavigationEnd),
-          filter(() => updateActivated),
+          filter(() => this.updateReady()),
           takeUntilDestroyed(this.destroyRef)
         )
         .subscribe(() => {
-          document.location.reload();
+          this.reloadPage();
         });
 
       // 1. Periodic update check: periodically poll for new versions while running.
@@ -193,7 +211,56 @@ export class App {
     });
   }
 
+  /**
+   * Reacts to VERSION_INSTALLATION_FAILED. Two things make the obvious
+   * "show the prompt" wrong on its own:
+   *   - On an affected browser *every* update check fails, including the one
+   *     run after the page was already reloaded from the network. So the
+   *     page first asks whether it is behind, by looking for its own
+   *     content-hashed main/styles bundles in the deployed ngsw.json;
+   *     without that, every page load would prompt and every route change
+   *     would reload.
+   *   - The worker's degraded state lives in memory. Once the browser stops
+   *     and restarts it, it serves the old cached build again, so a plain
+   *     reload is not guaranteed to reach the network. Hence the reload
+   *     unregisters the worker first, the same recovery `unrecoverable` uses.
+   */
+  private async handleInstallationFailed(): Promise<void> {
+    if (this.updateReady() || this.checkingInstallFailure) return;
+    this.checkingInstallFailure = true;
+    try {
+      const own = Array.from(
+        document.querySelectorAll<HTMLScriptElement | HTMLLinkElement>('script[src], link[rel="stylesheet"][href]'),
+        el => new URL(el instanceof HTMLScriptElement ? el.src : el.href, location.href).pathname,
+      ).filter(path => /^\/(main|styles)-[A-Z0-9]+\.(js|css)$/.test(path));
+      // Nothing to compare (e.g. a build without hashed filenames): do not
+      // guess, since guessing wrong means a reload on every navigation.
+      if (own.length === 0) return;
+
+      const res = await fetch(`/ngsw.json?ngsw-cache-bust=${Math.random()}`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const manifest: { assetGroups?: { urls: string[] }[] } = await res.json();
+      const deployed = new Set((manifest.assetGroups ?? []).flatMap(group => group.urls));
+      if (own.every(path => deployed.has(path))) return;
+
+      this.unregisterBeforeReload = true;
+      this.updateReady.set(true);
+    } catch {
+      // Offline or a malformed manifest: leave the page as it is.
+    } finally {
+      this.checkingInstallFailure = false;
+    }
+  }
+
   reloadPage() {
-    location.reload();
+    if (!this.unregisterBeforeReload || typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+      location.reload();
+      return;
+    }
+    navigator.serviceWorker
+      .getRegistrations()
+      .then(registrations => Promise.all(registrations.map(r => r.unregister())))
+      .catch(() => {})
+      .finally(() => location.reload());
   }
 }
