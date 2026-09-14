@@ -49,6 +49,12 @@ export interface PaginatedResponse<T> {
   results: T[];
 }
 
+/** The account page's Notifications section. */
+export interface NotificationSettings {
+  /** Email about a chat message that arrives while not on the site. */
+  new_message_email: boolean;
+}
+
 export interface UserProfile {
   id: string | number;
   email: string;
@@ -187,6 +193,14 @@ export class AccountService {
 
     if (!q) this.profileRequest = req;
     return req;
+  }
+
+  getNotificationSettings(): Observable<NotificationSettings> {
+    return this.http.get<NotificationSettings>('/auth/me/notifications/');
+  }
+
+  updateNotificationSettings(changes: Partial<NotificationSettings>): Observable<NotificationSettings> {
+    return this.http.patch<NotificationSettings>('/auth/me/notifications/', changes);
   }
 
   clearProfileCache() {

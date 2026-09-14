@@ -45,6 +45,7 @@ const featureRoutes: Routes = [
       { path: 'subscriptions', canActivate: [authGuard], loadComponent: () => import('./features/account/subscriptions').then(m => m.SubscriptionsComponent) },
       { path: 'orders', canActivate: [authGuard], loadComponent: () => import('./features/account/orders').then(m => m.OrdersComponent) },
       { path: 'reports', canActivate: [authGuard], loadComponent: () => import('./features/account/reports').then(m => m.ReportsComponent) },
+      { path: 'notifications', canActivate: [authGuard], loadComponent: () => import('./features/account/notifications').then(m => m.NotificationsComponent) },
       { path: 'settings', canActivate: [authGuard], loadComponent: () => import('./features/account/settings').then(m => m.SettingsComponent) }
     ]
   },
