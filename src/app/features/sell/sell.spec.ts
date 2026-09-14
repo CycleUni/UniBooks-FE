@@ -10,7 +10,7 @@ import { BookService } from '../../core/services/book.service';
 import { ListingService } from '../../core/services/listing.service';
 import { MetadataService } from '../../core/services/metadata.service';
 import { GoogleAnalyticsService } from '../../core/services/google-analytics.service';
-import { of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { RegionService } from '../../core/region.service';
 
 
@@ -178,7 +178,8 @@ describe('Sell Component Barcode Scanner Validation', () => {
         {
           provide: MetadataService,
           useValue: {
-            getMetadata: vi.fn().mockReturnValue(of({ categories: [] }))
+            getMetadata: vi.fn().mockReturnValue(of({ categories: [] })),
+            getMetadataWithRetry: vi.fn().mockReturnValue(of({ categories: [] }))
           }
         },
         {
@@ -389,7 +390,7 @@ describe('Sell listing form guarding, drafts and field validation', () => {
         { provide: AuthStore, useValue: { isLoggedIn: () => true, user: () => ({ id: 'user-1' }), isVerifiedIn: () => true } },
         { provide: AccountService, useValue: { getMyProfile: vi.fn().mockReturnValue(of({ verified_at: '2026-01-01' })) } },
         { provide: ListingService, useValue: { uploadPhoto: vi.fn(), deletePhoto: vi.fn().mockReturnValue(of({})), createListing: vi.fn() } },
-        { provide: MetadataService, useValue: { getMetadata: vi.fn().mockReturnValue(of({ categories: [{ title: 'Engineering', slug: 'engineering' }] })) } },
+        { provide: MetadataService, useValue: { getMetadata: vi.fn().mockReturnValue(of({ categories: [{ title: 'Engineering', slug: 'engineering' }] })), getMetadataWithRetry: vi.fn().mockReturnValue(of({ categories: [{ title: 'Engineering', slug: 'engineering' }] })) } },
         { provide: GoogleAnalyticsService, useValue: { trackEvent: vi.fn(), trackPublishListing: vi.fn() } }
       ]
     }).compileComponents();
@@ -398,6 +399,28 @@ describe('Sell listing form guarding, drafts and field validation', () => {
   afterEach(() => {
     component?.ngOnDestroy();
     localStorage.clear();
+  });
+
+  describe('category metadata', () => {
+    it('handles a failure to load categories instead of leaving it uncaught', () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const metadata = TestBed.inject(MetadataService) as any;
+      metadata.getMetadataWithRetry.mockReturnValue(throwError(() => new Error('down')));
+
+      expect(() => create()).not.toThrow();
+      expect(consoleError).toHaveBeenCalledWith('Failed to load categories', expect.any(Error));
+    });
+
+    it('stops waiting on categories when the page is left', () => {
+      const pending = new Subject<any>();
+      (TestBed.inject(MetadataService) as any).getMetadataWithRetry.mockReturnValue(pending);
+      create();
+      expect(pending.observed).toBe(true);
+
+      component.ngOnDestroy();
+
+      expect(pending.observed).toBe(false);
+    });
   });
 
   describe('hasUnsavedChanges', () => {

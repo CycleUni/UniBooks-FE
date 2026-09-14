@@ -21,6 +21,7 @@ import { GoogleAnalyticsService } from '../../core/services/google-analytics.ser
 import type { Html5Qrcode } from 'html5-qrcode';
 import { RegionLinkService } from '../../core/region-link.service';
 import { HasUnsavedChanges } from '../../core/unsaved-changes.guard';
+import { Subscription } from 'rxjs';
 
 
 /**
@@ -223,6 +224,7 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
   private router = inject(Router);
   private regionLink = inject(RegionLinkService);
   private cdr = inject(ChangeDetectorRef);
+  private metadataSubscription: Subscription | null = null;
   private i18n = inject(I18nService);
   private ga = inject(GoogleAnalyticsService);
 
@@ -337,7 +339,9 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
       window.addEventListener('beforeunload', this.onBeforeUnload);
     }
 
-    this.metadataService.getMetadata().subscribe({
+    // With retry: this list has no error state, so one failed request used to
+    // leave the category dropdown empty for the rest of the visit.
+    this.metadataSubscription = this.metadataService.getMetadataWithRetry().subscribe({
       next: (data) => {
         if (data.categories) {
           this.categoryOptions = [{ label: this.i18n.t('sell.categoryPlaceholder'), value: '' }, ...data.categories.map((c: any) => ({
@@ -345,7 +349,8 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
             value: c.slug
           }))];
         }
-      }
+      },
+      error: (err) => console.error('Failed to load categories', err),
     });
 
     if (this.isLoggedIn) {
@@ -373,6 +378,8 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
 
   ngOnDestroy() {
     this.stopScanner();
+    // Also ends its retry schedule, if categories were still being retried.
+    this.metadataSubscription?.unsubscribe();
     if (typeof window !== 'undefined') {
       // Must come off the window, or every later page in the session keeps
       // asking to confirm reloads on behalf of a component that is long gone.

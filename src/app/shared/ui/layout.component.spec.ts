@@ -2,7 +2,8 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Component, signal } from '@angular/core';
 import { UiLayout } from './layout.component';
 import { Router, provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
 import { MetadataService } from '../../core/services/metadata.service';
 import { AuthStore } from '../../core/auth.store';
 import { AccountService } from '../../core/services/account.service';
@@ -36,7 +37,7 @@ describe('UiLayout', () => {
           { path: 'book/:id', component: DummyRouteComponent },
           { path: '**', component: DummyRouteComponent }
         ]),
-        { provide: MetadataService, useValue: { getMetadata: () => of({ schools: [] }) } },
+        { provide: MetadataService, useValue: { getMetadata: () => of({ schools: [] }), getMetadataWithRetry: vi.fn(() => of({ schools: [] })) } },
         { provide: AuthStore, useValue: { isAuthenticated: signal(false), user: signal(null) } },
         { provide: AccountService, useValue: {} },
         { provide: SchoolStateService, useValue: { currentSchool: '', hasInitialized: false, getManualSchool: () => null, setSchools: vi.fn(), setSchool: vi.fn(), clearManualSchool: vi.fn() } },
@@ -184,6 +185,39 @@ describe('UiLayout', () => {
       document.dispatchEvent(new Event('visibilitychange'));
 
       expect(messages.retryHubIfOwed).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('school selector metadata', () => {
+    let metadata: any;
+
+    beforeEach(() => {
+      metadata = TestBed.inject(MetadataService) as any;
+    });
+
+    it('loads the schools through the retrying request', () => {
+      expect(metadata.getMetadataWithRetry).toHaveBeenCalled();
+    });
+
+    it('handles a final failure and asks again on the next navigation', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      metadata.getMetadataWithRetry.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 503 })));
+      // The language effect re-loads metadata; this load fails for good.
+      (TestBed.inject(I18nService) as any).lang.set('en');
+      TestBed.tick();
+      expect(consoleError).toHaveBeenCalled();
+
+      metadata.getMetadataWithRetry.mockClear();
+      metadata.getMetadataWithRetry.mockReturnValue(of({ schools: [{ id: 1, name: 'NTU' }] }));
+      await router.navigateByUrl('/search');
+
+      expect(metadata.getMetadataWithRetry).toHaveBeenCalledTimes(1);
+      expect(component.rawSchools).toEqual([{ id: 1, name: 'NTU' }]);
+
+      // Loaded now: later navigations do not ask again.
+      metadata.getMetadataWithRetry.mockClear();
+      await router.navigateByUrl('/sell');
+      expect(metadata.getMetadataWithRetry).not.toHaveBeenCalled();
     });
   });
 });

@@ -111,6 +111,9 @@ export class UiLayout implements OnDestroy {
         this.mobileLayout.setHideBottomNav(false);
         this.cdr.markForCheck();
         this.messageService.retryHubIfOwed();
+        if (this.metadataOwed) {
+          this.loadMetadata();
+        }
       }
     });
     if (typeof document !== 'undefined') {
@@ -176,6 +179,7 @@ export class UiLayout implements OnDestroy {
   ngOnDestroy() {
     this.routerSubscription?.unsubscribe();
     this.unreadCountSubscription.unsubscribe();
+    this.metadataSubscription?.unsubscribe();
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', this.onVisibilityChange);
     }
@@ -192,9 +196,21 @@ export class UiLayout implements OnDestroy {
     this.theme.setMode(mode as ThemeMode);
   }
 
+  /** Set when loading metadata gave up, until a later load succeeds. */
+  private metadataOwed = false;
+  private metadataSubscription: Subscription | null = null;
+
   private loadMetadata() {
-    this.metadataService.getMetadata().subscribe({
+    this.metadataSubscription?.unsubscribe();
+    this.metadataSubscription = this.metadataService.getMetadataWithRetry().subscribe({
+      error: (err) => {
+        // Out of retries (or a real error). Log it rather than leaving it
+        // uncaught, and try again the next time the visitor navigates.
+        console.error('Failed to load metadata for the school selector', err);
+        this.metadataOwed = true;
+      },
       next: (data) => {
+        this.metadataOwed = false;
         if (data.schools && data.schools.length > 0) {
           this.schoolStateService.setSchools(data.schools);
           this.rawSchools = data.schools;

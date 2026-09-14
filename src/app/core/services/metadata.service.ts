@@ -1,9 +1,10 @@
 import { Injectable, inject, effect } from '@angular/core';
 import { HttpClient, HttpContext, HttpParams } from '@angular/common/http';
-import { Observable, throwError } from 'rxjs';
-import { catchError, shareReplay } from 'rxjs/operators';
+import { Observable, defer, throwError, timer } from 'rxjs';
+import { catchError, retry, shareReplay } from 'rxjs/operators';
 import { SKIP_AUTH } from '../auth.interceptor';
 import { I18nService } from '../i18n.service';
+import { isTransientHttpFailure } from '../http-failure';
 
 export interface PublicAd {
   id: number;
@@ -66,6 +67,31 @@ export class MetadataService {
     );
     this.metadataCache.set(key, { at: Date.now(), request$ });
     return request$;
+  }
+
+  /** Same schedule as the profile and notification-hub retries. */
+  private static readonly RETRY_DELAYS_MS = [3000, 10000, 30000];
+
+  /**
+   * getMetadata(), asking again after a failure to reach the backend — on a
+   * cold serverless start the first request can fail while one seconds later
+   * succeeds. For callers with no error state of their own to show: the layout
+   * shell's school selector and the sell page's category list used to stay
+   * empty for the rest of the visit after a single failed request.
+   *
+   * Each attempt goes back through getMetadata(), so it shares a request
+   * another caller has made in the meantime rather than firing its own. A
+   * real answer (4xx) is not retried. Unsubscribing stops the schedule.
+   */
+  getMetadataWithRetry(schoolId?: string | number): Observable<any> {
+    return defer(() => this.getMetadata(schoolId)).pipe(
+      retry({
+        count: MetadataService.RETRY_DELAYS_MS.length,
+        delay: (err, attempt) => isTransientHttpFailure(err)
+          ? timer(MetadataService.RETRY_DELAYS_MS[attempt - 1])
+          : throwError(() => err),
+      })
+    );
   }
 
   getActiveAds(position: string = 'home_banner', schoolId?: string | number): Observable<any> {
