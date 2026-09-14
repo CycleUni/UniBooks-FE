@@ -147,3 +147,98 @@ describe('AccountService profile cache across sessions', () => {
     httpMock.verify();
   });
 });
+
+/**
+ * The backend writes notification emails in the language the site was last
+ * used in, so the frontend reports it — once per change, not per page load.
+ */
+describe('AccountService site language reporting', () => {
+  let httpMock: HttpTestingController;
+  let store: AuthStore;
+  let lang: ReturnType<typeof signal<string>>;
+  const reports = () => httpMock.match(req => req.url === '/auth/me/site-language/');
+
+  /** A signed-in visitor whose profile says they last used `siteLanguage`. */
+  function signedIn(siteLanguage: string) {
+    (store as any)._isAuthenticated.set(true);
+    (store as any)._user.set({ id: 1, email: 'a@b.c', site_language: siteLanguage });
+    TestBed.tick();
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    lang = signal('zh-HK');
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        RegionLinkService,
+        { provide: RegionService, useValue: { region: signal('tw') } },
+        { provide: I18nService, useValue: { lang, t: (k: string) => k } },
+      ],
+    });
+    httpMock = TestBed.inject(HttpTestingController);
+    store = TestBed.inject(AuthStore);
+    TestBed.inject(AccountService);
+    TestBed.tick();
+  });
+
+  it('reports the language when the profile says a different one, then stops', () => {
+    signedIn('zh-TW');
+
+    const [report] = reports();
+    expect(report.request.method).toBe('PUT');
+    expect(report.request.body).toEqual({ language: 'zh-HK' });
+    report.flush(null, { status: 204, statusText: 'No Content' });
+    TestBed.tick();
+
+    expect(store.user()?.site_language).toBe('zh-HK');
+    expect(reports()).toEqual([]);
+  });
+
+  it('sends nothing when the language has not changed', () => {
+    signedIn('zh-HK');
+    expect(reports()).toEqual([]);
+  });
+
+  it('sends nothing while signed out', () => {
+    lang.set('en');
+    TestBed.tick();
+    expect(reports()).toEqual([]);
+  });
+
+  it('reports a language switch', () => {
+    signedIn('zh-HK');
+
+    lang.set('en');
+    TestBed.tick();
+
+    const [report] = reports();
+    expect(report.request.body).toEqual({ language: 'en' });
+  });
+
+  it('does not repeat a report that is already on its way', () => {
+    signedIn('zh-TW');
+    const pending = reports();
+    expect(pending.length).toBe(1);
+
+    // Anything else about the profile changes while the report is out.
+    store.updateUser(u => ({ ...u, first_name: 'X' }));
+    TestBed.tick();
+
+    expect(reports()).toEqual([]);
+  });
+
+  it('tries again later when a report fails', () => {
+    signedIn('zh-TW');
+    reports()[0].flush(null, { status: 503, statusText: 'Service Unavailable' });
+
+    store.updateUser(u => ({ ...u, first_name: 'X' }));
+    TestBed.tick();
+
+    const [retry] = reports();
+    expect(retry.request.body).toEqual({ language: 'zh-HK' });
+  });
+});
+

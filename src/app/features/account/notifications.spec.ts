@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, of, throwError } from 'rxjs';
@@ -7,6 +8,7 @@ import { NotificationsComponent } from './notifications';
 import { AccountService } from '../../core/services/account.service';
 import { ToastService } from '../../core/services/toast.service';
 import { I18nService } from '../../core/i18n.service';
+import { UiDropdown } from '../../shared/ui/dropdown.component';
 
 describe('NotificationsComponent', () => {
   let fixture: ComponentFixture<NotificationsComponent>;
@@ -29,8 +31,8 @@ describe('NotificationsComponent', () => {
 
   beforeEach(() => {
     account = {
-      getNotificationSettings: vi.fn(() => of({ new_message_email: true })),
-      updateNotificationSettings: vi.fn((changes: any) => of({ new_message_email: true, ...changes })),
+      getNotificationSettings: vi.fn(() => of({ new_message_email: true, email_language: 'auto', site_language: 'zh-TW' })),
+      updateNotificationSettings: vi.fn((changes: any) => of({ new_message_email: true, email_language: 'auto', site_language: 'zh-TW', ...changes })),
     };
     toast = { success: vi.fn(), error: vi.fn() };
     TestBed.configureTestingModule({
@@ -38,7 +40,14 @@ describe('NotificationsComponent', () => {
       providers: [
         { provide: AccountService, useValue: account },
         { provide: ToastService, useValue: toast },
-        { provide: I18nService, useValue: { t: (k: string) => k, tOrNull: () => null, lang: signal('en') } },
+        {
+          provide: I18nService,
+          useValue: {
+            t: (k: string, params?: Record<string, string>) => (params ? `${k}|${JSON.stringify(params)}` : k),
+            tOrNull: () => null,
+            lang: signal('zh-TW'),
+          },
+        },
       ],
     });
   });
@@ -104,4 +113,44 @@ describe('NotificationsComponent', () => {
     expect(account.getNotificationSettings).toHaveBeenCalledTimes(2);
     expect(toggle()!.checked).toBe(true);
   });
+
+  describe('email language', () => {
+    const dropdown = () => fixture.debugElement.query(By.directive(UiDropdown)).componentInstance as UiDropdown;
+    const pick = (value: string) => {
+      dropdown().selectOption({ value, label: value });
+      fixture.detectChanges();
+    };
+
+    it('offers following the site, naming the language that means right now, and each language', async () => {
+      create();
+      // ngModel hands the initial value to the control a microtask later.
+      await fixture.whenStable();
+
+      const options = dropdown().options;
+      expect(options.map(o => o.value)).toEqual(['auto', 'zh-TW', 'zh-HK', 'en']);
+      expect(options[0].label).toBe('acct.emailLanguageAuto|{"lang":"中文 (繁體)"}');
+      expect(dropdown().value).toBe('auto');
+    });
+
+    it('saves a chosen language', () => {
+      create();
+
+      pick('en');
+
+      expect(account.updateNotificationSettings).toHaveBeenCalledWith({ email_language: 'en' });
+      expect(dropdown().value).toBe('en');
+      expect(toast.success).toHaveBeenCalledWith('acct.notifySaved');
+    });
+
+    it('puts the choice back and says so when saving fails', () => {
+      account.updateNotificationSettings.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
+      create();
+
+      pick('en');
+
+      expect(dropdown().value).toBe('auto');
+      expect(toast.error).toHaveBeenCalledWith('acct.notifySaveFailed');
+    });
+  });
 });
+

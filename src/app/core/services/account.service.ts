@@ -1,7 +1,8 @@
-import { Injectable, effect, inject, signal } from '@angular/core';
+import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import { HttpClient, HttpParams, HttpContext } from '@angular/common/http';
 import { Observable, shareReplay, tap, catchError, throwError } from 'rxjs';
 import { I18nService } from '../i18n.service';
+import { Lang } from '../i18n';
 import { AuthStore } from '../auth.store';
 import { SKIP_AUTH } from '../auth.interceptor';
 import { isSameRegion } from '../region-path';
@@ -49,10 +50,17 @@ export interface PaginatedResponse<T> {
   results: T[];
 }
 
+/** 'auto' follows the language the site was last used in. */
+export type EmailLanguage = 'auto' | Lang;
+
 /** The account page's Notifications section. */
 export interface NotificationSettings {
   /** Email about a chat message that arrives while not on the site. */
   new_message_email: boolean;
+  /** The one language notification emails are written in. */
+  email_language: EmailLanguage;
+  /** Read-only: the site language 'auto' currently resolves to. */
+  site_language: string;
 }
 
 export interface UserProfile {
@@ -127,7 +135,31 @@ export class AccountService {
         this.clearProfileCache();
       }
     });
+
+    // Tell the backend which language the site is being used in, so the
+    // notification emails it sends on its own (a chat message while away, a
+    // book request listed overnight) can follow it. Only when it differs
+    // from what the profile says: a page load in an unchanged language sends
+    // nothing, while switching language, or signing in on a device set to
+    // another one, is reported once.
+    effect(() => {
+      const lang = this.i18n.lang();
+      const user = this.authStore.user();
+      if (!user || user.site_language === lang) return;
+      const reporting = `${user.id}:${lang}`;
+      if (this.siteLanguageReported === reporting) return;
+      this.siteLanguageReported = reporting;
+      untracked(() => this.http.put('/auth/me/site-language/', { language: lang }).subscribe({
+        next: () => this.authStore.updateUser(u => ({ ...u, site_language: lang })),
+        // Best effort; the next page load or language change tries again.
+        error: () => {
+          if (this.siteLanguageReported === reporting) this.siteLanguageReported = null;
+        },
+      }));
+    });
   }
+
+  private siteLanguageReported: string | null = null;
 
   getMyProfile(page: number = 1, q: string = ''): Observable<any> {
     // For backwards-compat callers that still use this directly,

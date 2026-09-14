@@ -1,7 +1,10 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { TPipe, I18nService } from '../../core/i18n.service';
-import { AccountService, NotificationSettings } from '../../core/services/account.service';
+import { AccountService, EmailLanguage, NotificationSettings } from '../../core/services/account.service';
+import { LANG_LABELS } from '../../core/i18n';
+import { UiDropdown } from '../../shared/ui/dropdown.component';
 import { ToastService } from '../../core/services/toast.service';
 import { parseApiError } from '../../core/api-error.util';
 import { UiErrorState } from '../../shared/ui/error-state.component';
@@ -16,7 +19,7 @@ import { UiSkeleton } from '../../shared/ui/skeleton.component';
 @Component({
   selector: 'app-account-notifications',
   standalone: true,
-  imports: [CommonModule, TPipe, UiErrorState, UiSkeleton],
+  imports: [CommonModule, FormsModule, TPipe, UiErrorState, UiSkeleton, UiDropdown],
   template: `
     <h2 class="section-heading">{{ 'acct.notificationsTitle' | t }}</h2>
 
@@ -48,6 +51,21 @@ import { UiSkeleton } from '../../shared/ui/skeleton.component';
           <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
         </label>
       </li>
+      <li class="notification-row">
+        <div class="notification-text">
+          <span class="notification-label" id="email-language-label">{{ 'acct.emailLanguage' | t }}</span>
+          <p class="notification-desc">{{ 'acct.emailLanguageDesc' | t }}</p>
+        </div>
+        <ui-dropdown
+          #emailLanguageDropdown
+          class="email-language"
+          [options]="emailLanguageOptions()"
+          [ngModel]="current.email_language"
+          (ngModelChange)="setEmailLanguage($event)"
+          [searchable]="false"
+          [triggerAriaLabel]="'acct.emailLanguage' | t"
+        ></ui-dropdown>
+      </li>
     </ul>
   `,
   styles: [`
@@ -68,6 +86,10 @@ import { UiSkeleton } from '../../shared/ui/skeleton.component';
     }
     .notification-row + .notification-row {
       border-top: 1px solid var(--line);
+    }
+    .email-language {
+      flex-shrink: 0;
+      min-width: 12rem;
     }
     .notification-label {
       font-weight: 600;
@@ -148,6 +170,14 @@ export class NotificationsComponent implements OnInit {
   readonly loadFailed = signal(false);
   readonly saving = signal(false);
 
+  @ViewChild('emailLanguageDropdown') private emailLanguageDropdown?: UiDropdown;
+
+  /** "Follow the site" says which language that is right now, on this device. */
+  readonly emailLanguageOptions = computed(() => [
+    { value: 'auto', label: this.i18n.t('acct.emailLanguageAuto', { lang: LANG_LABELS[this.i18n.lang()] }) },
+    ...Object.entries(LANG_LABELS).map(([value, label]) => ({ value, label })),
+  ]);
+
   ngOnInit() {
     this.load();
   }
@@ -163,6 +193,29 @@ export class NotificationsComponent implements OnInit {
       error: () => {
         this.loading.set(false);
         this.loadFailed.set(true);
+      },
+    });
+  }
+
+  setEmailLanguage(language: EmailLanguage) {
+    const previous = this.settings();
+    if (!previous || previous.email_language === language) return;
+
+    this.settings.set({ ...previous, email_language: language });
+    this.saving.set(true);
+    this.accountService.updateNotificationSettings({ email_language: language }).subscribe({
+      next: (saved) => {
+        this.settings.set(saved);
+        this.saving.set(false);
+        this.toast.success(this.i18n.t('acct.notifySaved'));
+      },
+      error: (err) => {
+        this.settings.set(previous);
+        // Same reason as the switch below: the binding may not see a change
+        // to put back, so tell the dropdown directly.
+        this.emailLanguageDropdown?.writeValue(previous.email_language);
+        this.saving.set(false);
+        this.toast.error(parseApiError(err, this.i18n, 'acct.notifySaveFailed'));
       },
     });
   }

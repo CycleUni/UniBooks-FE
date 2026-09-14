@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { UiDropdown } from './dropdown.component';
 import { RegionService } from '../../core/region.service';
 import { I18nService, TPipe } from '../../core/i18n.service';
-import { Lang } from '../../core/i18n';
+import { LANG_LABELS, Lang } from '../../core/i18n';
 
 @Component({
   selector: 'ui-prefs-selector',
@@ -74,18 +74,12 @@ export class UiPrefsSelector {
   readonly i18n = inject(I18nService);
   readonly regionService = inject(RegionService);
 
-  private static readonly LANG_LABELS: Record<string, string> = {
-    'zh-TW': '中文 (繁體)',
-    'zh-HK': '中文 (香港)',
-    'en': 'English',
-  };
-
   get langOptions() {
-    const codes = this.regionService.currentRegionObj()?.languages
-      ?? Object.keys(UiPrefsSelector.LANG_LABELS);
+    const codes: string[] = this.regionService.currentRegionObj()?.languages
+      ?? Object.keys(LANG_LABELS);
     return codes
-      .filter(c => UiPrefsSelector.LANG_LABELS[c])
-      .map(c => ({ value: c, label: UiPrefsSelector.LANG_LABELS[c] }));
+      .filter((c): c is Lang => c in LANG_LABELS)
+      .map(c => ({ value: c, label: LANG_LABELS[c] }));
   }
 
   get regionOptions() {

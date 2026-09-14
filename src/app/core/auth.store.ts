@@ -33,6 +33,8 @@ export interface AuthUser {
   is_staff?: boolean;
   is_superuser?: boolean;
   verifications?: RegionVerification[];
+  /** The language the site was last used in, as last reported. */
+  site_language?: string;
   [key: string]: unknown;
 }
 
