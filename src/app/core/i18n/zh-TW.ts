@@ -629,7 +629,7 @@ export const zhTW: Record<string, string> = {
   'seller.salesCount': '成交 {n} 筆',
   'seller.salesCountOne': '成交 {n} 筆',
   'seller.ratingAria': '評分 {rating}（滿分 5 分）',
-  'seller.pageTitle': '{name} 的二手商品 | UniBooks',
+  'seller.pageTitle': '{name} 的二手商品',
 
   // Moderation / Report
   'moderation.reportButton': '檢舉',
@@ -869,6 +869,10 @@ export const zhTW: Record<string, string> = {
   // SEO
   'seo.title': 'UniBooks',
   'seo.description': 'UniBooks 是一個專為大學生設計的二手書籍與物品交易平台，讓校園資源循環利用更簡單。',
+  'seo.homeTitle': 'UniBooks - 校園二手書交易平台',
+  'seo.searchTitle': '搜尋：{q}',
+  'seo.bookDescription': '《{title}》，{authors} 著。在 UniBooks 向同學購買二手書。',
+  'seo.bookDescriptionNoAuthor': '《{title}》。在 UniBooks 向同學購買二手書。',
 
   // Admin Ads & Advertisers
   'admin.navAdvertisers': '廣告商',

@@ -16,6 +16,7 @@ import { I18nService, TPipe } from '../../core/i18n.service';
 import { CountCapPipe } from '../../shared/pipes/count-cap.pipe';
 import { MetadataService, PublicAd } from '../../core/services/metadata.service';
 import { SchoolStateService } from '../../core/services/school-state.service';
+import { bookQueryParams } from '../../core/book-preview';
 
 @Component({
   selector: 'app-home',
@@ -488,11 +489,9 @@ export class Home implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  /** No preview state: nothing primes the book cache from a waitlist row. */
   waitlistParams(wait: any): Record<string, any> {
-    const params: Record<string, any> = { local_cache: 'true' };
-    if (wait?.isbn) params['isbn'] = wait.isbn;
-    else params['id'] = wait?.book_id;
-    return params;
+    return bookQueryParams({ isbn: wait?.isbn, id: wait?.book_id });
   }
 
   trackById(idx: number, item: any): any { return item.id || idx; }

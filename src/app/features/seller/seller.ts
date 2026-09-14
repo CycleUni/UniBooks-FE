@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, ChangeDetectorRef, effect } from '@angular/core';
+import { SeoService } from '../../core/services/seo.service';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { Title, Meta } from '@angular/platform-browser';
 import { RegionService } from '../../core/region.service';
 
 import { AccountService } from '../../core/services/account.service';
@@ -195,10 +195,9 @@ export class SellerPageComponent implements OnInit {
   private regionLink = inject(RegionLinkService);
   private accountService = inject(AccountService);
   private listingService = inject(ListingService);
-  private title = inject(Title);
+  private seo = inject(SeoService);
   public regionService = inject(RegionService);
   private i18n = inject(I18nService);
-  private meta = inject(Meta);
   private cdr = inject(ChangeDetectorRef);
 
   seller: any = null;
@@ -250,7 +249,8 @@ export class SellerPageComponent implements OnInit {
         this.reviewCount = profile.review_count || 0;
         this.noShowCount = profile.no_show_count || 0;
         this.avatarUrl = profile.avatar_url || '';
-        this.title.setTitle(this.i18n.t('seller.pageTitle', { name: this.seller.display_name }));
+        // A key, not a resolved string, so a language switch re-titles the tab.
+        this.seo.setPage({ titleKey: 'seller.pageTitle', titleParams: { name: this.seller.display_name } });
         this.cdr.detectChanges();
         this.loadListings(id);
       },

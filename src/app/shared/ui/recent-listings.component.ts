@@ -12,6 +12,16 @@ import { UiPagination } from './pagination.component';
 import { UiErrorState } from './error-state.component';
 import { ListingService } from '../../core/services/listing.service';
 import { I18nService, TPipe } from '../../core/i18n.service';
+import { bookPreviewState, bookQueryParams } from '../../core/book-preview';
+
+/**
+ * Books per page of recent_books/. The backend paginates this endpoint at its
+ * REST_FRAMEWORK PAGE_SIZE (20) and `limit` only trims within that page, so
+ * asking for more never returned more: the search page's `limit=4000` (and
+ * the old default of 200, the backend's cap) were requests for 20 books that
+ * also minted their own server cache keys. Ask for exactly what is shown.
+ */
+export const RECENT_BOOKS_PAGE_SIZE = 20;
 
 @Component({
   selector: 'ui-recent-listings',
@@ -46,6 +56,7 @@ import { I18nService, TPipe } from '../../core/i18n.service';
               [isFromPrice]="item.data.max_price > item.data.min_price"
               [link]="['/book']"
               [linkParams]="bookLinkParams(item.data)"
+              [linkState]="previewState"
               (tileClick)="cacheBook(item.data)"
             ></ui-book-tile>
           </ng-container>
@@ -61,7 +72,7 @@ import { I18nService, TPipe } from '../../core/i18n.service';
         </a>
       </div>
       <p *ngIf="recentBooks.length === 0 && !errorMessage" class="empty-note">{{ 'home.noListings' | t }}</p>
-      <ui-pagination *ngIf="totalCount > 20" [total]="totalCount" [pageSize]="20" [currentPage]="currentPage" (pageChange)="onPageChange($event)"></ui-pagination>
+      <ui-pagination *ngIf="totalCount > pageSize" [total]="totalCount" [pageSize]="pageSize" [currentPage]="currentPage" (pageChange)="onPageChange($event)"></ui-pagination>
     </ng-container>
   `,
   styles: [`
@@ -113,7 +124,10 @@ export class UiRecentListings {
     this.fetchRecentBooks();
   }
   get limit() { return this._limit; }
-  private _limit = 200;
+  private _limit = RECENT_BOOKS_PAGE_SIZE;
+
+  /** What one page of the grid shows; see RECENT_BOOKS_PAGE_SIZE. */
+  readonly pageSize = RECENT_BOOKS_PAGE_SIZE;
 
   @Input() ads: any[] = [];
   @Output() adClick = new EventEmitter<any>();
@@ -240,11 +254,11 @@ export class UiRecentListings {
     sessionStorage.setItem(`cachedBook_${item.isbn || item.id}`, JSON.stringify(cached));
   }
 
+  /** Lets the book page show what cacheBook() stashed; carried outside the URL. */
+  readonly previewState = bookPreviewState();
+
   bookLinkParams(item: any): Record<string, any> {
-    const params: Record<string, any> = { local_cache: 'true' };
-    if (item.isbn) params['isbn'] = item.isbn;
-    else params['id'] = item.id;
-    return params;
+    return bookQueryParams(item);
   }
 
   reload() {

@@ -20,6 +20,10 @@ import { UiVerificationPrompt } from '../../shared/ui/verification-prompt.compon
 import { RegionLinkService } from '../../core/region-link.service';
 import { ToastService } from '../../core/services/toast.service';
 import { isOwnListing } from '../../core/own-listing';
+import { SeoService } from '../../core/services/seo.service';
+import { navigationWantsBookPreview, bookQueryParams } from '../../core/book-preview';
+import { BookCoverPipe } from '../../shared/pipes/book-cover.pipe';
+import { displayPublisher } from '../../core/publisher';
 
 
 @Component({
@@ -56,7 +60,7 @@ import { isOwnListing } from '../../core/own-listing';
               </div>
               <div class="meta-row">
                 <span class="meta-label">{{ 'book.publisher' | t }}</span>
-                <span class="meta-value">{{ book.publisher }}</span>
+                <span class="meta-value">{{ publisherLabel }}</span>
               </div>
               <div class="meta-row">
                 <span class="meta-label">{{ 'book.year' | t }}</span>
@@ -288,6 +292,7 @@ export class Book implements OnInit {
   private isFirstSchoolEmission = true;
 
   private regionLink = inject(RegionLinkService);
+  private seo = inject(SeoService);
 
   constructor(private route: ActivatedRoute, private router: Router) {
     effect(() => {
@@ -321,10 +326,11 @@ export class Book implements OnInit {
     this.route.queryParamMap.subscribe(params => {
       this.bookId = params.get('isbn') || params.get('id');
       this.engine = parseSearchEngine(params.get('engine'));
-      const localCache = params.get('local_cache');
 
       if (this.bookId) {
-        if (localCache === 'true') {
+        // Only a click from a list page asks for the stashed preview, and it
+        // says so in router state rather than the URL — see book-preview.ts.
+        if (navigationWantsBookPreview(this.router)) {
           if (typeof sessionStorage !== 'undefined') {
             const cachedStr = sessionStorage.getItem(`cachedBook_${this.bookId}`);
             if (cachedStr) {
@@ -345,6 +351,7 @@ export class Book implements OnInit {
                   subscription_id: cached.subscription_id ?? null
                 };
                 this.isLocalCache = true;
+                this.describePage();
                 this.cdr.markForCheck();
                 // The cached search result carries everything except the
                 // actual listings, so hit the backend to get the real status
@@ -415,6 +422,7 @@ export class Book implements OnInit {
           this.totalListings = this.listings.length;
         }
         this.localListingsCount = data.local_listings_count ?? -1;
+        this.describePage();
         this.isLoadingListings = false;
         this.isLocalCache = false;
         this.sortListings();
@@ -431,6 +439,34 @@ export class Book implements OnInit {
         this.cdr.markForCheck();
       }
     });
+  }
+
+  /**
+   * Title, description, cover and canonical URL for this book.
+   *
+   * The canonical is always the ISBN form when the book has one: the same
+   * book is reachable as ?id=, ?isbn= and with an &engine= hint, and only
+   * one of those should be the address search engines keep.
+   */
+  private describePage() {
+    const book = this.book;
+    if (!book?.title) return;
+    const identity = bookQueryParams({ isbn: book.isbn13, id: book.id || this.bookId });
+    const canonicalPath = this.router.serializeUrl(
+      this.router.createUrlTree(this.regionLink.path(['/book']), { queryParams: identity })
+    );
+    this.seo.setPage({
+      title: book.title,
+      descriptionKey: book.authors ? 'seo.bookDescription' : 'seo.bookDescriptionNoAuthor',
+      descriptionParams: { title: book.title, authors: book.authors || '' },
+      canonicalPath,
+      image: book.cover_url ? new BookCoverPipe().transform(book.cover_url, 2) : undefined,
+    });
+  }
+
+  /** Publisher as shown; strips the quotes some catalogue records wrap it in. */
+  get publisherLabel(): string {
+    return displayPublisher(this.book?.publisher);
   }
 
   sortListings() {

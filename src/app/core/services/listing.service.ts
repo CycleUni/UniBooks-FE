@@ -65,7 +65,7 @@ export class ListingService {
     return this.cache.get(key)!;
   }
 
-  getRecentBooks(school?: string, page: number = 1, limit: number = 200): Observable<any> {
+  getRecentBooks(school?: string, page: number = 1, limit: number = 20): Observable<any> {
     let params = new HttpParams().set('page', page.toString()).set('limit', limit.toString());
     if (school) {
       params = params.set('school', school);

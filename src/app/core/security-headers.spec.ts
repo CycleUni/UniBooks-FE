@@ -30,6 +30,20 @@ describe('public/_headers', () => {
     expect(headerValue('Permissions-Policy')).toContain('camera=');
   });
 
+  it('caches only content-hashed files for a year, never the pages', () => {
+    // Rules are "/path" lines followed by indented headers; collect which
+    // paths carry a long max-age.
+    const longCached: string[] = [];
+    let rule = '';
+    for (const line of source.split('\n')) {
+      if (line.startsWith('/')) rule = line.trim();
+      else if (/^\s+Cache-Control:.*max-age=(\d{5,})/.test(line)) longCached.push(rule);
+    }
+    // /* would also match every SPA route, all served as index.html.
+    expect(longCached).not.toContain('/*');
+    expect(longCached.sort()).toEqual(['/chunk-*.js', '/main-*.js', '/polyfills-*.js', '/styles-*.css']);
+  });
+
   describe('Content-Security-Policy', () => {
     // Committed state is Report-Only; scripts/set-env.js rewrites this line at
     // build time and can promote it to enforcing. Either name is valid here —
@@ -83,10 +97,55 @@ describe('public/_headers', () => {
       expect(directive('script-src')).not.toContain("'unsafe-inline'");
     });
 
+    it('allows the Google Identity Services stylesheet', () => {
+      // GSI injects <link href="https://accounts.google.com/gsi/style">; with
+      // style-src naming only Google Fonts every sign-in page logged a
+      // violation, and enforcing would unstyle the button.
+      expect(directive('style-src')).toContain('https://accounts.google.com/gsi/style');
+      // set-env.js rebuilds this line on real deployments and must agree.
+      const setEnv = fs.readFileSync(path.join(process.cwd(), 'scripts/set-env.js'), 'utf-8');
+      expect(setEnv).toMatch(/"style-src [^"]*https:\/\/accounts\.google\.com\/gsi\/style[^"]*"/);
+    });
+
     it('does not let a wildcard reach script-src', () => {
       // img-src/connect-src carry wildcards in the committed fallback (see the
       // file's comment); script-src must never be among them, in any state.
       expect(directive('script-src')).not.toMatch(/(^|\s)(\*|https:)(\s|$)/);
+    });
+  });
+
+  describe('what the built page needs from the policy', () => {
+    // script-src has no 'unsafe-inline', so anything inline in the shell is a
+    // violation today and a broken page the day the policy is enforced.
+    const indexHtml = fs.readFileSync(path.join(process.cwd(), 'src/index.html'), 'utf-8')
+      .replace(/<!--[\s\S]*?-->/g, '');
+
+    it('ships no inline script in index.html', () => {
+      const scripts = indexHtml.match(/<script\b[^>]*>/gi) ?? [];
+      expect(scripts.length).toBeGreaterThan(0);
+      for (const tag of scripts) {
+        expect(tag).toMatch(/\ssrc=/);
+      }
+    });
+
+    it('ships no inline event handler attributes in index.html', () => {
+      expect(indexHtml).not.toMatch(/<[^>]+\son[a-z]+\s*=/i);
+    });
+
+    it('keeps the pre-paint theme script as a file the policy allows', () => {
+      expect(fs.existsSync(path.join(process.cwd(), 'public/theme-init.js'))).toBe(true);
+      expect(indexHtml).toContain('<script src="theme-init.js"></script>');
+    });
+
+    it("does not let the build add an onload handler to the stylesheet link", () => {
+      // Critical-CSS inlining (Beasties) rewrites the stylesheet to
+      // <link media="print" onload="this.media='all'"> — an inline handler
+      // added after index.html, so only the build config can prevent it.
+      const angular = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'angular.json'), 'utf-8'));
+      const configs = angular.projects['unibooks-fe'].architect.build.configurations;
+      for (const name of ['production', 'smoke']) {
+        expect(configs[name].optimization?.styles?.inlineCritical).toBe(false);
+      }
     });
   });
 });

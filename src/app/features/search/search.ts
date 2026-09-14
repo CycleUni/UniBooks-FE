@@ -23,6 +23,8 @@ import { combineLatest, Subscription } from 'rxjs';
 import { map, distinctUntilChanged, switchMap } from 'rxjs/operators';
 import { RegionLinkService } from '../../core/region-link.service';
 import { ToastService } from '../../core/services/toast.service';
+import { bookPreviewState, bookQueryParams } from '../../core/book-preview';
+import { SeoService } from '../../core/services/seo.service';
 
 type ConditionKey = 'new' | 'like_new' | 'noted' | 'damaged';
 const CONDITION_KEYS: ConditionKey[] = ['new', 'like_new', 'noted', 'damaged'];
@@ -150,7 +152,7 @@ const CONDITION_NONE = 'none';
 
           <!-- No active query/category → recent listings -->
           <ng-container *ngIf="!activeQuery && !category">
-            <ui-recent-listings [school]="currentSchool" [limit]="4000"></ui-recent-listings>
+            <ui-recent-listings [school]="currentSchool"></ui-recent-listings>
           </ng-container>
 
           <!-- Loading state with animation -->
@@ -175,6 +177,7 @@ const CONDITION_NONE = 'none';
                 [waitingCount]="item.waitlistCount"
                 [link]="['/book']"
                 [linkParams]="bookLinkParams(item)"
+                [linkState]="previewState"
                 (tileClick)="goToBook(item)"
               >
                 <div tile-actions class="tile-actions-inner">
@@ -438,6 +441,7 @@ export class Search implements OnInit {
   private ga = inject(GoogleAnalyticsService);
 
   private regionLink = inject(RegionLinkService);
+  private seo = inject(SeoService);
 
   constructor(private route: ActivatedRoute, private router: Router) {
     effect(() => { this.i18n.lang(); this.loadMetadata(); });
@@ -477,6 +481,7 @@ export class Search implements OnInit {
     ).subscribe(([params, school]) => {
       this.currentSchool = school;
       this.restoreStateFromParams(params);
+      this.describePage();
 
       // 書況／價格／庫存只在 filteredResults 裡做前端過濾，重打 API 會拿回
       // 一模一樣的那頁資料。只有真正送進 searchBooks() 的欄位變了才重查。
@@ -493,6 +498,25 @@ export class Search implements OnInit {
         this.cdr.markForCheck();
       }
     });
+  }
+
+  /**
+   * Tab title and canonical for the search being shown. The canonical keeps
+   * only what changes the result set — q, category, course — so filter,
+   * paging and engine variants of one search are not indexed as separate
+   * pages.
+   */
+  private describePage() {
+    const queryParams: Record<string, string> = {};
+    if (this.activeQuery) queryParams['q'] = this.activeQuery;
+    if (this.category) queryParams['category'] = this.category;
+    if (this.course) queryParams['course'] = this.course;
+    const canonicalPath = this.router.serializeUrl(
+      this.router.createUrlTree(this.regionLink.path(['/search']), { queryParams })
+    );
+    this.seo.setPage(this.activeQuery
+      ? { titleKey: 'seo.searchTitle', titleParams: { q: this.activeQuery }, canonicalPath }
+      : { titleKey: 'nav.search', canonicalPath });
   }
 
   /**
@@ -624,9 +648,11 @@ export class Search implements OnInit {
   }
 
   /** Route params for a result tile; the tile's own anchor does the navigating. */
+  /** Lets the book page show what goToBook() stashed; carried outside the URL. */
+  readonly previewState = bookPreviewState();
+
   bookLinkParams(item: any): Record<string, any> {
-    const params: Record<string, any> = { local_cache: 'true' };
-    if (item.isbn) params['isbn'] = item.isbn; else params['id'] = item.id;
+    const params: Record<string, any> = bookQueryParams(item);
     // Belt-and-suspenders alongside goToBook()'s sessionStorage priming:
     // if the cache entry is missing (cleared tab, private browsing) the
     // book page falls back to a live lookup, which must use the same

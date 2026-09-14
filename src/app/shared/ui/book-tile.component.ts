@@ -42,6 +42,7 @@ import { UiBookCover } from './book-cover.component';
         class="tile-body hover-card"
         [regionLink]="link"
         [queryParams]="linkParams"
+        [state]="linkState"
         (click)="tileClick.emit()"
       >
         <ng-container *ngTemplateOutlet="body"></ng-container>
@@ -215,6 +216,8 @@ export class UiBookTile {
    */
   @Input() link?: any[] | string;
   @Input() linkParams?: Record<string, any>;
+  /** Router navigation state for the link — kept out of the href, see bookPreviewState(). */
+  @Input() linkState?: Record<string, any>;
 
   // mode: 'sellers'
   /** Number of active listings for this book, not distinct sellers. */

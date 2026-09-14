@@ -10,6 +10,7 @@ import { I18nService, TPipe } from '../../core/i18n.service';
 import { CountCapPipe } from '../../shared/pipes/count-cap.pipe';
 import { PublicAd } from '../../core/services/metadata.service';
 import { RegionLinkService } from '../../core/region-link.service';
+import { bookPreviewState, bookQueryParams } from '../../core/book-preview';
 
 
 /** One book or ad in the hero's tilted cover stack. */
@@ -132,6 +133,7 @@ export interface HeroCover {
                 [style.--hover-dir]="heroCoverHoverDir(i)"
                 [regionLink]="['/book']"
                 [queryParams]="heroBookParams(cover)"
+                [state]="previewState"
                 (click)="cacheHeroBook(cover)"
               >
                 <ui-book-cover
@@ -455,11 +457,11 @@ export class HomeHero {
 
   /** Route params for a hero cover; the anchor's href does the navigating. */
   heroBookParams(cover: HeroCover): Record<string, any> {
-    const params: Record<string, any> = { local_cache: 'true' };
-    if (cover.isbn) params['isbn'] = cover.isbn;
-    else params['id'] = cover.id;
-    return params;
+    return bookQueryParams(cover);
   }
+
+  /** Lets the book page show what cacheHeroBook() stashed; carried outside the URL. */
+  readonly previewState = bookPreviewState();
 
   /** Primes the detail-page cache on the way out; navigation is the link's job. */
   cacheHeroBook(cover: HeroCover) {

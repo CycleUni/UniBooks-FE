@@ -27,11 +27,13 @@ import { DefaultUrlSerializer, Router, UrlTree } from '@angular/router';
 /**
  * Query parameters that point at state belonging to the region being left.
  *
- * `local_cache=true` tells the book page to render the preview a list page
- * stashed in sessionStorage — a preview built from the old region's search
- * results, waitlist count and subscription included. Carried across, the new
- * region's page would show those numbers until (and, if its lookup failed,
- * instead of) its own.
+ * `local_cache=true` used to tell the book page to render the preview a list
+ * page stashed in sessionStorage — a preview built from the old region's
+ * search results, waitlist count and subscription included. That signal now
+ * travels as router state (see book-preview.ts), which a region switch's full
+ * page load drops by itself; the parameter is still stripped because links
+ * copied while it was in the href are still around, and it only ever made a
+ * second URL for the same page.
  */
 const REGION_BOUND_QUERY_PARAMS = ['local_cache'];
 

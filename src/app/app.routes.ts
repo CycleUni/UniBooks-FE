@@ -12,6 +12,7 @@ const featureRoutes: Routes = [
   },
   {
     path: 'search',
+    data: { seo: { titleKey: 'nav.search' } },
     loadComponent: () => import('./features/search/search').then((m) => m.Search),
   },
   {
@@ -20,21 +21,25 @@ const featureRoutes: Routes = [
   },
   {
     path: 'sell',
+    data: { seo: { titleKey: 'nav.sell' } },
     canDeactivate: [unsavedChangesGuard],
     loadComponent: () => import('./features/sell/sell').then((m) => m.Sell),
   },
   {
     path: 'login',
+    data: { seo: { titleKey: 'auth.login' } },
     canActivate: [guestGuard],
     loadComponent: () => import('./features/auth/login').then((m) => m.LoginPage),
   },
   {
     path: 'register',
+    data: { seo: { titleKey: 'auth.registerTitle' } },
     canActivate: [guestGuard],
     loadComponent: () => import('./features/auth/register').then((m) => m.RegisterPage),
   },
   {
     path: 'account',
+    data: { seo: { titleKey: 'nav.account' } },
     // Guarded at the parent now that /account is the dashboard only — the
     // login wall it used to render on the same URL moved to /login.
     canActivate: [authGuard],
@@ -49,31 +54,35 @@ const featureRoutes: Routes = [
       { path: 'settings', canActivate: [authGuard], loadComponent: () => import('./features/account/settings').then(m => m.SettingsComponent) }
     ]
   },
-  { path: 'checkout/success', loadComponent: () => import('./features/checkout/success').then(m => m.OrderSuccessComponent) },
+  { path: 'checkout/success', data: { seo: { titleKey: 'checkout.successTitle' } }, loadComponent: () => import('./features/checkout/success').then(m => m.OrderSuccessComponent) },
   // Guarded, though it never used to be: placing an order needs a session.
   // Its entrances already assume one — listing-detail's canStartTransaction and
   // book's buy buttons bounce a signed-out visitor to /login themselves, and
   // messages' goToCheckout sits behind /messages' own authGuard. Saying so on
   // the route means a session that dies *while* the visitor is on checkout gets
   // the same answer, instead of leaving them on a page whose only button fails.
-  { path: 'checkout/:id', canActivate: [authGuard], loadComponent: () => import('./features/checkout/checkout').then(m => m.CheckoutComponent) },
+  { path: 'checkout/:id', data: { seo: { titleKey: 'checkout.title' } }, canActivate: [authGuard], loadComponent: () => import('./features/checkout/checkout').then(m => m.CheckoutComponent) },
   { path: 'listing/:id', loadComponent: () => import('./features/listing-detail/listing-detail').then(m => m.ListingDetail) },
   { path: 'seller/:id', loadComponent: () => import('./features/seller/seller').then(m => m.SellerPageComponent) },
   {
     path: 'messages',
+    data: { seo: { titleKey: 'nav.messages' } },
     canActivate: [authGuard],
     loadComponent: () => import('./features/messages/messages').then((m) => m.Messages),
   },
   {
     path: 'verify',
+    data: { seo: { titleKey: 'verify.title' } },
     loadComponent: () => import('./features/auth/verify').then((m) => m.VerifyEmail),
   },
   {
     path: 'forgot-password',
+    data: { seo: { titleKey: 'auth.forgotPassword' } },
     loadComponent: () => import('./features/auth/forgot-password').then((m) => m.ForgotPassword),
   },
   {
     path: 'admin',
+    data: { seo: { titleKey: 'admin.title' } },
     canActivate: [adminGuard],
     loadComponent: () => import('./features/admin/admin-shell.component').then((m) => m.AdminShellComponent),
     children: [
@@ -100,6 +109,11 @@ const featureRoutes: Routes = [
   },
   {
     path: '**',
+    // Cloudflare Pages serves the app shell with HTTP 200 for every path it
+    // has no file for, so a mistyped or dead link is a "soft 404" a search
+    // engine would index as a real page. The status cannot be changed without
+    // running a Function on every navigation; noindex is the cheap signal.
+    data: { seo: { titleKey: 'notfound.title', noindex: true } },
     loadComponent: () => import('./features/not-found/not-found').then(m => m.NotFoundComponent),
   }
 ];

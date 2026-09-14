@@ -627,7 +627,7 @@ export const en: Record<string, string> = {
   'seller.salesCount': '{n} completed sales',
   'seller.salesCountOne': '{n} completed sale',
   'seller.ratingAria': 'Rated {rating} out of 5',
-  'seller.pageTitle': "{name}'s Listings | UniBooks",
+  'seller.pageTitle': "{name}'s Listings",
 
   // Moderation / Report
   'moderation.reportButton': 'Report',
@@ -867,6 +867,10 @@ export const en: Record<string, string> = {
   // SEO
   'seo.title': 'UniBooks',
   'seo.description': 'UniBooks is a second-hand book and item trading platform designed for university students, making campus resource recycling simple.',
+  'seo.homeTitle': 'UniBooks - Campus Marketplace',
+  'seo.searchTitle': 'Search: {q}',
+  'seo.bookDescription': '{title} by {authors}. Buy it second-hand from students on UniBooks.',
+  'seo.bookDescriptionNoAuthor': '{title}. Buy it second-hand from students on UniBooks.',
 
   // Admin Ads & Advertisers
   'admin.navAdvertisers': 'Advertisers',

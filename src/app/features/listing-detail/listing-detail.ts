@@ -23,6 +23,7 @@ import { RegionService } from '../../core/region.service';
 import { isSameRegion } from '../../core/region-path';
 import { scrollBehavior } from '../../core/reduced-motion';
 import { isOwnListing } from '../../core/own-listing';
+import { SeoService } from '../../core/services/seo.service';
 
 
 @Component({
@@ -101,6 +102,7 @@ export class ListingDetail implements OnInit, OnDestroy {
   private ngZone = inject(NgZone);
   readonly i18n = inject(I18nService);
   private ga = inject(GoogleAnalyticsService);
+  private seo = inject(SeoService);
 
   private currentId: string | null = null;
 
@@ -199,6 +201,9 @@ export class ListingDetail implements OnInit, OnDestroy {
           this.allPhotos.push(coverUrl);
         }
         this.selectedIndex = 0;
+        // Named after the book, pictured with the seller's first photo: that
+        // is what a shared listing link should preview as.
+        this.seo.setPage({ title: data.book_title, image: this.allPhotos[0] || undefined });
 
         // Fetch other listings for the same book — after the main listing loads.
         // Skipped for a listing from another region: the book lookup is

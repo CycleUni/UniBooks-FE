@@ -72,10 +72,12 @@ describe('HomeHero', () => {
   });
 
   it('routes a hero cover by isbn, falling back to id', () => {
+    // No local_cache: the preview request travels as router state, so the
+    // href stays the one URL a shared link should have.
     expect(component.heroBookParams({ id: 7, isbn: '978', title: 'x' }))
-      .toEqual({ local_cache: 'true', isbn: '978' });
+      .toEqual({ isbn: '978' });
     expect(component.heroBookParams({ id: 7, title: 'x' }))
-      .toEqual({ local_cache: 'true', id: 7 });
+      .toEqual({ id: 7 });
   });
 
   it('renders the request CTA when covers array is empty', () => {

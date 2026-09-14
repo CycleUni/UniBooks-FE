@@ -1,14 +1,14 @@
-import { Component, inject, effect, signal, PLATFORM_ID, DestroyRef } from '@angular/core';
+import { Component, inject, signal, PLATFORM_ID, DestroyRef } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { RouterOutlet, Router, NavigationEnd } from '@angular/router';
-import { Title, Meta } from '@angular/platform-browser';
-import { I18nService, TPipe } from './core/i18n.service';
+import { TPipe } from './core/i18n.service';
 import { UiLayout } from './shared/ui/layout.component';
 import { UiToastHost } from './shared/ui/toast-host.component';
 import { UiConfirmDialog } from './shared/ui/confirm-dialog.component';
 import { NavigationHistoryService } from './core/services/navigation-history.service';
 import { GoogleAuthService } from './core/services/google-auth.service';
 import { GoogleAnalyticsService } from './core/services/google-analytics.service';
+import { SeoService } from './core/services/seo.service';
 import { SwUpdate, VersionReadyEvent, VersionInstallationFailedEvent } from '@angular/service-worker';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs/operators';
@@ -78,9 +78,9 @@ export class App {
   private navHistory = inject(NavigationHistoryService);
   private googleAuth = inject(GoogleAuthService); // Initializes One Tap globally
   private googleAnalytics = inject(GoogleAnalyticsService); // Initializes GA globally
-  private i18n = inject(I18nService);
-  private titleService = inject(Title);
-  private metaService = inject(Meta);
+  // Owns the document title, description, canonical and og: tags; it only
+  // has to exist, so it is created here with the shell.
+  private seo = inject(SeoService);
   private swUpdate = inject(SwUpdate);
   private destroyRef = inject(DestroyRef);
   private platformId = inject(PLATFORM_ID);
@@ -95,21 +95,6 @@ export class App {
   private unregisterBeforeReload = false;
 
   constructor() {
-    effect(() => {
-      // Accessing i18n.lang() registers it as a dependency for this effect
-      const lang = this.i18n.lang();
-      
-      const title = this.i18n.t('seo.title');
-      const description = this.i18n.t('seo.description');
-      
-      if (title) {
-        this.titleService.setTitle(title);
-      }
-      if (description) {
-        this.metaService.updateTag({ name: 'description', content: description });
-      }
-    });
-
     // Without this, a tab left open across a deploy keeps running the old
     // build indefinitely — and since each build's JS/CSS chunk filenames are
     // content-hashed, the stale service worker's asset manifest ends up

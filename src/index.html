@@ -28,20 +28,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet">
-  <script>
-    // Applies the saved theme choice before first paint so there's no flash
-    // of the wrong theme while Angular boots. Mirrors ThemeService's own
-    // logic/storage key (src/app/core/services/theme.service.ts) — keep
-    // both in sync if that key or the light/dark values ever change.
-    (function () {
-      try {
-        var stored = localStorage.getItem('unibooks_theme');
-        if (stored === 'light' || stored === 'dark') {
-          document.documentElement.setAttribute('data-theme', stored);
-        }
-      } catch (e) {}
-    })();
-  </script>
+  <!-- Applies the saved theme before first paint. An external file, not an
+       inline script block: the CSP allows script only from 'self', so inline code
+       would need 'unsafe-inline' or a hash kept in step with every edit.
+       Loaded synchronously on purpose — deferring it brings back the flash
+       of the wrong theme it exists to prevent. -->
+  <script src="theme-init.js"></script>
 </head>
 <body>
   <app-root></app-root>

@@ -41,6 +41,14 @@
           },
           "configurations": {
             "production": {
+              "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": false
+                },
+                "fonts": true
+              },
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
@@ -63,6 +71,14 @@
               "serviceWorker": "ngsw-config.json"
             },
             "smoke": {
+              "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": false
+                },
+                "fonts": true
+              },
               "budgets": [
                 {
                   "type": "initial",
