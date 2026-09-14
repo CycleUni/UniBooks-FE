@@ -165,25 +165,31 @@
   :root:not([data-theme="light"]) {
     --ink:        #EDE8DE; /* warm off-white text */
     --ink-soft:   #C4BDB0;
-    --paper:      #17181A; /* deep warm charcoal ground (not pure black) */
+    --paper:      #181716; /* deep warm charcoal ground (not pure black) */
     --paper-warm: #201F1B; /* slightly lighter charcoal for section backgrounds */
     --line:        #3B382E; /* subtle warm-toned border */
     --line-strong: #706A5A; /* 3.3:1 on --paper and 3.1:1 on --paper-warm */
-    --surface-raised:        #26282B;
-    --surface-raised-border: #46484D;
+    --surface-raised:        #292723;
+    --surface-raised-border: #4A4640;
     /* A card cannot be --paper here. The page ground *is* --paper, so a card
        painted with it differs from the page by exactly 1.00:1, leaving the
        shadow to do the separating — and the shadow is black on near-black:
-       its outermost rgba(0, 0, 0, 0.6) over #17181A composites to #090A0A,
+       its outermost rgba(0, 0, 0, 0.6) over #181716 composites to #0A0909,
        1.12:1. Elevation in a dark UI has to be carried by a lighter surface,
-       not a darker shadow. #242629 is 1.17:1 above the page by WCAG contrast
-       and 2.11:1 by relative luminance, across the card's whole area rather
-       than a 24px gradient at its edge. It is also the brightest step that
-       keeps every on-card token at AA: one step further, to --surface-raised's
-       #26282B, drops --accent to 4.46:1. Staying below --surface-raised is
-       deliberate — dropdowns and modals still have somewhere to sit above a
-       card. */
-    --surface-card:          #242629;
+       not a darker shadow. #262421 is 1.16:1 above the page by WCAG contrast
+       and 2.06:1 by relative luminance, across the card's whole area rather
+       than a 24px gradient at its edge. Every on-card token stays at AA
+       (--accent, the tightest, is 4.67:1 here and 4.50:1 on --surface-raised).
+       Staying below --surface-raised is deliberate — dropdowns and modals
+       still have somewhere to sit above a card.
+
+       The three grounds (--paper, --surface-card, --surface-raised) and the
+       raised border were cool blue-greys (#17181A / #242629 / #26282B /
+       #46484D, blue channel highest), which read as blue next to the warm
+       --paper-warm and --line. They are now warm neutrals at hue ~36-40°, the
+       same family as the rest of the palette, at the same lightness steps, so
+       the separation between page, card and window is unchanged. */
+    --surface-card:          #262421;
     --accent:      #4B9C7B; /* brighter green for contrast on a dark ground */
     --accent-ink:  #7FC4A6; /* lighter emphasis variant of accent on dark */
     --accent-soft: #1E2B25;
@@ -220,9 +226,9 @@
     /* See --on-* in :root. The dark palette's fills are the *lighter*
        variants sitting on a near-black ground, so the readable label is dark
        ink, not white: 5.4:1 / 5.4:1 / 6.8:1 respectively. */
-    --on-accent:  #17181A;
-    --on-flag:    #17181A;
-    --on-success: #17181A;
+    --on-accent:  #181716;
+    --on-flag:    #181716;
+    --on-success: #181716;
 
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 24px -12px rgba(0, 0, 0, 0.6);
     --shadow-card-lg: 0 2px 4px rgba(0, 0, 0, 0.5), 0 16px 32px -10px rgba(0, 0, 0, 0.7);
@@ -233,14 +239,14 @@
 :root[data-theme="dark"] {
   --ink:        #EDE8DE;
   --ink-soft:   #C4BDB0;
-  --paper:      #17181A;
+  --paper:      #181716;
   --paper-warm: #201F1B;
   --line:        #3B382E;
   --line-strong: #706A5A;
-  --surface-raised:        #26282B;
-  --surface-raised-border: #46484D;
+  --surface-raised:        #292723;
+  --surface-raised-border: #4A4640;
   /* See the same token in the prefers-color-scheme block above. */
-  --surface-card:          #242629;
+  --surface-card:          #262421;
   --accent:      #4B9C7B;
   --accent-ink:  #7FC4A6;
   --accent-soft: #1E2B25;
@@ -277,9 +283,9 @@
   /* See --on-* in :root. The dark palette's fills are the *lighter*
      variants sitting on a near-black ground, so the readable label is dark
      ink, not white: 5.4:1 / 5.4:1 / 6.8:1 respectively. */
-  --on-accent:  #17181A;
-  --on-flag:    #17181A;
-  --on-success: #17181A;
+  --on-accent:  #181716;
+  --on-flag:    #181716;
+  --on-success: #181716;
 
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 24px -12px rgba(0, 0, 0, 0.6);
   --shadow-card-lg: 0 2px 4px rgba(0, 0, 0, 0.5), 0 16px 32px -10px rgba(0, 0, 0, 0.7);
