@@ -4,6 +4,7 @@ import { RegionLinkDirective } from '../../core/region-link.directive';
 import { UiButton } from './button.component';
 import { I18nService, TPipe } from '../../core/i18n.service';
 import { PricePipe } from '../pipes/price.pipe';
+import { UiSellerReputation } from './seller-reputation.component';
 
 /**
  * `ui-listing-card`: one real per-seller Listing, with marketplace chrome.
@@ -25,7 +26,7 @@ import { PricePipe } from '../pipes/price.pipe';
 @Component({
   selector: 'ui-listing-card',
   standalone: true,
-  imports: [CommonModule, RegionLinkDirective, UiButton, TPipe, PricePipe],
+  imports: [CommonModule, RegionLinkDirective, UiButton, TPipe, PricePipe, UiSellerReputation],
   template: `
     <div class="listing-card hover-card hover-card-surface">
       <a
@@ -50,9 +51,6 @@ import { PricePipe } from '../pipes/price.pipe';
           <span class="price">{{ item.price | price: item.currency }}</span>
           <span class="condition-badge" [ngClass]="item.condition">{{ getConditionLabel(item.condition) }}</span>
         </span>
-        <span class="seller-info">
-          <strong>{{ item.seller_name }}</strong> ({{ item.school_name || ('acct.noSchool' | t) }})
-        </span>
         <span class="course-info" *ngIf="item.course_name">
           {{ 'book.coursePrefix' | t:{course: item.course_name} }}
         </span>
@@ -60,6 +58,23 @@ import { PricePipe } from '../pipes/price.pipe';
           {{ item.description }}
         </span>
       </ng-template>
+
+      <!-- Who is selling, and their track record. A sibling of the body for
+           the same reason as the buttons below: the seller's name links to
+           their profile, and a link may not sit inside the body's own link or
+           button. -->
+      <div class="seller-info">
+        <a *ngIf="item.seller != null; else plainName" class="seller-link" [regionLink]="['/seller', item.seller]">{{ item.seller_name }}</a>
+        <ng-template #plainName><strong>{{ item.seller_name }}</strong></ng-template>
+        <span class="seller-school"> ({{ item.school_name || ('acct.noSchool' | t) }})</span>
+        <span class="seller-reputation">
+          <ui-seller-reputation
+            [rating]="item.seller_average_rating"
+            [reviewCount]="item.seller_review_count"
+            [sales]="item.seller_completed_sales"
+          ></ui-seller-reputation>
+        </span>
+      </div>
 
       <!-- Contacting the seller leads, and the meetup request follows. The
            order used to be reversed, but the backend rejects an order from a
@@ -175,9 +190,27 @@ import { PricePipe } from '../pipes/price.pipe';
     .seller-info {
       display: block;
       font-size: var(--text-base);
-      margin-bottom: 8px;
+      padding-top: 12px;
       overflow-wrap: anywhere;
       word-break: break-word;
+    }
+    .seller-link {
+      font-weight: 700;
+      color: var(--ink);
+      text-decoration: underline;
+      text-decoration-color: var(--line-strong);
+      text-underline-offset: 2px;
+    }
+    .seller-link:hover {
+      color: var(--accent);
+      text-decoration-color: currentColor;
+    }
+    .seller-school {
+      color: var(--muted);
+    }
+    .seller-reputation {
+      display: block;
+      margin-top: 2px;
     }
     .course-info {
       display: block;

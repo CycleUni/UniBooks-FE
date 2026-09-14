@@ -36,7 +36,9 @@ import { formatInboxTime } from './message-formatting.util';
         <div class="chat-thumb placeholder-thumb" *ngIf="!chat.listing_photo"></div>
         <div class="chat-body">
           <div class="chat-meta">
-            <span class="chat-partner">{{ chat.other_party }}</span>
+            <!-- The school rides along because display names are not unique:
+                 two chats with two different 周恭煥 looked identical. -->
+            <span class="chat-partner">{{ chat.other_party }}<span class="chat-partner-school" *ngIf="chat.other_party_school_name"> · {{ chat.other_party_school_name }}</span></span>
             <div class="chat-meta-right">
               <ui-role-badge [role]="chat.other_party_role"></ui-role-badge>
               <span class="unread-dot" *ngIf="chat._hubUnread" role="img" [attr.aria-label]="'msg.unread' | t"></span>
@@ -119,6 +121,11 @@ import { formatInboxTime } from './message-formatting.util';
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    .chat-partner-school {
+      font-weight: 400;
+      color: var(--muted);
+      font-size: var(--text-sm);
     }
     .chat-meta-right {
       display: flex;

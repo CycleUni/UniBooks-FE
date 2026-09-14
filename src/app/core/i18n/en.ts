@@ -573,6 +573,14 @@ export const en: Record<string, string> = {
   'order.meetupTimeError': 'Please select a future date and time',
   'order.meetupConfirm': 'Confirm',
   'order.reviewSubmitted': 'Review/report submitted successfully!',
+  'order.showDetails': 'Details',
+  'order.hideDetails': 'Hide details',
+  'order.orderId': 'Order ID',
+  'order.createdAt': 'Requested',
+  'order.updatedAt': 'Last updated',
+  'order.notArrangedYet': 'Not arranged yet',
+  'order.viewListing': 'View listing',
+  'order.openConversation': 'Open conversation',
 
   // Message errors
   'msg.errSystemMessageForbidden': 'Cannot send system message format.',
@@ -613,6 +621,12 @@ export const en: Record<string, string> = {
   'seller.verifiedBadge': 'Verified school email',
   'seller.noReviews': 'No reviews yet',
   'seller.noShowCount': 'No-shows: {n}',
+  'seller.newSeller': 'New seller',
+  'seller.reviewCount': '{n} reviews',
+  'seller.reviewCountOne': '{n} review',
+  'seller.salesCount': '{n} completed sales',
+  'seller.salesCountOne': '{n} completed sale',
+  'seller.ratingAria': 'Rated {rating} out of 5',
   'seller.pageTitle': "{name}'s Listings | UniBooks",
 
   // Moderation / Report

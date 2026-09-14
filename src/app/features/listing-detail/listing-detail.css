@@ -248,6 +248,9 @@
       margin-bottom: 32px;
     }
     .seller-box.clickable {
+      display: block;
+      color: inherit;
+      text-decoration: none;
       cursor: pointer;
       transition: filter var(--motion-base) ease;
     }
@@ -300,6 +303,9 @@
       color: var(--muted);
       overflow-wrap: anywhere;
       word-break: break-word;
+    }
+    .seller-reputation {
+      margin-top: 4px;
     }
 
     /* Info List */

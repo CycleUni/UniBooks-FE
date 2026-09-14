@@ -56,7 +56,9 @@
             </div>
           </div>
 
-          <div class="seller-box clickable" [regionLink]="['/seller', listing.seller]">
+          <!-- A real anchor: as a div with a click binding the seller's
+               profile, and with it their reviews, was unreachable by keyboard. -->
+          <a class="seller-box clickable" [regionLink]="['/seller', listing.seller]">
             <div class="seller-header">
               <div class="seller-avatar" *ngIf="!listing.seller_avatar_url">{{ listing.seller_name.charAt(0) }}</div>
               <div class="seller-avatar-image-container" *ngIf="listing.seller_avatar_url">
@@ -65,9 +67,16 @@
               <div class="seller-info-text">
                 <div class="seller-name">{{ listing.seller_name }}</div>
                 <div class="seller-school">{{ listing.school_name || ('acct.noSchool' | t) }}</div>
+                <div class="seller-reputation">
+                  <ui-seller-reputation
+                    [rating]="listing.seller_average_rating"
+                    [reviewCount]="listing.seller_review_count"
+                    [sales]="listing.seller_completed_sales"
+                  ></ui-seller-reputation>
+                </div>
               </div>
             </div>
-          </div>
+          </a>
 
           <div class="info-list">
             <div class="info-row" *ngIf="listing.course_name">

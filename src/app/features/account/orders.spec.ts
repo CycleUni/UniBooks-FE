@@ -72,3 +72,93 @@ describe('OrdersComponent.updateStatus', () => {
     expect(component.loadOrders).not.toHaveBeenCalled();
   });
 });
+
+describe('OrdersComponent order rows', () => {
+  let fixture: ReturnType<typeof TestBed.createComponent<OrdersComponent>>;
+  let component: OrdersComponent;
+
+  const order = {
+    id: '5f1a63f6-bfb9-421a-a0d4-ad970dd2c5b9',
+    listing: 'l1',
+    listing_title: 'Calculus',
+    status: 'accepted',
+    buyer: 'u1',
+    seller: 'u2',
+    seller_name: '周恭煥',
+    seller_school_name: 'National Taiwan University',
+    seller_avatar_url: '',
+    total_amount: 100,
+    currency: 'TWD',
+    created_at: '2026-09-01T10:00:00+08:00',
+    updated_at: '2026-09-02T12:30:00+08:00',
+    meetup_time: '2026-09-05T15:00:00+08:00',
+    meetup_location: 'Library entrance',
+    conversation_id: 'c1',
+  };
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [OrdersComponent, HttpClientTestingModule, RouterTestingModule],
+    });
+    fixture = TestBed.createComponent(OrdersComponent);
+    component = fixture.componentInstance;
+    // Rendering only: skip the login redirect and the profile/orders fetch.
+    component.ngOnInit = () => {};
+    component.isLoading = false;
+    component.activeTab = 'buying';
+    component.boughtOrders = [{ ...order }];
+  });
+
+  const text = () => fixture.nativeElement.textContent as string;
+
+  it('heads the row with a short reference and date instead of the full id', () => {
+    fixture.detectChanges();
+    const ref = fixture.nativeElement.querySelector('.order-ref');
+    expect(ref.textContent.trim()).toBe('#5f1a63f6');
+    expect(text()).not.toContain(order.id);
+    expect(fixture.nativeElement.querySelector('.order-date time').getAttribute('datetime')).toBe(order.created_at);
+  });
+
+  it("names the other party with their school, so same-named users can be told apart", () => {
+    fixture.detectChanges();
+    const party = fixture.nativeElement.querySelector('.party').textContent;
+    expect(party).toContain('周恭煥');
+    expect(party).toContain('National Taiwan University');
+  });
+
+  it('expands to the full id, meetup, listing and conversation links', () => {
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.order-details')).toBeNull();
+
+    const toggle: HTMLButtonElement = fixture.nativeElement.querySelector('.details-toggle');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    toggle.click();
+    fixture.detectChanges();
+
+    const details: HTMLElement = fixture.nativeElement.querySelector('.order-details');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(details.textContent).toContain(order.id);
+    expect(details.textContent).toContain('Library entrance');
+    const hrefs = Array.from(details.querySelectorAll('a')).map(a => a.getAttribute('href'));
+    expect(hrefs.some(h => h?.includes('/listing/l1'))).toBe(true);
+    expect(hrefs.some(h => h?.includes('/messages') && h.includes('chat=c1'))).toBe(true);
+  });
+
+  it('offers no conversation link when there is no chat to open', () => {
+    component.boughtOrders = [{ ...order, conversation_id: null, meetup_time: undefined, meetup_location: '' }];
+    component.expandedOrderIds.add(order.id);
+    fixture.detectChanges();
+    const details: HTMLElement = fixture.nativeElement.querySelector('.order-details');
+    expect(details.querySelectorAll('a').length).toBe(1);
+    expect(details.textContent).toContain(en['order.notArrangedYet']);
+  });
+
+  it('opens the details of the order named in ?orderId=', () => {
+    vi.useFakeTimers();
+    component.highlightOrderId = order.id;
+    component.checkHighlight();
+    vi.runAllTimers();
+    vi.useRealTimers();
+    expect(component.isExpanded(component.boughtOrders[0])).toBe(true);
+  });
+});

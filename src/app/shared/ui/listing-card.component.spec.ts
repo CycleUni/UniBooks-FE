@@ -41,4 +41,33 @@ describe('UiListingCard', () => {
     expect(manage.nativeElement.textContent).toContain('listing.manageOwn');
     expect(manage.nativeElement.getAttribute('href')).toContain('/account/listings');
   });
+
+  it("links the seller's name to their profile, outside the card's own link", () => {
+    component.link = ['/listing', 'l1'];
+    fixture.detectChanges();
+    const sellerLink = fixture.debugElement.query(By.css('a.seller-link'));
+    expect(sellerLink.nativeElement.textContent.trim()).toBe('Seller');
+    expect(sellerLink.nativeElement.getAttribute('href')).toContain('/seller/7');
+    // A link nested in the body link is invalid HTML and not keyboard-reachable.
+    expect(sellerLink.nativeElement.closest('.listing-body')).toBeNull();
+  });
+
+  it("shows the seller's rating, reviews and completed sales", () => {
+    component.item = { ...component.item, seller_average_rating: 4.5, seller_review_count: 12, seller_completed_sales: 1 };
+    fixture.detectChanges();
+    const text = fixture.debugElement.query(By.css('.seller-info')).nativeElement.textContent;
+    expect(text).toContain('★ 4.5');
+    expect(text).toContain('seller.reviewCount');
+    expect(text).toContain('seller.salesCountOne');
+    expect(text).not.toContain('seller.newSeller');
+  });
+
+  it("calls a seller nobody has reviewed a new seller rather than rating them zero", () => {
+    component.item = { ...component.item, seller_average_rating: null, seller_review_count: 0, seller_completed_sales: 0 };
+    fixture.detectChanges();
+    const text = fixture.debugElement.query(By.css('.seller-info')).nativeElement.textContent;
+    expect(text).toContain('seller.newSeller');
+    expect(text).not.toContain('★');
+    expect(text).not.toContain('seller.salesCount');
+  });
 });

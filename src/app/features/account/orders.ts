@@ -19,12 +19,13 @@ import { RegionLinkService } from '../../core/region-link.service';
 import { ToastService } from '../../core/services/toast.service';
 import { scrollBehavior } from '../../core/reduced-motion';
 import { parseApiError } from '../../core/api-error.util';
+import { RegionLinkDirective } from '../../core/region-link.directive';
 
 
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [CommonModule, RouterModule, UiSkeleton, TPipe, UiButton, UiEmpty, ReviewModalComponent, MeetupModalComponent, DateTimeFormatPipe, PricePipe, UiSearchBarComponent],
+  imports: [CommonModule, RouterModule, UiSkeleton, TPipe, UiButton, UiEmpty, ReviewModalComponent, MeetupModalComponent, DateTimeFormatPipe, PricePipe, UiSearchBarComponent, RegionLinkDirective],
   template: `
     <h2 class="section-heading">{{ 'acct.myOrders' | t }}</h2>
 
@@ -50,23 +51,7 @@ import { parseApiError } from '../../core/api-error.util';
               {{ 'order.exclusiveConflict' | t }}
               <ui-button variant="ghost" (onClick)="cancelOtherPending(order)">{{ 'order.cancelOtherPending' | t }}</ui-button>
             </div>
-            <div class="order-header">
-              <span class="order-id">#{{ order.id }}</span>
-              <span class="order-status badge" [ngClass]="order.status">
-                {{ order.status === 'cancelled' && order.cancel_reason ? ('order.cancel_reason.' + order.cancel_reason | t) : (('order.status.' + order.status) | t) }}
-              </span>
-            </div>
-            <div class="order-body">
-              <div class="info">
-                <h3 class="book-title-serif">{{ order.listing_title }}</h3>
-                <p>{{ 'order.seller' | t }}: {{ order.seller_name }}</p>
-                <p *ngIf="order.meetup_time" class="meetup-detail">{{ 'order.meetupTime' | t }}: {{ order.meetup_time | dateTimeFormat }}</p>
-                <p *ngIf="order.meetup_location" class="meetup-detail">{{ 'order.meetupLocation' | t:{location: order.meetup_location} }}</p>
-              </div>
-              <div class="price">
-                {{ order.total_amount | price: order.currency }}
-              </div>
-            </div>
+            <ng-container *ngTemplateOutlet="orderSummary; context: { $implicit: order, role: 'buyer' }"></ng-container>
             <div class="order-actions" *ngIf="hasActions(order, 'buyer')">
               <ui-button *ngIf="order.status === 'pending' || order.status === 'accepted'" variant="ghost" (onClick)="updateStatus(order, 'cancelled', 'buyer_cancelled')">{{ 'order.cancel' | t }}</ui-button>
               <ui-button *ngIf="order.status === 'handed_over'" (onClick)="updateStatus(order, 'completed')">{{ 'order.confirmReceived' | t }}</ui-button>
@@ -78,23 +63,7 @@ import { parseApiError } from '../../core/api-error.util';
         <div *ngIf="activeTab === 'selling'">
           <ui-empty *ngIf="filteredSoldOrders.length === 0" [message]="'acct.noSales' | t"></ui-empty>
           <div class="order-card" *ngFor="let order of filteredSoldOrders" [id]="'order-' + order.id">
-            <div class="order-header">
-              <span class="order-id">#{{ order.id }}</span>
-              <span class="order-status badge" [ngClass]="order.status">
-                {{ order.status === 'cancelled' && order.cancel_reason ? ('order.cancel_reason.' + order.cancel_reason | t) : (('order.status.' + order.status) | t) }}
-              </span>
-            </div>
-            <div class="order-body">
-              <div class="info">
-                <h3 class="book-title-serif">{{ order.listing_title }}</h3>
-                <p>{{ 'order.buyer' | t }}: {{ order.buyer_name }}</p>
-                <p *ngIf="order.meetup_time" class="meetup-detail">{{ 'order.meetupTime' | t }}: {{ order.meetup_time | dateTimeFormat }}</p>
-                <p *ngIf="order.meetup_location" class="meetup-detail">{{ 'order.meetupLocation' | t:{location: order.meetup_location} }}</p>
-              </div>
-              <div class="price">
-                {{ order.total_amount | price: order.currency }}
-              </div>
-            </div>
+            <ng-container *ngTemplateOutlet="orderSummary; context: { $implicit: order, role: 'seller' }"></ng-container>
             <div class="order-actions" *ngIf="hasActions(order, 'seller')">
               <ng-container *ngIf="order.status === 'pending'">
                 <ui-button (onClick)="approveOrder(order)">{{ 'order.approve' | t }}</ui-button>
@@ -108,6 +77,89 @@ import { parseApiError } from '../../core/api-error.util';
         </div>
       </div>
       
+      <!-- One order's summary and expandable details, shared by both tabs.
+           "role" is the viewer's side of the order: the row names the other
+           party. -->
+      <ng-template #orderSummary let-order let-role="role">
+        <!-- The whole summary toggles the details for pointer users; the
+             Details button below is the keyboard- and screen-reader path. -->
+        <div class="order-summary" (click)="toggleDetails(order)">
+          <div class="order-header">
+            <!-- A full UUID as the row's heading was noise; the short form is
+                 still unique enough to quote, and the full id is in the
+                 details (and still matches the search box). -->
+            <span class="order-meta">
+              <span class="order-ref" [title]="order.id">#{{ shortRef(order.id) }}</span>
+              <span *ngIf="order.created_at" class="order-date">
+                <span aria-hidden="true"> · </span>
+                <time [attr.datetime]="order.created_at">{{ order.created_at | date:'yyyy/MM/dd' }}</time>
+              </span>
+            </span>
+            <span class="order-status badge" [ngClass]="order.status">
+              {{ order.status === 'cancelled' && order.cancel_reason ? ('order.cancel_reason.' + order.cancel_reason | t) : (('order.status.' + order.status) | t) }}
+            </span>
+          </div>
+          <div class="order-body">
+            <div class="info">
+              <h3 class="book-title-serif">{{ order.listing_title }}</h3>
+              <p class="party">
+                <img *ngIf="partyAvatar(order, role)" [src]="partyAvatar(order, role)" alt="" class="party-avatar" referrerpolicy="no-referrer" />
+                <span *ngIf="!partyAvatar(order, role)" class="party-avatar party-initial" aria-hidden="true">{{ partyName(order, role).charAt(0) }}</span>
+                <span>
+                  {{ (role === 'buyer' ? 'order.seller' : 'order.buyer') | t }}: {{ partyName(order, role) }}<!--
+                  --><span *ngIf="partySchool(order, role)" class="party-school"> · {{ partySchool(order, role) }}</span>
+                </span>
+              </p>
+              <p *ngIf="order.meetup_time" class="meetup-detail">{{ 'order.meetupTime' | t }}: {{ order.meetup_time | dateTimeFormat }}</p>
+              <p *ngIf="order.meetup_location" class="meetup-detail">{{ 'order.meetupLocation' | t:{location: order.meetup_location} }}</p>
+            </div>
+            <div class="price">
+              {{ order.total_amount | price: order.currency }}
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="details-toggle"
+          [attr.aria-expanded]="isExpanded(order)"
+          [attr.aria-controls]="'order-details-' + order.id"
+          (click)="toggleDetails(order)"
+        >{{ (isExpanded(order) ? 'order.hideDetails' : 'order.showDetails') | t }}</button>
+
+        <div class="order-details" *ngIf="isExpanded(order)" [id]="'order-details-' + order.id">
+          <dl>
+            <div class="detail-row">
+              <dt>{{ 'order.orderId' | t }}</dt>
+              <dd class="mono">{{ order.id }}</dd>
+            </div>
+            <div class="detail-row">
+              <dt>{{ 'order.createdAt' | t }}</dt>
+              <dd>{{ order.created_at | dateTimeFormat }}</dd>
+            </div>
+            <!-- There is no per-status history on the backend, only the time
+                 of the latest change; say exactly that rather than invent a
+                 timeline. -->
+            <div class="detail-row" *ngIf="order.updated_at">
+              <dt>{{ 'order.updatedAt' | t }}</dt>
+              <dd>{{ order.updated_at | dateTimeFormat }}</dd>
+            </div>
+            <div class="detail-row">
+              <dt>{{ 'order.meetupTimeLabel' | t }}</dt>
+              <dd>{{ order.meetup_time ? (order.meetup_time | dateTimeFormat) : ('order.notArrangedYet' | t) }}</dd>
+            </div>
+            <div class="detail-row">
+              <dt>{{ 'order.meetupLocationLabel' | t }}</dt>
+              <dd>{{ order.meetup_location || ('order.notArrangedYet' | t) }}</dd>
+            </div>
+          </dl>
+          <div class="detail-links">
+            <a [regionLink]="['/listing', order.listing]">{{ 'order.viewListing' | t }}</a>
+            <a *ngIf="order.conversation_id" [regionLink]="['/messages']" [queryParams]="{ chat: order.conversation_id }">{{ 'order.openConversation' | t }}</a>
+          </div>
+        </div>
+      </ng-template>
+
       <app-review-modal *ngIf="reviewingOrderId" [orderId]="reviewingOrderId" (onClosed)="onReviewModalClosed($event)"></app-review-modal>
       <app-meetup-modal *ngIf="showMeetupModal" [bookTitle]="meetupModalOrder?.listing_title || ''" (onConfirmed)="onMeetupConfirmed($event)" (onClosed)="onMeetupModalClosed()"></app-meetup-modal>
   `,
@@ -141,10 +193,88 @@ import { parseApiError } from '../../core/api-error.util';
       justify-content: space-between;
       margin-bottom: 16px;
     }
-    .order-id {
-      font-weight: 500;
+    .order-summary {
+      cursor: pointer;
+    }
+    .order-meta {
       color: var(--muted);
+      font-size: var(--text-sm);
+      font-variant-numeric: tabular-nums;
+    }
+    .order-ref {
+      font-family: monospace;
+    }
+    .party {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .party-avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    .party-initial {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent);
+      color: var(--on-accent);
+      font-size: var(--text-xs);
+      font-weight: 700;
+    }
+    .details-toggle {
+      margin-top: 8px;
+      padding: 4px 0;
+      background: none;
+      border: none;
+      color: var(--accent);
+      font: inherit;
       font-size: var(--text-base);
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .order-details {
+      margin-top: 8px;
+      padding: 12px 16px;
+      background: var(--paper-warm);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xs);
+      font-size: var(--text-base);
+    }
+    .order-details dl {
+      margin: 0;
+    }
+    .detail-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 12px;
+      padding: 4px 0;
+    }
+    .detail-row dt {
+      color: var(--muted);
+      min-width: 8em;
+    }
+    .detail-row dd {
+      margin: 0;
+      flex: 1;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .mono {
+      font-family: monospace;
+    }
+    .detail-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 8px;
+    }
+    .detail-links a {
+      color: var(--accent);
     }
     .badge {
       padding: 3px 7px;
@@ -248,6 +378,8 @@ export class OrdersComponent implements OnInit {
   meetupModalOrder: Order | null = null;
   searchQuery = '';
   highlightOrderId: string | null = null;
+  /** Orders whose details are open. */
+  expandedOrderIds = new Set<string>();
 
   private orderService = inject(OrderService);
   private authStore = inject(AuthStore);
@@ -278,6 +410,33 @@ export class OrdersComponent implements OnInit {
       (o.listing_title && o.listing_title.toLowerCase().includes(rawQ)) ||
       (o.id && String(o.id).includes(cleanQ))
     );
+  }
+
+  shortRef(id: string | undefined): string {
+    return (id || '').slice(0, 8);
+  }
+
+  isExpanded(order: Order): boolean {
+    return !!order.id && this.expandedOrderIds.has(order.id);
+  }
+
+  toggleDetails(order: Order) {
+    if (!order.id) return;
+    if (this.expandedOrderIds.has(order.id)) this.expandedOrderIds.delete(order.id);
+    else this.expandedOrderIds.add(order.id);
+  }
+
+  /** The other party, from the viewer's `role` on the order. */
+  partyName(order: Order, role: 'buyer' | 'seller'): string {
+    return (role === 'buyer' ? order.seller_name : order.buyer_name) || '';
+  }
+
+  partySchool(order: Order, role: 'buyer' | 'seller'): string {
+    return (role === 'buyer' ? order.seller_school_name : order.buyer_school_name) || '';
+  }
+
+  partyAvatar(order: Order, role: 'buyer' | 'seller'): string {
+    return (role === 'buyer' ? order.seller_avatar_url : order.buyer_avatar_url) || '';
   }
 
   hasActions(order: Order, role: 'buyer' | 'seller'): boolean {
@@ -395,6 +554,10 @@ export class OrdersComponent implements OnInit {
     
     if (isBought) this.activeTab = 'buying';
     else if (isSold) this.activeTab = 'selling';
+    // Arriving from a notification or the chat's order link, the reader
+    // wants this order's details, not just a tint saying which row it is.
+    if (isBought || isSold) this.expandedOrderIds.add(this.highlightOrderId);
+    this.cdr.markForCheck();
     
     setTimeout(() => {
       const el = document.getElementById('order-' + this.highlightOrderId);

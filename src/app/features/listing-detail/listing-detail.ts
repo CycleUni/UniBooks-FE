@@ -9,6 +9,7 @@ import { UiErrorState } from '../../shared/ui/error-state.component';
 import { UiBackButton } from '../../shared/ui/back-button.component';
 import { UiBreadcrumb, BreadcrumbItem } from '../../shared/ui/breadcrumb.component';
 import { UiListingCard } from '../../shared/ui/listing-card.component';
+import { UiSellerReputation } from '../../shared/ui/seller-reputation.component';
 import { TPipe, I18nService } from '../../core/i18n.service';
 import { AuthStore } from '../../core/auth.store';
 import { BookCoverPipe } from '../../shared/pipes/book-cover.pipe';
@@ -27,7 +28,7 @@ import { isOwnListing } from '../../core/own-listing';
 @Component({
   selector: 'app-listing-detail',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, UiButton, UiErrorState, UiBackButton, UiBreadcrumb, UiListingCard, TPipe, PricePipe, ReportModalComponent, UiVerificationPrompt],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, UiButton, UiErrorState, UiBackButton, UiBreadcrumb, UiListingCard, UiSellerReputation, TPipe, PricePipe, ReportModalComponent, UiVerificationPrompt],
   templateUrl: './listing-detail.html',
   styleUrls: ['./listing-detail.css']
 })

@@ -9,6 +9,13 @@ export interface Order {
   seller?: string;
   buyer_name?: string;
   seller_name?: string;
+  /** Display names are not unique; these tell two same-named users apart. */
+  buyer_school_name?: string;
+  seller_school_name?: string;
+  buyer_avatar_url?: string | null;
+  seller_avatar_url?: string | null;
+  /** The chat this order was arranged in; null if the viewer deleted it. */
+  conversation_id?: string | null;
   listing_title?: string;
   listing: string;
   status?: string;

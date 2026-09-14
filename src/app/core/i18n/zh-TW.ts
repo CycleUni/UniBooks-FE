@@ -572,6 +572,14 @@ export const zhTW: Record<string, string> = {
   'order.meetupTimeError': '請選擇未來的時間',
   'order.meetupConfirm': '確認送出',
   'order.reviewSubmitted': '評價/回報已成功送出！',
+  'order.showDetails': '查看詳情',
+  'order.hideDetails': '收合詳情',
+  'order.orderId': '訂單編號',
+  'order.createdAt': '提出時間',
+  'order.updatedAt': '最後更新',
+  'order.notArrangedYet': '尚未約定',
+  'order.viewListing': '查看商品',
+  'order.openConversation': '開啟對話',
 
   // Message errors
   'msg.errSystemMessageForbidden': '無法發送系統訊息格式。',
@@ -615,6 +623,12 @@ export const zhTW: Record<string, string> = {
   'seller.verifiedBadge': '已驗證校園信箱',
   'seller.noReviews': '尚無評價',
   'seller.noShowCount': '放鳥紀錄：{n} 次',
+  'seller.newSeller': '新賣家',
+  'seller.reviewCount': '{n} 則評價',
+  'seller.reviewCountOne': '{n} 則評價',
+  'seller.salesCount': '成交 {n} 筆',
+  'seller.salesCountOne': '成交 {n} 筆',
+  'seller.ratingAria': '評分 {rating}（滿分 5 分）',
   'seller.pageTitle': '{name} 的二手商品 | UniBooks',
 
   // Moderation / Report
