@@ -8,6 +8,7 @@ import { RegionLinkService } from './region-link.service';
 import { isSameRegion } from './region-path';
 import { isUserVerifiedIn } from './verification';
 import { signedOutRedirectFor } from './signed-out-redirect';
+import { isTransientHttpFailure } from './http-failure';
 
 export interface RegionVerification {
   region: string;
@@ -162,7 +163,7 @@ export class AuthStore {
           // link. That used to last until a full reload. On a cold serverless
           // start the first /auth/me/ (and the refresh behind it) can fail
           // while a request seconds later succeeds, so try again on a timer.
-          if (AuthStore.isTransient(err)) {
+          if (isTransientHttpFailure(err)) {
             this.scheduleProfileRetry();
           }
         }
@@ -187,11 +188,6 @@ export class AuthStore {
    *  spaced enough not to hammer a backend that is actually down. Once these
    *  run out, the next navigation or return to the tab tries again. */
   private static readonly PROFILE_RETRY_DELAYS_MS = [3000, 10000, 30000];
-
-  private static isTransient(err: unknown): boolean {
-    const status = (err as { status?: number } | null)?.status;
-    return status === 0 || status === 429 || (typeof status === 'number' && status >= 500);
-  }
 
   /** Signed in, no profile, nothing already fetching it: fetch it. */
   private retryProfileIfMissing(): void {

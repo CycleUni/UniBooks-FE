@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Router, UrlTree } from '@angular/router';
+import { HttpErrorResponse } from '@angular/common/http';
 import { isObservable, of, throwError, firstValueFrom } from 'rxjs';
 import { adminGuard } from './admin.guard';
 import { AuthStore } from '../../core/auth.store';
@@ -89,4 +90,27 @@ describe('adminGuard', () => {
 
     expect(result).toBeInstanceOf(UrlTree);
   });
+
+  // A cold serverless start can fail the profile request for a few seconds.
+  // That says nothing about whether the visitor is staff, so it must not send
+  // a signed-in admin home; AdminShellComponent finishes the check.
+  describe('when the profile request fails', () => {
+    beforeEach(() => {
+      mockAuthStore.isLoggedIn.mockReturnValue(true);
+      mockAccountService.profileCache.mockReturnValue(null);
+    });
+
+    it.each([0, 429, 502, 503, 504])('lets the visitor through on a transient failure (%i)', async (status) => {
+      mockAccountService.getMyProfile.mockReturnValue(throwError(() => new HttpErrorResponse({ status })));
+
+      expect(await runGuard()).toBe(true);
+    });
+
+    it.each([401, 403, 404])('still redirects to / on a real answer (%i)', async (status) => {
+      mockAccountService.getMyProfile.mockReturnValue(throwError(() => new HttpErrorResponse({ status })));
+
+      expect(await runGuard()).toBeInstanceOf(UrlTree);
+    });
+  });
 });
+

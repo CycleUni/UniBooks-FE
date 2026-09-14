@@ -605,6 +605,8 @@ export const en: Record<string, string> = {
 
   // Admin
   'admin.title': 'Admin',
+  'admin.accessChecking': 'Checking your admin access…',
+  'admin.accessUnavailable': 'Your admin access could not be confirmed right now. This retries automatically, or you can retry now.',
   'admin.toggleDrawer': 'Toggle Admin Menu',
   'admin.groupUsers': 'Users and Permissions',
   'admin.groupTransactions': 'Transactions',

@@ -607,6 +607,8 @@ export const zhHK: Record<string, string> = {
 
   // Admin
   'admin.title': '後台管理',
+  'admin.accessChecking': '正在確認管理員權限…',
+  'admin.accessUnavailable': '暫時未能確認你的管理員權限，系統會自動重試，亦可以手動重試。',
   'admin.toggleDrawer': '切換後台選單',
   'admin.groupUsers': '用戶與權限',
   'admin.groupTransactions': '交易',

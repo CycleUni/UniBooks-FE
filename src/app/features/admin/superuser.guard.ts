@@ -6,6 +6,7 @@ import { AccountService } from '../../core/services/account.service';
 import { RegionService } from '../../core/region.service';
 import { regionUrlTree } from '../../core/region-path';
 import { requiresAuth } from '../../core/signed-out-redirect';
+import { isTransientHttpFailure } from '../../core/http-failure';
 
 // Same shape as adminGuard, and for the same reason: `is_superuser` only
 // exists client-side in AccountService.profileCache (GET /auth/me/). AuthStore
@@ -32,9 +33,11 @@ export const superuserGuard: CanActivateFn = requiresAuth(() => {
     return cached.is_superuser === true ? true : deny();
   }
 
+  // Same as adminGuard: only a real answer denies. AdminShellComponent checks
+  // is_superuser for these routes once the profile arrives.
   return accountService.getMyProfile().pipe(
     map(profile => (profile?.is_superuser === true ? true : deny())),
-    catchError(() => of(deny()))
+    catchError(err => of(isTransientHttpFailure(err) ? true : deny()))
   );
 // Same as adminGuard: a silent session end goes home, not to /login.
 }, () => regionUrlTree(inject(Router), inject(RegionService), ['/']));

@@ -1,17 +1,30 @@
 import { RegionLinkDirective } from '../../core/region-link.directive';
-import { Component, ElementRef, ViewChild, HostListener, Inject, PLATFORM_ID, DestroyRef, inject } from '@angular/core';
+import { Component, ElementRef, ViewChild, HostListener, Inject, PLATFORM_ID, DestroyRef, inject, computed, effect, signal, untracked } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
-import { RouterModule, Router, NavigationEnd } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { filter } from 'rxjs/operators';
+import { RouterModule, Router, NavigationEnd, ActivatedRouteSnapshot } from '@angular/router';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { filter, map } from 'rxjs/operators';
 import { TPipe } from '../../core/i18n.service';
 import { AuthStore } from '../../core/auth.store';
+import { AccountService } from '../../core/services/account.service';
+import { RegionService } from '../../core/region.service';
+import { regionUrlTree } from '../../core/region-path';
+import { UiErrorState } from '../../shared/ui/error-state.component';
+import { superuserGuard } from './superuser.guard';
+
+/** Whether the committed route tree includes a route gated by superuserGuard. */
+function onSuperuserRoute(router: Router): boolean {
+  const walk = (snapshot: ActivatedRouteSnapshot): boolean =>
+    (snapshot.routeConfig?.canActivate ?? []).includes(superuserGuard) || snapshot.children.some(walk);
+  return walk(router.routerState.snapshot.root);
+}
 
 @Component({
   selector: 'app-admin-shell',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, TPipe],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, TPipe, UiErrorState],
   template: `
+    <ng-container *ngIf="access() === 'granted'; else accessPending">
     <div class="container admin-layout">
       <!-- Desktop Sidebar / Mobile Drawer Menu -->
       <nav class="admin-sidebar" [class.drawer-open]="isDrawerOpen" [attr.aria-label]="'admin.ariaNav' | t" #sidebar (keydown)="onKeyDown($event)">
@@ -84,8 +97,32 @@ import { AuthStore } from '../../core/auth.store';
         </main>
       </div>
     </div>
+    </ng-container>
+
+    <!-- Admitted without a confirmed profile: adminGuard lets a transient
+         failure through rather than sending an admin home for it. Nothing of
+         the admin area renders until the profile says so. -->
+    <ng-template #accessPending>
+      <div class="container admin-access" aria-live="polite">
+        <p *ngIf="checking()" class="admin-access-checking">{{ 'admin.accessChecking' | t }}</p>
+        <ui-error-state
+          *ngIf="!checking()"
+          [message]="'admin.accessUnavailable' | t"
+          (retry)="checkAccess()"
+        ></ui-error-state>
+      </div>
+    </ng-template>
   `,
   styles: [`
+    .admin-access {
+      padding-block: var(--space-6);
+    }
+    .admin-access-checking {
+      margin: 0;
+      text-align: center;
+      color: var(--ink-soft);
+    }
+
     /* Width comes from the global .container. Stating 1120px with 24px
        padding here made the admin column 1072px and pushed its left edge 8px
        inside every other page's. */
@@ -280,9 +317,43 @@ export class AdminShellComponent {
 
   private destroyRef = inject(DestroyRef);
   private router = inject(Router);
+  private accountService = inject(AccountService);
+  private regionService = inject(RegionService);
+
+  private readonly superuserRoute = toSignal(
+    this.router.events.pipe(filter(e => e instanceof NavigationEnd), map(() => onSuperuserRoute(this.router))),
+    { initialValue: onSuperuserRoute(this.router) }
+  );
+
+  /**
+   * The guards decide on the profile when they can. When the backend could not
+   * be reached they let the visitor in unconfirmed (see adminGuard), so the
+   * decision is finished here, as soon as either copy of the profile arrives:
+   * AuthStore's own (which retries on a schedule) or AccountService's.
+   */
+  readonly access = computed<'granted' | 'pending' | 'denied'>(() => {
+    if (!this.auth.isAuthenticated()) return 'denied';
+    const profile = (this.auth.user() ?? this.accountService.profileCache()) as
+      { is_staff?: boolean; is_superuser?: boolean } | null;
+    if (!profile) return 'pending';
+    if (profile.is_staff !== true) return 'denied';
+    if (this.superuserRoute() && profile.is_superuser !== true) return 'denied';
+    return 'granted';
+  });
+
+  readonly checking = signal(false);
 
   constructor(@Inject(PLATFORM_ID) platformId: Object) {
     this.isBrowser = isPlatformBrowser(platformId);
+
+    // The profile came back and it is not an admin (or not a superuser on a
+    // superuser page): where the guard would have sent them. A signed-out
+    // visitor is AuthStore.endSession()'s to move, not this component's.
+    effect(() => {
+      if (this.access() === 'denied' && this.auth.isAuthenticated()) {
+        untracked(() => this.router.navigateByUrl(regionUrlTree(this.router, this.regionService, ['/']), { replaceUrl: true }));
+      }
+    });
 
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd),
@@ -291,6 +362,14 @@ export class AdminShellComponent {
       if (this.isDrawerOpen) {
         this.closeDrawer();
       }
+    });
+  }
+
+  checkAccess() {
+    this.checking.set(true);
+    this.accountService.getMyProfile().subscribe({
+      next: () => this.checking.set(false),
+      error: () => this.checking.set(false),
     });
   }
 
