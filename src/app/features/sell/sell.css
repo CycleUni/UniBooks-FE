@@ -270,6 +270,44 @@
       margin-top: -8px;
     }
 
+    /* A caution, not an error: the price is allowed, just unusual. */
+    .inline-msg.warn {
+      background-color: var(--warn-bg);
+      color: var(--warn-ink);
+    }
+    .price-reference {
+      margin: 0 0 16px;
+      font-size: var(--text-sm);
+      color: var(--muted);
+    }
+    .listing-summary {
+      margin: 8px 0 16px;
+      padding: 12px 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xs);
+      background-color: var(--paper-warm);
+    }
+    .listing-summary-title {
+      margin: 0 0 8px;
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .listing-summary dl {
+      display: grid;
+      grid-template-columns: max-content minmax(0, 1fr);
+      gap: 4px 16px;
+      margin: 0;
+      font-size: var(--text-base);
+    }
+    .listing-summary dt {
+      color: var(--muted);
+    }
+    .listing-summary dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
     /* A restored draft can reference a photo the server has since removed;
        the slot keeps its shape instead of collapsing to a torn-image icon. */
     .preview-missing {

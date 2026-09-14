@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Sell, SELL_DRAFT_STORAGE_KEY, SELL_DRAFT_MAX_AGE_MS, cleanAndValidateIsbn, clean_and_validate_isbn, isValidIsbnChecksum, selectBestRearCamera } from './sell';
+import { Sell, SELL_DRAFT_STORAGE_KEY, SELL_DRAFT_MAX_AGE_MS, cleanAndValidateIsbn, clean_and_validate_isbn, isValidIsbnChecksum, selectBestRearCamera, otherCopiesFromBook, isPriceFarAboveOtherCopies } from './sell';
 import { unsavedChangesGuard } from '../../core/unsaved-changes.guard';
 import { provideRouter } from '@angular/router';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
@@ -117,6 +117,50 @@ describe('cleanAndValidateIsbn', () => {
 
   it('should expose clean_and_validate_isbn alias matching backend naming', () => {
     expect(clean_and_validate_isbn('9786264140720')).toBe('9786264140720');
+  });
+});
+
+describe('otherCopiesFromBook', () => {
+  it('reads the range the backend computed over every active copy', () => {
+    expect(otherCopiesFromBook({ price_stats: { count: 2, min: 100, max: 10099 }, listings: { count: 2, results: [] } }))
+      .toEqual({ count: 2, min: 100, max: 10099 });
+  });
+
+  it('reports nothing when no copy is listed', () => {
+    expect(otherCopiesFromBook({ price_stats: { count: 0, min: null, max: null } })).toBeNull();
+    expect(otherCopiesFromBook(null)).toBeNull();
+    expect(otherCopiesFromBook({})).toBeNull();
+  });
+
+  it('falls back to the listings when the backend predates price_stats and sent them all', () => {
+    const book = { listings: { count: 3, results: [{ price: 300 }, { price: 120 }, { price: 0 }] } };
+    expect(otherCopiesFromBook(book)).toEqual({ count: 3, min: 0, max: 300 });
+  });
+
+  it('gives no range from a partial page of listings', () => {
+    // 25 copies, 20 on the page: the cheapest may be one of the missing five.
+    const results = Array.from({ length: 20 }, () => ({ price: 400 }));
+    expect(otherCopiesFromBook({ listings: { count: 25, results } })).toBeNull();
+  });
+});
+
+describe('isPriceFarAboveOtherCopies', () => {
+  const copies = { count: 2, min: 100, max: 10099 };
+
+  it('warns above 3x the cheapest listed copy, not at it', () => {
+    expect(isPriceFarAboveOtherCopies(300, copies)).toBe(false);
+    expect(isPriceFarAboveOtherCopies(301, copies)).toBe(true);
+    expect(isPriceFarAboveOtherCopies(10099, copies)).toBe(true);
+  });
+
+  it('stays quiet without a price or anything to compare with', () => {
+    expect(isPriceFarAboveOtherCopies(null, copies)).toBe(false);
+    expect(isPriceFarAboveOtherCopies(NaN, copies)).toBe(false);
+    expect(isPriceFarAboveOtherCopies(99999, null)).toBe(false);
+  });
+
+  it('stays quiet when the cheapest copy is free', () => {
+    expect(isPriceFarAboveOtherCopies(500, { count: 2, min: 0, max: 200 })).toBe(false);
   });
 });
 
@@ -383,6 +427,7 @@ describe('Sell listing form guarding, drafts and field validation', () => {
           useValue: {
             getEngineOptions: vi.fn().mockReturnValue([{ label: 'Google Books', value: 'googlebooks' }]),
             searchBooks: vi.fn().mockReturnValue(of({ results: [] })),
+            getBook: vi.fn().mockReturnValue(of({ price_stats: { count: 0, min: null, max: null } })),
             createManualBook: vi.fn().mockReturnValue(of({ id: 'book-1' }))
           }
         },
@@ -420,6 +465,263 @@ describe('Sell listing form guarding, drafts and field validation', () => {
       component.ngOnDestroy();
 
       expect(pending.observed).toBe(false);
+    });
+  });
+
+  describe('search on Enter', () => {
+    const searchField = () => fixture.nativeElement.querySelector('ui-input input') as HTMLInputElement;
+    const type = (value: string) => {
+      const input = searchField();
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    };
+    const pressEnter = (init: KeyboardEventInit = {}) =>
+      searchField().dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true, ...init }));
+
+    it('searches when Enter is pressed in the ISBN field', () => {
+      create();
+      const books = TestBed.inject(BookService) as any;
+      type('9786264140720');
+      pressEnter();
+      expect(books.searchBooks).toHaveBeenCalledTimes(1);
+      expect(books.searchBooks.mock.calls[0][0]).toBe('9786264140720');
+    });
+
+    it('does not search on an empty field', () => {
+      create();
+      pressEnter();
+      expect((TestBed.inject(BookService) as any).searchBooks).not.toHaveBeenCalled();
+    });
+
+    it('ignores the Enter that confirms an IME candidate', () => {
+      vi.useFakeTimers();
+      try {
+        create();
+        const books = TestBed.inject(BookService) as any;
+        type('微積分');
+        const input = searchField();
+
+        // Mid-composition, and the keyup that lands in the same tick as
+        // compositionend (isComposing already false in some browsers).
+        input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+        pressEnter({ isComposing: true });
+        input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+        pressEnter();
+        expect(books.searchBooks).not.toHaveBeenCalled();
+
+        // A deliberate Enter afterwards does search.
+        vi.runAllTimers();
+        pressEnter();
+        expect(books.searchBooks).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('does not re-search (and drop the picked book) when the search button is hidden', () => {
+      create();
+      component.searchQuery = '9786264140720';
+      component.selectBook({ id: 'b1', title: 'Clean Code', author: 'Robert C. Martin' });
+      component.onSearchEnter(new KeyboardEvent('keyup', { key: 'Enter' }));
+      expect((TestBed.inject(BookService) as any).searchBooks).not.toHaveBeenCalled();
+      expect(component.bookPreview?.id).toBe('b1');
+    });
+
+    it('does not start a second search while one is running', () => {
+      create();
+      component.searchQuery = '9786264140720';
+      component.isCheckingIsbn = true;
+      component.onSearchEnter(new KeyboardEvent('keyup', { key: 'Enter' }));
+      expect((TestBed.inject(BookService) as any).searchBooks).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('pricing step reference, warning and summary', () => {
+    const books = () => TestBed.inject(BookService) as any;
+    const render = () => {
+      (component as any).cdr.markForCheck();
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    };
+    const toPricing = (book: any) => {
+      component.selectBook(book);
+      component.nextStep();
+      component.nextStep();
+      expect(component.step).toBe(3);
+    };
+
+    it('looks up the copies already listed once the price step is reached', () => {
+      create();
+      books().getBook.mockReturnValue(of({ price_stats: { count: 2, min: 100, max: 10099 } }));
+
+      toPricing({ id: 42, title: 'Clean Code', author: 'Robert C. Martin' });
+
+      expect(books().getBook).toHaveBeenCalledWith('42');
+      expect(component.otherCopies).toEqual({ count: 2, min: 100, max: 10099 });
+      const reference = render().querySelector('.price-reference');
+      expect(reference?.textContent?.trim()).toBe('sell.otherCopiesRange');
+    });
+
+    it('does not look up again when returning to the step for the same book', () => {
+      create();
+      toPricing({ id: 42, title: 'Clean Code' });
+      component.prevStep();
+      component.nextStep();
+      expect(books().getBook).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows no reference for a book that is not in the catalogue yet', () => {
+      create();
+      component.enterManually();
+      component.bookPreview.title = 'Handout';
+      component.bookPreview.authors = 'Dept.';
+      component.nextStep();
+      component.nextStep();
+
+      expect(books().getBook).not.toHaveBeenCalled();
+      expect(component.otherCopies).toBeNull();
+      expect(render().querySelector('.price-reference')).toBeNull();
+    });
+
+    it('leaves the reference out when the lookup fails', () => {
+      create();
+      books().getBook.mockReturnValue(throwError(() => new Error('down')));
+      toPricing({ id: 42, title: 'Clean Code' });
+      expect(component.otherCopies).toBeNull();
+    });
+
+    it('warns about a price far above the cheapest copy but still submits it unchanged', () => {
+      create();
+      const listingService = TestBed.inject(ListingService) as any;
+      listingService.createListing.mockReturnValue(of({}));
+      component.isVerified = true;
+      books().getBook.mockReturnValue(of({ price_stats: { count: 2, min: 100, max: 10099 } }));
+      toPricing({ id: 42, title: 'Clean Code' });
+
+      component.price = 300;
+      expect(component.priceWarning).toBe(false);
+      component.price = 3000;
+      expect(component.priceWarning).toBe(true);
+      expect(render().querySelector('.inline-msg.warn')?.textContent?.trim()).toBe('sell.priceFarAbove');
+
+      component.submit();
+      expect(listingService.createListing).toHaveBeenCalledWith(expect.objectContaining({ book: 42, price: 3000 }));
+      expect(component.step).toBe(4);
+    });
+
+    it('summarises the title, condition, price and photo count above Confirm Listing', () => {
+      create();
+      toPricing({ id: 42, title: 'Clean Code' });
+      component.condition = 'like_new';
+      component.uploadedPhotos = ['https://cdn.example/a.jpg', 'https://cdn.example/gone.jpg'];
+      component.onPhotoError('https://cdn.example/gone.jpg');
+      component.setFree();
+
+      const values = Array.from(render().querySelectorAll('.listing-summary dd')).map(dd => dd.textContent?.trim());
+      // Only the photo that will actually be submitted is counted.
+      expect(values).toEqual(['Clean Code', 'cond.like_new', 'sell.summaryFree', '1']);
+    });
+  });
+
+  describe('photo selection', () => {
+    const file = (name: string) => new File(['x'], name, { type: 'image/jpeg' });
+    const listings = () => TestBed.inject(ListingService) as any;
+
+    it('lets the file picker select several photos at once', () => {
+      create();
+      component.step = 2;
+      (component as any).cdr.markForCheck();
+      fixture.detectChanges();
+      const input = fixture.nativeElement.querySelector('input[type="file"]') as HTMLInputElement;
+      expect(input.multiple).toBe(true);
+    });
+
+    it('takes the buyer-visible description in a multi-line field', () => {
+      create();
+      component.step = 2;
+      (component as any).cdr.markForCheck();
+      fixture.detectChanges();
+      const textarea = fixture.nativeElement.querySelector('ui-textarea textarea') as HTMLTextAreaElement;
+      expect(textarea).not.toBeNull();
+
+      textarea.value = 'Clean pages.\nMinor highlighting in chapter 1.';
+      textarea.dispatchEvent(new Event('input'));
+      expect(component.description).toBe('Clean pages.\nMinor highlighting in chapter 1.');
+    });
+
+    it('uploads every picked photo, in the order picked', () => {
+      create();
+      listings().uploadPhoto.mockImplementation((f: File) => of({ url: `https://cdn.example/${f.name}` }));
+
+      component.onFileSelected({ target: { files: [file('a.jpg'), file('b.jpg')], value: 'x' } });
+
+      expect(component.uploadedPhotos).toEqual(['https://cdn.example/a.jpg', 'https://cdn.example/b.jpg']);
+      expect(component.uploadError).toBe('');
+      expect(component.isUploading).toBe(false);
+    });
+
+    it('uploads only as many as fit under the cap and says the rest were left out', () => {
+      create();
+      component.uploadedPhotos = ['https://cdn.example/existing.jpg'];
+      listings().uploadPhoto.mockImplementation((f: File) => of({ url: `https://cdn.example/${f.name}` }));
+
+      component.onFileSelected({ target: { files: [file('a.jpg'), file('b.jpg'), file('c.jpg'), file('d.jpg')], value: 'x' } });
+
+      expect(listings().uploadPhoto).toHaveBeenCalledTimes(2);
+      expect(component.uploadedPhotos).toEqual([
+        'https://cdn.example/existing.jpg', 'https://cdn.example/a.jpg', 'https://cdn.example/b.jpg',
+      ]);
+      expect(component.uploadError).toBe('sell.photoLimitReached');
+    });
+
+    it('counts photos still uploading against the cap', () => {
+      create();
+      const uploads = new Map<string, Subject<{ url: string }>>();
+      listings().uploadPhoto.mockImplementation((f: File) => {
+        const upload = new Subject<{ url: string }>();
+        uploads.set(f.name, upload);
+        return upload;
+      });
+      const finish = (name: string) => {
+        uploads.get(name)!.next({ url: `https://cdn.example/${name}` });
+        uploads.get(name)!.complete();
+      };
+
+      component.handleFiles([file('a.jpg'), file('b.jpg')]);
+      expect(component.isUploading).toBe(true);
+
+      // A drop while those two are on their way has room for one more only.
+      component.handleFiles([file('c.jpg'), file('d.jpg')]);
+      expect(component.uploadError).toBe('sell.photoLimitReached');
+
+      finish('a.jpg');
+      finish('c.jpg');
+      finish('b.jpg');
+      expect(uploads.has('d.jpg')).toBe(false);
+      expect(component.uploadedPhotos.length).toBe(3);
+      expect(component.isUploading).toBe(false);
+    });
+
+    it('keeps uploading the rest of a batch when one photo fails', () => {
+      create();
+      listings().uploadPhoto.mockImplementation((f: File) =>
+        f.name === 'bad.jpg' ? throwError(() => new Error('boom')) : of({ url: `https://cdn.example/${f.name}` }));
+
+      component.handleFiles([file('bad.jpg'), file('good.jpg')]);
+
+      expect(component.uploadedPhotos).toEqual(['https://cdn.example/good.jpg']);
+      expect(component.uploadError).toBe('sell.uploadFailed');
+      expect(component.isUploading).toBe(false);
+    });
+
+    it('takes every photo dropped on the drop zone, not just the first', () => {
+      create();
+      listings().uploadPhoto.mockImplementation((f: File) => of({ url: `https://cdn.example/${f.name}` }));
+      const event = { preventDefault() {}, stopPropagation() {}, dataTransfer: { files: [file('a.jpg'), file('b.jpg')] } } as any;
+
+      component.onDrop(event);
+
+      expect(component.uploadedPhotos.length).toBe(2);
     });
   });
 

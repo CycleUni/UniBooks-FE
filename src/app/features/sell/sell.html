@@ -35,13 +35,20 @@
         <!-- Step 1 -->
         <div *ngIf="step === 1" class="step-content">
           <p class="desc">{{ 'sell.isbnDesc' | t }}</p>
-          <ui-input [placeholder]="'sell.isbnPlaceholder' | t" [(ngModel)]="searchQuery" (ngModelChange)="onSearchQueryChange()"></ui-input>
+          <ui-input
+            [placeholder]="'sell.isbnPlaceholder' | t"
+            [(ngModel)]="searchQuery"
+            (ngModelChange)="onSearchQueryChange()"
+            (compositionstart)="imeComposing = true"
+            (compositionend)="onSearchCompositionEnd()"
+            (keyup.enter)="onSearchEnter($event)"
+          ></ui-input>
 
           <div  class="mt-4" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-            <ui-button variant="ghost" (onClick)="toggleScanner()" *ngIf="!hideSearchButtonForNow && (!bookPreview && searchResults.length === 0 || isSearchQueryDirty)">
+            <ui-button variant="ghost" (onClick)="toggleScanner()" *ngIf="canSearch">
               {{ (isScanning ? 'sell.stopScan' : 'sell.scanBarcode') | t }}
             </ui-button>
-            <ui-button (onClick)="searchBook()" *ngIf="!hideSearchButtonForNow && (!bookPreview && searchResults.length === 0 || isSearchQueryDirty)" [disabled]="isCheckingIsbn || !searchQuery">
+            <ui-button (onClick)="searchBook()" *ngIf="canSearch" [disabled]="isCheckingIsbn || !searchQuery">
               {{ (isCheckingIsbn ? 'sell.searching' : 'sell.searchBook') | t }}
             </ui-button>
           </div>
@@ -122,7 +129,9 @@
           <ui-input [label]="'sell.courseLabel' | t" [placeholder]="'sell.coursePlaceholder' | t" [(ngModel)]="course" (ngModelChange)="onFormChange()"></ui-input>
           <ui-input [label]="'sell.professorLabel' | t" [placeholder]="'sell.professorPlaceholder' | t" [(ngModel)]="professor" (ngModelChange)="onFormChange()"></ui-input>
           <ui-input [label]="'sell.privateNoteLabel' | t" [placeholder]="'sell.privateNotePlaceholder' | t" [(ngModel)]="privateNote" (ngModelChange)="onFormChange()"></ui-input>
-          <ui-input [label]="'sell.descriptionLabel' | t" [placeholder]="'sell.descriptionPlaceholder' | t" [(ngModel)]="description" (ngModelChange)="onFormChange()"></ui-input>
+          <!-- Multi-line: condition notes run to several sentences. The backend
+               stores this as an unbounded TextField, so there is no limit to show. -->
+          <ui-textarea [label]="'sell.descriptionLabel' | t" [placeholder]="'sell.descriptionPlaceholder' | t" [rows]="4" [(ngModel)]="description" (ngModelChange)="onFormChange()"></ui-textarea>
 
           <div class="photo-upload">
             <label>{{ 'sell.photoLabel' | t }}</label>
@@ -137,7 +146,9 @@
                 </div>
                 <button class="remove-btn" (click)="removePhoto(i)">×</button>
               </div>
-              <div class="dropzone" *ngIf="uploadedPhotos.length < 3"
+              <!-- Kept while uploading even once the picks fill the cap, so
+                   the "Uploading..." state stays visible until they land. -->
+              <div class="dropzone" *ngIf="uploadedPhotos.length < maxPhotos || isUploading"
                    (click)="fileInput.click()"
                    (dragover)="onDragOver($event)"
                    (dragleave)="onDragLeave($event)"
@@ -150,7 +161,7 @@
                 </svg>
                 <span *ngIf="!isUploading">{{ 'sell.uploadBox' | t }}</span>
                 <span *ngIf="isUploading">{{ 'sell.uploading' | t }}</span>
-                <input #fileInput type="file" accept="image/*"  style="display: none;" (change)="onFileSelected($event)" [disabled]="isUploading">
+                <input #fileInput type="file" accept="image/*" multiple  style="display: none;" (change)="onFileSelected($event)" [disabled]="isUploading">
               </div>
             </div>
             <div *ngIf="uploadError" class="inline-msg error">
@@ -173,12 +184,39 @@
           </div>
           <div *ngIf="priceErrorKey" class="inline-msg error field-msg">{{ priceErrorKey | t }}</div>
 
+          <div *ngIf="priceWarning" class="inline-msg warn field-msg" role="status">
+            {{ 'sell.priceFarAbove' | t:{multiple: priceWarningMultiple, price: (otherCopies!.min | price)} }}
+          </div>
+
+          <p class="price-reference" *ngIf="otherCopies as copies">
+            <ng-container *ngIf="copies.count === 1">{{ 'sell.otherCopiesOne' | t:{price: (copies.min | price)} }}</ng-container>
+            <ng-container *ngIf="copies.count > 1 && copies.min === copies.max">{{ 'sell.otherCopiesSame' | t:{n: copies.count, price: (copies.min | price)} }}</ng-container>
+            <ng-container *ngIf="copies.count > 1 && copies.min !== copies.max">{{ 'sell.otherCopiesRange' | t:{n: copies.count, min: (copies.min | price), max: (copies.max | price)} }}</ng-container>
+          </p>
+
           <div class="free-btn">
             <ui-button variant="ghost" (onClick)="setFree()">{{ 'sell.free' | t }}</ui-button>
           </div>
 
 
-          
+          <!-- What Confirm Listing is about to publish, so a wrong condition or
+               a missing photo is caught here rather than on the live listing. -->
+          <section class="listing-summary" *ngIf="bookPreview">
+            <h3 class="listing-summary-title">{{ 'sell.summaryTitle' | t }}</h3>
+            <dl>
+              <dt>{{ 'sell.summaryBook' | t }}</dt>
+              <dd class="book-title-serif">{{ bookPreview.title }}</dd>
+              <dt>{{ 'common.condition' | t }}</dt>
+              <dd>{{ ('cond.' + condition) | t }}</dd>
+              <dt>{{ 'sell.summaryPrice' | t }}</dt>
+              <dd>
+                <ng-container *ngIf="priceProblemKey; else priceSet">—</ng-container>
+                <ng-template #priceSet>{{ price === 0 ? ('sell.summaryFree' | t) : (price | price) }}</ng-template>
+              </dd>
+              <dt>{{ 'sell.summaryPhotos' | t }}</dt>
+              <dd>{{ submittablePhotoCount || ('sell.summaryNoPhotos' | t) }}</dd>
+            </dl>
+          </section>
 
           <div *ngIf="apiError && step === 3" class="inline-msg error">
             {{ apiError }}

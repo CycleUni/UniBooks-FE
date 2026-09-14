@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { UiInput } from '../../shared/ui/input.component';
+import { UiTextarea } from '../../shared/ui/textarea.component';
+import { PricePipe } from '../../shared/pipes/price.pipe';
 import { UiButton } from '../../shared/ui/button.component';
 import { UiDropdown } from '../../shared/ui/dropdown.component';
 import { UiConditionPicker } from '../../shared/ui/condition-picker.component';
@@ -21,7 +23,7 @@ import { GoogleAnalyticsService } from '../../core/services/google-analytics.ser
 import type { Html5Qrcode } from 'html5-qrcode';
 import { RegionLinkService } from '../../core/region-link.service';
 import { HasUnsavedChanges } from '../../core/unsaved-changes.guard';
-import { Subscription } from 'rxjs';
+import { Subscription, catchError, concatMap, defaultIfEmpty, from, map, of, take } from 'rxjs';
 
 
 /**
@@ -139,6 +141,67 @@ export const SELL_DRAFT_STORAGE_KEY = 'unibooks.sell.draft';
  */
 export const SELL_DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * Photos a listing may carry from this form. The backend accepts up to 6
+ * (MAX_LISTING_PHOTOS); the form has always offered 3 and says so in its label.
+ */
+export const SELL_MAX_PHOTOS = 3;
+
+/** Active copies of the book already listed in the region, for the price step. */
+export interface OtherCopies {
+  count: number;
+  min: number;
+  max: number;
+}
+
+/**
+ * Reads the price range of a book's active copies off the book detail body.
+ * `price_stats` covers every copy; a backend that predates it only has the
+ * first page of listings, which is used only when it holds all of them — a
+ * range built from part of the list could leave out the cheapest copy.
+ */
+export function otherCopiesFromBook(book: any): OtherCopies | null {
+  const stats = book?.price_stats;
+  if (stats && typeof stats.count === 'number') {
+    const min = Number(stats.min);
+    const max = Number(stats.max);
+    if (stats.count > 0 && stats.min !== null && stats.max !== null && Number.isFinite(min) && Number.isFinite(max)) {
+      return { count: stats.count, min, max };
+    }
+    return null;
+  }
+
+  const listings = book?.listings;
+  const results: any[] = Array.isArray(listings?.results) ? listings.results : [];
+  const prices = results
+    .map(listing => listing?.price)
+    .filter(price => price !== null && price !== undefined && price !== '')
+    .map(Number)
+    .filter(Number.isFinite);
+  if (prices.length === 0) return null;
+  if (typeof listings.count === 'number' && listings.count > prices.length) return null;
+  return { count: prices.length, min: Math.min(...prices), max: Math.max(...prices) };
+}
+
+/** A price more than this many times the cheapest listed copy gets a warning. */
+export const PRICE_WARNING_MULTIPLE = 3;
+
+/**
+ * Whether `price` is far enough above the cheapest copy already listed to be
+ * worth a second look — typically an extra zero. Only a warning: a signed or
+ * annotated copy can fairly cost more. No rule applies when nothing else is
+ * listed (there is nothing to compare with, and a fixed ceiling would mean
+ * something different in every region's currency) or when the cheapest copy
+ * is free (any multiple of zero is zero).
+ */
+export function isPriceFarAboveOtherCopies(price: number | null | undefined, copies: OtherCopies | null): boolean {
+  if (!copies || copies.min <= 0) return false;
+  if (price === null || price === undefined || (price as any) === '') return false;
+  const numeric = Number(price);
+  if (!Number.isFinite(numeric)) return false;
+  return numeric > copies.min * PRICE_WARNING_MULTIPLE;
+}
+
 /** Default condition — also the "user has not touched this" baseline. */
 const DEFAULT_CONDITION = 'new';
 
@@ -161,7 +224,7 @@ export interface SellDraft {
 @Component({
   selector: 'app-sell',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, UiInput, UiButton, UiDropdown, UiConditionPicker, UiBookCover, UiVerificationPrompt, TPipe],
+  imports: [CommonModule, RouterModule, FormsModule, UiInput, UiTextarea, UiButton, UiDropdown, UiConditionPicker, UiBookCover, UiVerificationPrompt, TPipe, PricePipe],
   templateUrl: './sell.html',
   styleUrls: ['./sell.css']
 })
@@ -187,6 +250,13 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
   apiError = '';
   isSearchQueryDirty = false;
   hideSearchButtonForNow = false;
+
+  imeComposing = false;
+  // Enter confirming an IME candidate (e.g. Zhuyin) fires `compositionend`
+  // and the Enter `keyup` in the same tick, and some browsers have already
+  // flipped `isComposing` back to false by then — this flag covers that tick,
+  // or picking a candidate for a title search would also submit it.
+  private imeJustEnded = false;
 
   isScanning = false;
   cameraError = '';
@@ -244,7 +314,18 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
 
   uploadedPhotos: string[] = [];
 
-  isUploading = false;
+  /** Copies of this book already listed in the region; null when none or unknown. */
+  otherCopies: OtherCopies | null = null;
+  readonly priceWarningMultiple = PRICE_WARNING_MULTIPLE;
+  private otherCopiesBookId: string | null = null;
+  private otherCopiesSubscription: Subscription | null = null;
+
+  readonly maxPhotos = SELL_MAX_PHOTOS;
+  /** Files picked but not yet uploaded, counted against the photo cap. */
+  private pendingUploads = 0;
+  get isUploading(): boolean {
+    return this.pendingUploads > 0;
+  }
   uploadError = '';
   isDragOver = false;
 
@@ -264,38 +345,57 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
     event.preventDefault();
     event.stopPropagation();
     this.isDragOver = false;
-    const file = event.dataTransfer?.files?.[0];
-    if (file) {
-      this.handleFile(file);
+    const files = Array.from(event.dataTransfer?.files ?? []);
+    if (files.length) {
+      this.handleFiles(files);
     }
   }
 
   onFileSelected(event: any) {
-    const file = event.target.files[0];
-    if (file) {
-      this.handleFile(file);
+    const files: File[] = Array.from(event.target.files ?? []);
+    if (files.length) {
+      this.handleFiles(files);
       event.target.value = ''; // Reset input
     }
   }
 
-  handleFile(file: File) {
-    this.isUploading = true;
-    this.uploadError = '';
+  /**
+   * Uploads as many of the picked files as still fit under the cap, one after
+   * another so the photos keep the order they were picked in. Photos already
+   * uploaded and ones still on their way both count, or a second pick made
+   * while the first is uploading could overshoot the cap. Extra files are
+   * dropped with a message rather than silently.
+   */
+  handleFiles(files: File[]) {
+    const room = Math.max(this.maxPhotos - this.uploadedPhotos.length - this.pendingUploads, 0);
+    const accepted = files.slice(0, room);
+    this.uploadError = files.length > accepted.length
+      ? this.i18n.t('sell.photoLimitReached', { max: this.maxPhotos })
+      : '';
     this.cdr.markForCheck();
+    if (!accepted.length) return;
 
-    this.listingService.uploadPhoto(file).subscribe({
-      next: (res) => {
-        this.uploadedPhotos.push(res.url);
+    this.pendingUploads += accepted.length;
+    from(accepted).pipe(
+      // One failed file must not cancel the rest of the batch.
+      concatMap(file => this.listingService.uploadPhoto(file).pipe(
+        map(res => res.url as string | null),
+        catchError(() => of(null)),
+        // Exactly one result per file, or pendingUploads never returns to 0
+        // and the drop zone is stuck on "Uploading...".
+        defaultIfEmpty(null),
+        take(1),
+      )),
+    ).subscribe(url => {
+      this.pendingUploads--;
+      if (url) {
+        this.uploadedPhotos.push(url);
         this.ga.trackEvent('upload_listing_photo');
-        this.isUploading = false;
         this.saveDraft();
-        this.cdr.markForCheck();
-      },
-      error: () => {
+      } else {
         this.uploadError = this.i18n.t('sell.uploadFailed');
-        this.isUploading = false;
-        this.cdr.markForCheck();
       }
+      this.cdr.markForCheck();
     });
   }
 
@@ -378,6 +478,7 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
     this.stopScanner();
     // Also ends its retry schedule, if categories were still being retried.
     this.metadataSubscription?.unsubscribe();
+    this.otherCopiesSubscription?.unsubscribe();
     if (typeof window !== 'undefined') {
       // Must come off the window, or every later page in the session keeps
       // asking to confirm reloads on behalf of a component that is long gone.
@@ -580,6 +681,30 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
     });
   }
 
+  /** Whether the Search Book button is on offer — Enter follows the same rule. */
+  get canSearch(): boolean {
+    return !this.hideSearchButtonForNow
+      && ((!this.bookPreview && this.searchResults.length === 0) || this.isSearchQueryDirty);
+  }
+
+  onSearchCompositionEnd() {
+    this.imeComposing = false;
+    this.imeJustEnded = true;
+    setTimeout(() => { this.imeJustEnded = false; });
+  }
+
+  /**
+   * Enter in the ISBN field searches, as the button does. Not while an IME
+   * candidate is being confirmed (same guard as the messages composer), not
+   * while a search is already running, and not when the button is hidden —
+   * with a book already picked, Enter would otherwise throw the pick away.
+   */
+  onSearchEnter(event: Event) {
+    if (this.imeComposing || this.imeJustEnded || (event as KeyboardEvent).isComposing) return;
+    if (this.isCheckingIsbn || !this.searchQuery.trim() || !this.canSearch) return;
+    this.searchBook();
+  }
+
   onSearchQueryChange() {
     this.isSearchQueryDirty = true;
     this.hideSearchButtonForNow = false;
@@ -622,7 +747,50 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
       return;
     }
     this.step++;
+    if (this.step === 3) this.loadOtherCopies();
     this.saveDraft();
+  }
+
+  /**
+   * Fetches what other copies of the chosen book sell for, for the price
+   * step. Only a book already in the catalogue (it has an id) can have
+   * listings; a manual entry or an external result has none to show. The
+   * reference is a hint, so a failed request just leaves it out.
+   */
+  loadOtherCopies() {
+    const id = this.bookPreview?.id ? String(this.bookPreview.id) : null;
+    if (id === this.otherCopiesBookId) return;
+    this.otherCopiesSubscription?.unsubscribe();
+    this.otherCopiesSubscription = null;
+    this.otherCopiesBookId = id;
+    this.otherCopies = null;
+    if (!id) return;
+
+    this.otherCopiesSubscription = this.bookService.getBook(id).subscribe({
+      next: (book) => {
+        this.otherCopies = otherCopiesFromBook(book);
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        // Let a later visit to the step try again.
+        this.otherCopiesBookId = null;
+      },
+    });
+  }
+
+  /** The price's validation problem whether or not its message is showing yet. */
+  get priceProblemKey(): string {
+    return this.priceProblem();
+  }
+
+  /** Soft warning under the price; never blocks Confirm Listing. */
+  get priceWarning(): boolean {
+    return !this.priceProblem() && isPriceFarAboveOtherCopies(this.price, this.otherCopies);
+  }
+
+  /** Photos the listing will actually carry — broken ones are not submitted. */
+  get submittablePhotoCount(): number {
+    return this.uploadedPhotos.filter(url => !this.isPhotoBroken(url)).length;
   }
 
   prevStep() {
@@ -921,6 +1089,7 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
 
     // A book picked from search results hides the search controls again.
     this.hideSearchButtonForNow = !!this.bookPreview;
+    if (this.step === 3) this.loadOtherCopies();
     this.cdr.markForCheck();
   }
 
