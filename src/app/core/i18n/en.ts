@@ -334,6 +334,7 @@ export const en: Record<string, string> = {
   'msg.loadingOlder': 'Loading earlier messages…',
   'msg.inbox': 'Inbox',
   'msg.bookPrefix': 'Book: {title}',
+  'msg.unread': 'Unread',
   'msg.conversationWith': 'Conversation with {name}',
   'msg.role_buyer': 'Buyer',
   'msg.role_seller': 'Seller',

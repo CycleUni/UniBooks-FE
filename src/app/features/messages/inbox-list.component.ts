@@ -2,6 +2,7 @@ import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { I18nService, TPipe } from '../../core/i18n.service';
 import { UiRoleBadge } from '../../shared/ui/role-badge.component';
+import { formatInboxTime } from './message-formatting.util';
 
 /**
  * Conversation list in the Messages sidebar. Presentational: it renders the
@@ -28,6 +29,7 @@ import { UiRoleBadge } from '../../shared/ui/role-badge.component';
         [class.active]="activeChatId === chat.id"
         [class.role-buyer]="chat.other_party_role === 'buyer'"
         [class.role-seller]="chat.other_party_role === 'seller'"
+        [class.unread]="chat._hubUnread"
         (click)="select.emit(chat)"
       >
         <img *ngIf="chat.listing_photo" [src]="chat.listing_photo" [attr.alt]="chat.listing_title || ('common.bookCover' | t)" class="chat-thumb">
@@ -37,7 +39,8 @@ import { UiRoleBadge } from '../../shared/ui/role-badge.component';
             <span class="chat-partner">{{ chat.other_party }}</span>
             <div class="chat-meta-right">
               <ui-role-badge [role]="chat.other_party_role"></ui-role-badge>
-              <span class="unread-dot" *ngIf="chat._hubUnread"></span>
+              <span class="unread-dot" *ngIf="chat._hubUnread" role="img" [attr.aria-label]="'msg.unread' | t"></span>
+              <time class="chat-time" *ngIf="chat.updated_at" [attr.datetime]="chat.updated_at">{{ formatTime(chat.updated_at) }}</time>
               <button class="chat-delete-btn" type="button" [title]="'msg.deleteConversation' | t"
                       (click)="$event.stopPropagation(); remove.emit(chat)">×</button>
             </div>
@@ -130,6 +133,16 @@ import { UiRoleBadge } from '../../shared/ui/role-badge.component';
       background-color: var(--accent);
       flex-shrink: 0;
     }
+    .chat-time {
+      font-size: var(--text-sm);
+      color: var(--muted);
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .chat-item.unread .chat-time {
+      color: var(--accent);
+      font-weight: 600;
+    }
     .chat-delete-btn {
       display: none;
       background: none;
@@ -162,6 +175,12 @@ import { UiRoleBadge } from '../../shared/ui/role-badge.component';
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    /* The dot alone is 8px of colour that is easy to miss at a glance down a
+       long list; darkening the preview text is what most inboxes do too. */
+    .chat-item.unread .chat-preview {
+      color: var(--ink);
+      font-weight: 600;
+    }
   `]
 })
 export class MessagesInboxList {
@@ -171,6 +190,16 @@ export class MessagesInboxList {
   @Output() remove = new EventEmitter<any>();
 
   private i18n = inject(I18nService);
+
+  /**
+   * When the conversation last had activity. `updated_at` is the time of the
+   * newest message: Django moves it when it mirrors a message into
+   * `latest_message_body`, and the Messages page moves it locally for
+   * messages sent or received while it is open.
+   */
+  formatTime(updatedAt: string): string {
+    return formatInboxTime(updatedAt, this.i18n.lang() === 'en' ? 'en-US' : 'zh-TW');
+  }
 
   /**
    * Resolves a `[SYSTEM:<i18nKey>]` preview (order notifications, image

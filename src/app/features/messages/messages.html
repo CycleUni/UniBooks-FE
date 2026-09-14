@@ -3,7 +3,7 @@
           <messages-inbox-list
             [chats]="chats"
             [activeChatId]="activeChat?.id ?? null"
-            (select)="selectChat($event)"
+            (select)="openChat($event)"
             (remove)="deleteConversation($event)"
           ></messages-inbox-list>
         </div>

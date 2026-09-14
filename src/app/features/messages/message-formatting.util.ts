@@ -54,6 +54,39 @@ export function formatMessageTime(dateString: string, lang: 'en-US' | 'zh-TW'): 
   return `${year}/${month}/${day} ${timeStr}`;
 }
 
+/**
+ * The short time shown on an inbox row. Narrower than formatMessageTime: the
+ * row shares its line with the partner's name, role badge and unread dot, and
+ * at phone width a "Wednesday 14:05" pushes the name down to a few letters.
+ * Time of day for today, short weekday within the week, then month/day, and
+ * the year only once it is no longer this year. Invalid or missing → ''.
+ */
+export function formatInboxTime(dateString: string | null | undefined, lang: 'en-US' | 'zh-TW', now: Date = new Date()): string {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const nowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.round((nowStart.getTime() - dateStart.getTime()) / (1000 * 60 * 60 * 24));
+
+  // A timestamp slightly ahead of this device's clock (the server's clock, or
+  // the chat worker's) still belongs to today, not to a negative day.
+  if (diffDays <= 0) {
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  }
+  if (diffDays < 7) {
+    return new Intl.DateTimeFormat(lang, { weekday: 'short' }).format(date);
+  }
+  const monthDay = `${date.getMonth() + 1}/${date.getDate()}`;
+  if (date.getFullYear() === now.getFullYear()) {
+    return monthDay;
+  }
+  return `${date.getFullYear()}/${monthDay}`;
+}
+
 /** Whether a raw message body is one of the meetup-flow control messages
  * (request/accept/decline/cancel). Generic [SYSTEM:xxx] messages (e.g. order
  * cancellation notices) are NOT meetup cards and should render as normal messages. */

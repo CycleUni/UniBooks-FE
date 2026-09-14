@@ -1,6 +1,6 @@
 import { RegionLinkDirective } from '../../core/region-link.directive';
 import { Component, OnInit, AfterViewChecked, inject, ViewChild, ElementRef, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { UiButton } from '../../shared/ui/button.component';
@@ -94,6 +94,13 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
   private connectionSubscription?: Subscription;
   private roomUpdateSubscription?: Subscription;
   private unreadStateSubscription?: Subscription;
+  private queryParamsSubscription?: Subscription;
+  private location = inject(Location);
+  // Whether the open chat's `?chat=` entry was pushed onto history by this
+  // page (opened from the inbox), rather than arrived with (a link, a refresh,
+  // the `?listing=` redirect). Only a pushed entry may be popped by the header
+  // back button: popping one the user arrived with would leave the site.
+  private chatEntryPushed = false;
 
   private rawEdgeMsgs: any[] = [];
   // Temp ids of messages sent but not yet confirmed by the server, oldest first
@@ -121,8 +128,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
       const chat = this.chats.find(c => c.id === update.room_id);
       if (!chat) return;
 
-      chat.latest_message = update.preview;
-      chat.updated_at = new Date(update.timestamp).toISOString();
+      this.touchInboxRow(chat, update.preview, update.timestamp);
       this.cdr.markForCheck();
     });
 
@@ -132,7 +138,10 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
     this.unreadStateSubscription = this.messageService.conversationUnreadState$.subscribe(state => {
       for (const chat of this.chats) {
         const conversationId = String(chat.id);
-        (chat as any)._hubUnread = state.get(conversationId) ?? false;
+        // The open conversation is being read as messages arrive: the hub
+        // briefly lists it as unread until the mark-read call below lands,
+        // which flashed a dot on the row the user is looking at.
+        (chat as any)._hubUnread = chat.id !== this.activeChat?.id && (state.get(conversationId) ?? false);
       }
       this.cdr.markForCheck();
     });
@@ -151,8 +160,11 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
         }
         // An image message's content is its URL — show the placeholder
         // instead of a raw https://…/chat/….webp in the inbox preview.
-        this.activeChat.latest_message =
-          (msg.message_type || 'text') === 'image' ? IMAGE_PREVIEW_TOKEN : msg.content;
+        this.touchInboxRow(
+          this.activeChat,
+          (msg.message_type || 'text') === 'image' ? IMAGE_PREVIEW_TOKEN : msg.content,
+          msg.timestamp || Date.now()
+        );
 
         // Order-status system messages (meetup requested/approved/rejected/
         // cancelled/delivered) change what `isPendingApproval()` should
@@ -305,6 +317,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
     if (this.roomUpdateSubscription) {
       this.roomUpdateSubscription.unsubscribe();
     }
+    this.queryParamsSubscription?.unsubscribe();
     if (this.unreadStateSubscription) {
       this.unreadStateSubscription.unsubscribe();
     }
@@ -323,10 +336,16 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
         }
         this.loadingChats = false;
 
-        this.route.queryParams.subscribe(params => {
+        this.queryParamsSubscription?.unsubscribe();
+        this.queryParamsSubscription = this.route.queryParams.subscribe(params => {
           if (params['chat']) {
             const chat = this.chats.find(c => c.id === params['chat']);
-            if (chat) {
+            // Opening from the inbox selects first and then writes the URL,
+            // which lands back here for the chat already open — while its
+            // token is still in flight, so selectChat's own guard (which also
+            // wants messages loaded) would fetch everything a second time.
+            if (chat && this.activeChat?.id !== chat.id) {
+              this.chatEntryPushed = false;
               this.selectChat(chat);
             }
           } else if (params['listing']) {
@@ -351,6 +370,11 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
                 }
               });
             }
+          } else if (this.activeChat) {
+            // `?chat=` went away underneath an open chat: the browser's Back
+            // button popped the entry openChat() pushed. On a phone that is
+            // the way back to the inbox, so it has to close the chat.
+            this.leaveChat();
           }
           this.cdr.markForCheck();
         });
@@ -362,13 +386,69 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
     });
   }
 
+  /**
+   * A conversation picked in the inbox. The selection goes into the URL as
+   * `?chat=<id>`, the same parameter links from a book page or a notification
+   * email use, so a refresh reopens it and it can be shared.
+   *
+   * Opening a chat from the bare inbox pushes a history entry — on a phone
+   * the inbox and the chat are separate screens, and Back must return to the
+   * inbox rather than leave the page. Switching from one open chat to
+   * another (desktop, where both panes show) replaces it instead, so Back
+   * doesn't step through every conversation clicked on the way.
+   */
+  openChat(chat: any) {
+    const switching = !!this.activeChat;
+    this.selectChat(chat);
+    if (!switching) this.chatEntryPushed = true;
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { chat: chat.id },
+      replaceUrl: switching,
+    });
+  }
+
+  /** The chat header's back button. */
   closeChat() {
+    this.leaveChat();
+    if (this.chatEntryPushed) {
+      // Undo our own push instead of adding an inbox entry on top of it,
+      // which would make the next Back land on the chat that was just closed.
+      this.chatEntryPushed = false;
+      this.location.back();
+    } else {
+      this.clearChatParam();
+    }
+  }
+
+  private clearChatParam() {
+    this.chatEntryPushed = false;
+    this.router.navigate([], { relativeTo: this.route, queryParams: { chat: null }, replaceUrl: true });
+  }
+
+  /** Closes the open chat's pane without touching the URL. */
+  private leaveChat() {
     if (this.activeChat?.id) {
       this.saveDraft(this.activeChat.id, this.newMessage);
     }
     this.newMessage = '';
     this.activeChat = null;
     this.mobileLayout.setHideBottomNav(false);
+  }
+
+  /**
+   * Moves an inbox row to reflect a message sent or received while this page
+   * is open: its preview, its time, and its place at the top (the server
+   * orders the inbox by latest activity). Without the move, a refresh was the
+   * only way to see a conversation that just had a message jump up the list.
+   */
+  private touchInboxRow(chat: any, preview: string, timestamp: number) {
+    chat.latest_message = preview;
+    chat.updated_at = new Date(timestamp).toISOString();
+    const index = this.chats.indexOf(chat);
+    if (index > 0) {
+      this.chats = [chat, ...this.chats.slice(0, index), ...this.chats.slice(index + 1)];
+    }
   }
 
   selectChat(chat: any) {
@@ -487,7 +567,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
         created_at: new Date().toISOString()
       };
       this.insertMessageSorted(tempMsg);
-      this.activeChat.latest_message = text;
+      this.touchInboxRow(this.activeChat, text, Date.now());
       this.cdr.markForCheck();
       setTimeout(() => this.scrollToBottom(), 10);
 
@@ -554,7 +634,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
           created_at: new Date().toISOString()
         };
         this.messages.push(tempMsg);
-        this.activeChat.latest_message = IMAGE_PREVIEW_TOKEN;
+        this.touchInboxRow(this.activeChat, IMAGE_PREVIEW_TOKEN, Date.now());
         this.cdr.markForCheck();
         setTimeout(() => this.scrollToBottom(), 10);
 
@@ -958,6 +1038,9 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
           this.activeChat = null;
           this.messages = [];
           this.newMessage = '';
+          // Otherwise a refresh would try to reopen the conversation just
+          // deleted, and Back would return to it.
+          this.clearChatParam();
         }
         this.cdr.markForCheck();
       }

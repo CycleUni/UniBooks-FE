@@ -330,6 +330,7 @@ export const zhTW: Record<string, string> = {
   'msg.loadingOlder': '載入較早的訊息…',
   'msg.inbox': '收件匣',
   'msg.bookPrefix': '書目：{title}',
+  'msg.unread': '未讀',
   'msg.conversationWith': '與 {name} 的對話',
   'msg.role_buyer': '買家',
   'msg.role_seller': '賣家',

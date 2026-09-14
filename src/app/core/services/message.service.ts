@@ -33,6 +33,8 @@ export interface RoomUpdate {
   sender_id: string;
   preview: string;
   timestamp: number;
+  /** True on the sender's own hub: the update is their own message. */
+  self?: boolean;
 }
 
 @Injectable({
@@ -536,7 +538,12 @@ export class MessageService {
           // Optimistically mark this room as unread so the inbox dot appears
           // immediately. The matching `unread_count` event from the hub will
           // provide the authoritative state shortly after.
-          if (data.room_id) {
+          // Not for `self`: the sender's own hub gets the room_update too, so
+          // their inbox preview moves, and the hub deliberately skips the
+          // unread mark for it — which also means no `unread_count` follows to
+          // correct an optimistic mark. Setting one here left a dot on every
+          // conversation the user had just written in themselves.
+          if (data.room_id && !data.self) {
             const current = this.conversationUnreadState$.value;
             const updated = new Map(current);
             updated.set(data.room_id, true);
