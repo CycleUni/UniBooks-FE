@@ -105,10 +105,11 @@ describe('MessageService hub reconnect', () => {
     expect(sockets).toHaveLength(1);
   });
 
-  it('stops reconnecting when there is no refresh token left to try', () => {
-    // AuthInterceptor's refresh path throws a plain Error, not an HTTP one,
-    // once the refresh token is gone — the steady state of a signed-out tab.
-    tokenResponse(() => throwError(() => new Error('No refresh token available')));
+  it('stops reconnecting on a failure that is not an HTTP response at all', () => {
+    // A signed-out tab's token request now fails with a 401 (covered above).
+    // Anything that is not an HttpErrorResponse says nothing about the backend
+    // being briefly unavailable either, so it must not start a retry loop.
+    tokenResponse(() => throwError(() => new Error('not an HTTP failure')));
 
     dropTheConnection();
     vi.advanceTimersByTime(10 * 60_000);

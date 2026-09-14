@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, effect, inject, signal } from '@angular/core';
 import { HttpClient, HttpParams, HttpContext } from '@angular/common/http';
 import { Observable, shareReplay, tap, catchError, throwError } from 'rxjs';
 import { I18nService } from '../i18n.service';
@@ -107,6 +107,20 @@ export class AccountService {
     // compatibility with existing components that read profileCache().
     // We keep this function as a convenience; calling getMyProfile() when
     // AuthStore.user already has data will return the cached copy.
+
+    // Drop the cache when the session ends. It is keyed to nothing but "the
+    // current login", and adminGuard/superuserGuard read profileCache()
+    // directly with no TTL check (the 60s TTL lives inside getMyProfile only) —
+    // so a cache surviving into the next sign-in would judge a different user
+    // on the previous one's is_staff / is_superuser. This clears what is
+    // already cached; a response still in flight at sign-out is dropped by the
+    // session-generation check in getMyProfile(), which this effect alone
+    // could not catch.
+    effect(() => {
+      if (!this.authStore.isAuthenticated()) {
+        this.clearProfileCache();
+      }
+    });
   }
 
   getMyProfile(page: number = 1, q: string = ''): Observable<any> {
@@ -133,11 +147,27 @@ export class AccountService {
     if (q) {
       params = params.set('q', q);
     }
-    const req = this.http.get<any>('/auth/me/', { params }).pipe(
+    // Two separate questions when a response lands, answered separately:
+    //  - May it fill the cache? Only if the session that asked for it still
+    //    exists. Otherwise it re-fills the cache a sign-out just cleared.
+    //  - May it release the flight-lock? Only if the lock is still its own.
+    //    A newer request may hold it by now, and must not be clobbered; but a
+    //    request whose session ended while it was out must still let go, or
+    //    every later call replays it forever. That is not hypothetical: a
+    //    request that 401s while signed out ends the session itself (the
+    //    interceptor has no refresh token to try), which moves the generation
+    //    with no signed-in -> signed-out change for the effect above to see.
+    const generation = this.authStore.sessionGeneration;
+    const stillCurrent = () => generation === this.authStore.sessionGeneration;
+    const ownsLock = () => this.profileRequest === req;
+    const req: Observable<any> = this.http.get<any>('/auth/me/', { params }).pipe(
       tap(profile => {
-        if (page === 1 && !q) {
+        if (page !== 1 || q) return;
+        if (stillCurrent()) {
           this.profileCache.set(profile);
           this.cacheTimestamp = Date.now();
+        }
+        if (ownsLock()) {
           this.profileLoading.set(false);
           this.profileRequest = null;
         }
@@ -145,7 +175,7 @@ export class AccountService {
       catchError(err => {
         // Reset flight-lock and cache on error so the next call retries
         // instead of re-subscribing to the same failed Observable forever.
-        if (page === 1 && !q) {
+        if (page === 1 && !q && ownsLock()) {
           this.profileLoading.set(false);
           this.profileRequest = null;
           this.cacheTimestamp = 0;

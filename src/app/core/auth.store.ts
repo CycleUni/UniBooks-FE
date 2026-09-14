@@ -1,12 +1,13 @@
-import { Injectable, Injector, signal, inject, untracked, runInInjectionContext } from '@angular/core';
+import { DestroyRef, Injectable, Injector, signal, inject, untracked, runInInjectionContext } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { tap, catchError } from 'rxjs/operators';
+import { tap, catchError, filter, take } from 'rxjs/operators';
 import { Observable, of } from 'rxjs';
-import { Router } from '@angular/router';
+import { NavigationCancel, NavigationEnd, NavigationError, NavigationSkipped, Router } from '@angular/router';
 import { GoogleAnalyticsService } from './services/google-analytics.service';
 import { RegionLinkService } from './region-link.service';
 import { isSameRegion } from './region-path';
 import { isUserVerifiedIn } from './verification';
+import { signedOutRedirectFor } from './signed-out-redirect';
 
 export interface RegionVerification {
   region: string;
@@ -70,18 +71,27 @@ export class AuthStore {
     }
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('storage', (e: StorageEvent) => {
+      const onStorage = (e: StorageEvent) => {
         if (e.key === 'access_token' || e.key === null) {
           const token = this.getAccessToken();
-          this._isAuthenticated.set(!!token);
           if (!token) {
-            this._user.set(null);
-            this.fetchedForToken = null;
-          } else if (token !== this.fetchedForToken) {
+            // Another tab signed out. Route it through the same handling as an
+            // expiry in this tab, so this branch stops skipping the GA identity
+            // clear and stops stranding this tab on a page it can no longer see.
+            this.endSession();
+            return;
+          }
+          this._isAuthenticated.set(true);
+          if (token !== this.fetchedForToken) {
             untracked(() => this.fetchUserProfile());
           }
         }
-      });
+      };
+      window.addEventListener('storage', onStorage);
+      // Removed with the injector. A root service outlives nothing in the app,
+      // but a destroyed store still listening would act on a dead injector
+      // (NG0205) the next time another tab touches the tokens.
+      inject(DestroyRef).onDestroy(() => window.removeEventListener('storage', onStorage));
     }
   }
 
@@ -96,8 +106,16 @@ export class AuthStore {
 
     this.fetchedForToken = token;
 
+    const generation = this._sessionGeneration;
     this.http.get<AuthUser>('/auth/me/').pipe(
       tap(profile => {
+        // Signed out while this was in the air (e.g. logout with an expired
+        // access token: the refresh fires this fetch, then the retried logout
+        // lands first). Writing it would bring back the user it belonged to —
+        // in the header, in the admin checks, and as GA's user id.
+        if (generation !== this._sessionGeneration) {
+          return;
+        }
         this._user.set(profile);
         // Identify user in GA4 for User Explorer & cross-device reports
         this.ga.setUserId(profile.id);
@@ -109,7 +127,7 @@ export class AuthStore {
       }),
       catchError(err => {
         if (err.status === 401) {
-          this.clearAuth();
+          this.endSession();
         } else {
           // A 5xx here leaves the user logged in with an empty profile and no
           // visible symptom, which is very hard to diagnose from the UI alone.
@@ -166,7 +184,12 @@ export class AuthStore {
     return this._http;
   }
 
-  clearAuth() {
+  /**
+   * Wipe every trace of the session. Deliberately does NOT navigate — see
+   * endSession() for a session that ended on its own, and logout() for one
+   * the visitor asked for.
+   */
+  private clearAuth() {
     if (typeof localStorage !== 'undefined') {
       try {
         localStorage.removeItem('access_token');
@@ -175,15 +198,103 @@ export class AuthStore {
         console.error('Failed to clear auth tokens from localStorage', err);
       }
     }
+    this._sessionGeneration++;
     this._isAuthenticated.set(false);
     this._user.set(null);
     this.fetchedForToken = null;
     // Clear GA4 user identity on logout
     this.ga.setUserId(null);
     this.ga.clearUserProperties();
-    // Signing out lands on the sign-in page, the same place the old
-    // /account login wall put them.
-    this.router.navigate(this.regionLink.path(['/login']));
+  }
+
+  private _sessionGeneration = 0;
+
+  /**
+   * Changes, synchronously, every time a session ends. A response that was
+   * requested under one generation and lands under another belongs to a
+   * session that no longer exists, and must not be written anywhere shared —
+   * see AccountService.getMyProfile(). Synchronous on purpose: an effect on
+   * isAuthenticated() would run a scheduling step later, which is exactly the
+   * window an in-flight response lands in.
+   */
+  get sessionGeneration(): number {
+    return this._sessionGeneration;
+  }
+
+  /**
+   * The session ended without the visitor asking for it: the access token
+   * expired and the refresh was refused, or another tab signed out.
+   *
+   * Clears the session, then moves the visitor only when they are somewhere a
+   * signed-out visitor cannot be. Staying put is the whole point. This used
+   * to navigate unconditionally, which threw people off the *public* homepage
+   * the moment the background bootstrap GET /auth/me/ failed to refresh a
+   * stale token — the page had rendered, and then the backend's answer yanked
+   * them to /login for no reason they could see.
+   *
+   * Where "cannot be" is decided is signed-out-redirect.ts: each guard
+   * registers the destination it would itself have chosen, so /account still
+   * goes to /login (now carrying a returnUrl, which the old unconditional
+   * navigate threw away) and /admin still goes home.
+   */
+  endSession(): void {
+    this.clearAuth();
+    // Several requests can fail together on one page load (the bootstrap
+    // /auth/me/ and the message hub token, then the anonymous retry of
+    // /auth/me/), so this can run several times in a row. That needs no
+    // bookkeeping: the first decision that redirects starts a navigation, and
+    // every later one waits for it and then finds the visitor already on a page
+    // they may see.
+    this.afterNavigationSettles(() => this.leaveIfUnwelcome());
+  }
+
+  /**
+   * "Where is the visitor?" has no answer while a navigation is under way.
+   * routerState only advances when a navigation commits, which is after
+   * canActivate AND after the lazy chunk has downloaded — every guarded route
+   * here is loadComponent. In that window routerState still describes the page
+   * being left (or, on a cold deep link, nothing at all), so reading it then
+   * gets both directions wrong: a deep link into /account that already passed
+   * authGuard on the stale token would be left to activate signed-out, and a
+   * visitor leaving /account for a public page would be pulled back to /login.
+   *
+   * So wait for the navigation to finish, and decide against where it landed.
+   * The re-check runs a macrotask after the terminal event because the router
+   * emits NavigationEnd before clearing currentNavigation, and a guard that
+   * redirects starts its follow-up navigation in between.
+   */
+  private afterNavigationSettles(decide: () => void): void {
+    if (!this.router.currentNavigation()) {
+      decide();
+      return;
+    }
+    this.router.events.pipe(
+      filter(e =>
+        e instanceof NavigationEnd ||
+        e instanceof NavigationCancel ||
+        e instanceof NavigationError ||
+        e instanceof NavigationSkipped
+      ),
+      take(1)
+    ).subscribe(() => setTimeout(() => this.afterNavigationSettles(decide), 0));
+  }
+
+  private leaveIfUnwelcome(): void {
+    // Signed back in while we waited for the navigation: nothing to leave.
+    if (this.isAuthenticated()) {
+      return;
+    }
+
+    const redirect = signedOutRedirectFor(this.router.routerState.snapshot.root);
+    if (!redirect) {
+      return;
+    }
+
+    const returnUrl = this.router.url;
+    const target = runInInjectionContext(this.injector, () => redirect(returnUrl));
+    // replaceUrl: Back would otherwise land on the page they just lost access
+    // to, whose guard immediately bounces them out again.
+    this.router.navigateByUrl(target, { replaceUrl: true });
   }
 
   getAccessToken(): string | null {
@@ -287,13 +398,21 @@ export class AuthStore {
     if (refresh) {
       return this.http.post('/auth/logout/', { refresh }).pipe(
         tap({
-          next: () => this.clearAuth(),
-          error: () => this.clearAuth()
+          next: () => this.signOut(),
+          error: () => this.signOut()
         }),
         catchError(() => of(null))
       );
     }
-    this.clearAuth();
+    this.signOut();
     return of(null);
+  }
+
+  /** Signing out is a deliberate act, so it always lands on the sign-in page —
+   *  the same place the old /account login wall put them — whether or not the
+   *  page they were on was one they could have stayed on. */
+  private signOut(): void {
+    this.clearAuth();
+    this.router.navigate(this.regionLink.path(['/login']));
   }
 }

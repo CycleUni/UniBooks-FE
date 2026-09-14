@@ -310,6 +310,15 @@ describe('Sell Component Barcode Scanner Validation', () => {
     expect(component.cameraError).toBe('');
     expect(component.searchQuery).toBe('9786264140720');
   });
+
+  it('shows the sign-in state when the session ends while the page is open', () => {
+    expect(component.isLoggedIn).toBe(true);
+
+    // The session dies in the background: nothing navigates, the store flips.
+    (TestBed.inject(AuthStore) as any).isLoggedIn = () => false;
+
+    expect(component.isLoggedIn).toBe(false);
+  });
 });
 
 describe('unsavedChangesGuard', () => {

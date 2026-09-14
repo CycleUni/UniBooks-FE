@@ -506,8 +506,8 @@ export class MessageService {
           // retrying with the cached token: the backend unreachable (status
           // 0), throttled, or erroring. Anything else means the session is
           // gone — a 401/403 arrives here only after AuthInterceptor tried to
-          // refresh and failed, and with no refresh token left it throws a
-          // plain Error rather than an HTTP one. Treating those as transient
+          // refresh and failed (including when no refresh token was left,
+          // which it reports as a 401 too). Treating those as transient
           // turned every signed-out tab into a request to the backend every
           // couple of seconds, forever. Stop; signing in again reconnects the
           // hub from the layout.

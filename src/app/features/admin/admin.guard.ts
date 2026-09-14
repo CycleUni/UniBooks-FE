@@ -5,6 +5,7 @@ import { AuthStore } from '../../core/auth.store';
 import { AccountService } from '../../core/services/account.service';
 import { RegionService } from '../../core/region.service';
 import { regionUrlTree } from '../../core/region-path';
+import { requiresAuth } from '../../core/signed-out-redirect';
 
 // Gates the whole /admin/* section on the current user's `is_staff` flag.
 // `AccountService.profileCache` (backed by GET /auth/me/) is the only place
@@ -12,7 +13,7 @@ import { regionUrlTree } from '../../core/region-path';
 // email/id set at login and is never rehydrated on page load — so a direct
 // nav to /admin (fresh load, cache still empty) has to fetch the profile
 // first rather than assume it's already populated.
-export const adminGuard: CanActivateFn = () => {
+export const adminGuard: CanActivateFn = requiresAuth(() => {
   const auth = inject(AuthStore);
   const accountService = inject(AccountService);
   const router = inject(Router);
@@ -31,4 +32,6 @@ export const adminGuard: CanActivateFn = () => {
     map(profile => (profile?.is_staff === true ? true : regionUrlTree(router, regionService, ['/']))),
     catchError(() => of(regionUrlTree(router, regionService, ['/'])))
   );
-};
+// A session that ends without a navigation lands where this guard would have
+// put it — home, not /login: see signed-out-redirect.ts.
+}, () => regionUrlTree(inject(Router), inject(RegionService), ['/']));

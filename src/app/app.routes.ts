@@ -49,7 +49,13 @@ const featureRoutes: Routes = [
     ]
   },
   { path: 'checkout/success', loadComponent: () => import('./features/checkout/success').then(m => m.OrderSuccessComponent) },
-  { path: 'checkout/:id', loadComponent: () => import('./features/checkout/checkout').then(m => m.CheckoutComponent) },
+  // Guarded, though it never used to be: placing an order needs a session.
+  // Its entrances already assume one — listing-detail's canStartTransaction and
+  // book's buy buttons bounce a signed-out visitor to /login themselves, and
+  // messages' goToCheckout sits behind /messages' own authGuard. Saying so on
+  // the route means a session that dies *while* the visitor is on checkout gets
+  // the same answer, instead of leaving them on a page whose only button fails.
+  { path: 'checkout/:id', canActivate: [authGuard], loadComponent: () => import('./features/checkout/checkout').then(m => m.CheckoutComponent) },
   { path: 'listing/:id', loadComponent: () => import('./features/listing-detail/listing-detail').then(m => m.ListingDetail) },
   { path: 'seller/:id', loadComponent: () => import('./features/seller/seller').then(m => m.SellerPageComponent) },
   {

@@ -5,6 +5,7 @@ import { AuthStore } from '../../core/auth.store';
 import { AccountService } from '../../core/services/account.service';
 import { RegionService } from '../../core/region.service';
 import { regionUrlTree } from '../../core/region-path';
+import { requiresAuth } from '../../core/signed-out-redirect';
 
 // Same shape as adminGuard, and for the same reason: `is_superuser` only
 // exists client-side in AccountService.profileCache (GET /auth/me/). AuthStore
@@ -14,7 +15,7 @@ import { regionUrlTree } from '../../core/region-path';
 //
 // Redirects through regionUrlTree rather than parseUrl('/'), so the bounce
 // keeps the region prefix instead of dropping the user at a region-less root.
-export const superuserGuard: CanActivateFn = () => {
+export const superuserGuard: CanActivateFn = requiresAuth(() => {
   const auth = inject(AuthStore);
   const accountService = inject(AccountService);
   const router = inject(Router);
@@ -35,4 +36,5 @@ export const superuserGuard: CanActivateFn = () => {
     map(profile => (profile?.is_superuser === true ? true : deny())),
     catchError(() => of(deny()))
   );
-};
+// Same as adminGuard: a silent session end goes home, not to /login.
+}, () => regionUrlTree(inject(Router), inject(RegionService), ['/']));

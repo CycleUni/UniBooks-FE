@@ -191,6 +191,7 @@ export const zhHK: Record<string, string> = {
   'auth.errUserNotFound': '找不到用戶',
   'auth.errAccountDisabled': '帳戶已被停用',
   'auth.errTokenRevoked': 'Token 已失效或被撤銷',
+  'auth.errSessionStoreUnavailable': '登入服務暫時未能使用，請稍後再試。',
   'auth.errNotLoggedIn': '登入後才能進行此操作',
   'auth.registerSuccess': '註冊成功！我們已寄送啟用連結到你的電郵，請點擊連結後再登入。',
   'auth.logoutSuccess': '登出成功',

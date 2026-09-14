@@ -3,8 +3,15 @@ import { Router, CanActivateFn } from '@angular/router';
 import { RegionService } from './region.service';
 import { regionUrlTree } from './region-path';
 import { AuthStore } from './auth.store';
+import { requiresAuth } from './signed-out-redirect';
 
-export const authGuard: CanActivateFn = (route, state) => {
+/** Where this guard family puts a visitor who is not signed in. Registered
+ *  alongside each guard so a session that ends *without* a navigation lands
+ *  in the same place a navigation would have — see signed-out-redirect.ts. */
+const toLogin = (returnUrl: string) =>
+  regionUrlTree(inject(Router), inject(RegionService), ['/login'], { queryParams: { returnUrl } });
+
+export const authGuard: CanActivateFn = requiresAuth((route, state) => {
   const auth = inject(AuthStore);
   const router = inject(Router);
   const regionService = inject(RegionService);
@@ -14,7 +21,7 @@ export const authGuard: CanActivateFn = (route, state) => {
   }
 
   return regionUrlTree(router, regionService, ['/login'], { queryParams: { returnUrl: state.url } });
-};
+}, toLogin);
 
 /** /login and /register are for people who are not signed in. Someone who is
  *  gets sent on rather than shown a form they cannot use — honouring
@@ -35,7 +42,7 @@ export const guestGuard: CanActivateFn = (route) => {
   return regionUrlTree(router, regionService, ['/account']);
 };
 
-export const accountIndexGuard: CanActivateFn = (route, state) => {
+export const accountIndexGuard: CanActivateFn = requiresAuth((route, state) => {
   const auth = inject(AuthStore);
   const router = inject(Router);
   const regionService = inject(RegionService);
@@ -48,4 +55,4 @@ export const accountIndexGuard: CanActivateFn = (route, state) => {
   // second line of defence for an old bookmark that lands straight on
   // /account, which used to render the login wall itself.
   return regionUrlTree(router, regionService, ['/login'], { queryParams: { returnUrl: state.url } });
-};
+}, toLogin);

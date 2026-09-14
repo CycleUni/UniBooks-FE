@@ -170,7 +170,15 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
   searchQuery = '';
   searchResults: any[] = [];
   bookPreview: any = null;
-  isLoggedIn = false;
+  /** Read through to the store rather than snapshotted in ngOnInit. A session
+   *  can end while this page is open — the token expires and the refresh is
+   *  refused in the background — and a cached `true` left the visitor filling in
+   *  the whole listing wizard, only to be told at submit that their .edu email
+   *  needs verifying. The template already has the right signed-out state; it
+   *  just never saw the change. */
+  get isLoggedIn(): boolean {
+    return this.authStore.isLoggedIn();
+  }
   isVerified = false;
   showUnverifiedPrompt = false;
   isLoading = true;
@@ -340,8 +348,7 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
       }
     });
 
-    if (this.authStore.isLoggedIn()) {
-      this.isLoggedIn = true;
+    if (this.isLoggedIn) {
       this.accountService.getMyProfile().subscribe({
         next: (profile) => {
           this.isLoading = false;
@@ -359,7 +366,6 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
         }
       });
     } else {
-      this.isLoggedIn = false;
       this.isLoading = false;
       this.cdr.markForCheck();
     }

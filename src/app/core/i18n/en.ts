@@ -194,6 +194,7 @@ export const en: Record<string, string> = {
   'auth.errUserNotFound': 'User not found',
   'auth.errAccountDisabled': 'Account has been disabled',
   'auth.errTokenRevoked': 'Token is invalid or revoked',
+  'auth.errSessionStoreUnavailable': 'Sign-in is briefly unavailable. Please try again in a moment.',
   'auth.errNotLoggedIn': 'You must log in to perform this action',
   'auth.registerSuccess': 'Registration successful! We\'ve sent an activation link to your email — click it, then log in below.',
   'auth.logoutSuccess': 'Logged out successfully',

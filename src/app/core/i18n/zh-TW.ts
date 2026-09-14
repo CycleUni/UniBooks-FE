@@ -191,6 +191,7 @@ export const zhTW: Record<string, string> = {
   'auth.errUserNotFound': '找不到使用者',
   'auth.errAccountDisabled': '帳號已被停用',
   'auth.errTokenRevoked': 'Token 已失效或被撤銷',
+  'auth.errSessionStoreUnavailable': '登入服務暫時無法使用，請稍後再試。',
   'auth.errNotLoggedIn': '登入後才能進行此操作',
   'auth.registerSuccess': '註冊成功！我們已寄送啟用連結到你的信箱，請點擊連結後再登入。',
   'auth.logoutSuccess': '登出成功',

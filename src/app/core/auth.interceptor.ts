@@ -9,8 +9,8 @@ import {
  * AuthenticationFailed before DRF checks permission_classes, so AllowAny views
  * would return 401 instead of serving data anonymously. */
 export const SKIP_AUTH = new HttpContextToken<boolean>(() => false);
-import { Observable, throwError, of } from 'rxjs';
-import { catchError, switchMap, map, finalize, shareReplay } from 'rxjs/operators';
+import { Observable, throwError, of, timer } from 'rxjs';
+import { catchError, switchMap, map, finalize, shareReplay, retry } from 'rxjs/operators';
 import { isPlatformBrowser } from '@angular/common';
 import { AuthStore } from './auth.store';
 import { environment } from '../../environments/environment';
@@ -112,11 +112,15 @@ export class AuthInterceptor implements HttpInterceptor {
       catchError(err => {
         // Refresh definitively failed and local auth was cleared (e.g. stale
         // tokens for a deleted account): retry once anonymously so public
-        // endpoints keep working instead of dying with the bad token
+        // endpoints keep working instead of dying with the bad token.
+        // Only when there WAS a token to strip — a request that went out
+        // anonymous and got a 401 would just be sent again, byte for byte,
+        // to be refused again.
         if (
           err instanceof HttpErrorResponse &&
           (err.status === 401 || err.status === 403) &&
-          !this.authStore.getAccessToken()
+          !this.authStore.getAccessToken() &&
+          request.headers.has('Authorization')
         ) {
           return next.handle(request.clone({ headers: request.headers.delete('Authorization') }));
         }
@@ -129,11 +133,37 @@ export class AuthInterceptor implements HttpInterceptor {
     if (!this.refreshInProgress$) {
       const refreshToken = this.authStore.getRefreshToken();
       if (!refreshToken) {
-        this.authStore.clearAuth();
-        return throwError(() => new Error('No refresh token available'));
+        this.authStore.endSession();
+        // An HttpErrorResponse, not a bare Error: refreshAndRetry's fallback
+        // below tests `instanceof HttpErrorResponse`, so a bare Error skipped
+        // the anonymous retry entirely and the request died with an error
+        // object none of the app's error formatters can read. That was masked
+        // for as long as clearAuth() navigated away from the page.
+        return throwError(() => new HttpErrorResponse({
+          status: 401,
+          statusText: 'Unauthorized',
+          error: { detail: 'No refresh token available' }
+        }));
       }
 
       this.refreshInProgress$ = this.http.post<any>(this.refreshBackendUrl, { refresh: refreshToken }).pipe(
+        // A refresh that fails for a reason unrelated to the session is retried
+        // straight away, not left for "a later request". Two cases matter:
+        //  - status 0 / 502 / 504: the response was lost, often after the
+        //    server had already rotated the token. The rotated pair is handed
+        //    back for the same refresh token only inside the backend's 60s
+        //    grace window, so waiting for the visitor's next click would
+        //    usually miss it and turn a network blip into a sign-out.
+        //  - 503: the backend could not reach its token store, and says so
+        //    instead of pretending the token is unknown.
+        // The backoff is fixed rather than read from Retry-After: that header
+        // is not in the API's CORS expose list, so the browser hides it.
+        retry({
+          count: AuthInterceptor.REFRESH_RETRY_DELAYS_MS.length,
+          delay: (err, attempt) => AuthInterceptor.isTransient(err)
+            ? timer(AuthInterceptor.REFRESH_RETRY_DELAYS_MS[attempt - 1])
+            : throwError(() => err),
+        }),
         map(tokens => {
           this.authStore.setAuth(tokens);
           return tokens.access as string;
@@ -150,7 +180,7 @@ export class AuthInterceptor implements HttpInterceptor {
             if (latestRefresh && latestRefresh !== refreshToken && latestAccess) {
               return of(latestAccess);
             }
-            this.authStore.clearAuth();
+            this.authStore.endSession();
           }
           // Transient failures (e.g. network errors, status 0) keep the tokens
           // so a later request can trigger another refresh
@@ -159,9 +189,23 @@ export class AuthInterceptor implements HttpInterceptor {
         finalize(() => {
           this.refreshInProgress$ = null;
         }),
-        shareReplay({ bufferSize: 1, refCount: true })
+        // refCount: false — with refCount:true, the last subscriber going away
+        // (a component torn down by navigation, say) unsubscribes the shared
+        // source and ABORTS the in-flight POST /auth/refresh/. The server may
+        // already have rotated the token by then, so the next 401 re-sends a
+        // refresh token that no longer exists and the visitor is signed out for
+        // no reason. Letting the request run to completion costs nothing: the
+        // finalize above still clears the field when it settles.
+        shareReplay({ bufferSize: 1, refCount: false })
       );
     }
     return this.refreshInProgress$;
+  }
+
+  /** Both well inside the backend's REFRESH_ROTATION_GRACE (60s). */
+  private static readonly REFRESH_RETRY_DELAYS_MS = [1000, 2000];
+
+  private static isTransient(err: unknown): boolean {
+    return err instanceof HttpErrorResponse && (err.status === 0 || err.status >= 500);
   }
 }
