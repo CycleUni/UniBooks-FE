@@ -17,7 +17,7 @@ import { Lang } from '../../core/i18n';
 import { Subscription } from 'rxjs';
 import { ThemeService, ThemeMode } from '../../core/services/theme.service';
 import { MobileLayoutService } from '../../core/services/mobile-layout.service';
-import { aboutUrl } from '../../core/about-site';
+import { aboutUrl as aboutSiteUrl } from '../../core/about-site';
 
 @Component({
   selector: 'ui-layout',
@@ -35,11 +35,11 @@ export class UiLayout implements OnDestroy {
   readonly mobileLayout = inject(MobileLayoutService);
 
   get aboutUrl(): string {
-    return aboutUrl(this.i18n.lang());
+    return aboutSiteUrl(this.i18n.lang());
   }
 
   get termsUrl(): string {
-    return aboutUrl(this.i18n.lang(), 'about/terms');
+    return aboutSiteUrl(this.i18n.lang(), 'about/terms');
   }
 
   get themeOptions() {

@@ -21,6 +21,7 @@ import { RegionLinkService } from '../../core/region-link.service';
 import { RegionService } from '../../core/region.service';
 import { isSameRegion } from '../../core/region-path';
 import { scrollBehavior } from '../../core/reduced-motion';
+import { isOwnListing } from '../../core/own-listing';
 
 
 @Component({
@@ -303,6 +304,10 @@ export class ListingDetail implements OnInit, OnDestroy {
 
   goToListing(id: string) {
     this.router.navigate(this.regionLink.path(['/listing', id]));
+  }
+
+  isOwnListing(item: { seller?: string | number } | null): boolean {
+    return isOwnListing(item?.seller, this.auth.user()?.id);
   }
 
   // Only show the report button when logged in and the listing isn't the user's own.

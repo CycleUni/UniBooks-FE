@@ -146,6 +146,24 @@ describe('AccountService profile cache across sessions', () => {
     expect(account.profileCache()).toEqual({ id: 7, is_staff: false });
     httpMock.verify();
   });
+
+  // The orders tab PATCHes last-seen timestamps on every visit. Its response is
+  // the bare user; caching that as the profile showed "0 active · 0 requests".
+  it('keeps the listings and requests a PATCH response does not carry', () => {
+    signIn();
+    account.getMyProfile().subscribe();
+    profileRequests()[0].flush({ id: 1, myListingCounts: { active: 2, sold: 0 }, mySubscriptions: [{}, {}] });
+
+    account.updateProfile({ last_seen_sold_orders_at: '2026-09-14T00:00:00Z' }).subscribe();
+    httpMock.expectOne(req => req.method === 'PATCH').flush({ id: 1, last_seen_sold_orders_at: '2026-09-14T00:00:00Z' });
+
+    expect(account.profileCache()).toEqual({
+      id: 1,
+      myListingCounts: { active: 2, sold: 0 },
+      mySubscriptions: [{}, {}],
+      last_seen_sold_orders_at: '2026-09-14T00:00:00Z',
+    });
+  });
 });
 
 /**

@@ -101,6 +101,15 @@
                explanation: chat and meetup are region-scoped on the backend
                and would be refused from this region's site. -->
           <ng-container *ngIf="!regionMismatch; else regionMismatchNotice">
+          <ng-container *ngIf="isOwnListing(listing)">
+          <div class="action-buttons">
+            <ui-button variant="white" class="flex-1" style="font-size: var(--text-md); padding: 12px;" link="/account/listings">
+              {{ 'listing.manageOwn' | t }}
+            </ui-button>
+          </div>
+          <p class="chat-first-hint">{{ 'listing.ownListing' | t }}</p>
+          </ng-container>
+          <ng-container *ngIf="!isOwnListing(listing)">
           <div class="action-buttons">
             <ui-button  class="flex-1" style="font-size: var(--text-md); padding: 12px;" (onClick)="contactSeller()">
               {{ 'book.contactSeller' | t }}
@@ -110,6 +119,7 @@
             </ui-button>
           </div>
           <p class="chat-first-hint">{{ 'checkout.chatFirstHint' | t }}</p>
+          </ng-container>
           </ng-container>
           <ng-template #regionMismatchNotice>
             <div class="region-mismatch" role="status">
@@ -150,6 +160,7 @@
           <ui-listing-card
             *ngFor="let item of otherListings; trackBy: trackById"
             [item]="item"
+            [isOwn]="isOwnListing(item)"
             (onClickCard)="goToListing($event)"
             (onBuyNow)="buyNowOther($event)"
             (onContactSeller)="contactSellerOther($event)"

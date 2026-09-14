@@ -19,6 +19,7 @@ import { UiEmpty } from '../../shared/ui/empty.component';
 import { UiVerificationPrompt } from '../../shared/ui/verification-prompt.component';
 import { RegionLinkService } from '../../core/region-link.service';
 import { ToastService } from '../../core/services/toast.service';
+import { isOwnListing } from '../../core/own-listing';
 
 
 @Component({
@@ -87,6 +88,7 @@ import { ToastService } from '../../core/services/toast.service';
           <div class="listings-grid" *ngIf="!isLoadingListings && listings.length > 0">
             <ui-listing-card *ngFor="let item of listings" 
               [item]="item"
+              [isOwn]="isOwnListing(item)"
               (onClickCard)="openListing($event)"
               (onBuyNow)="buyNow($event)"
               (onContactSeller)="contactSeller($event)"
@@ -450,6 +452,10 @@ export class Book implements OnInit {
   getConditionLabel(cond: string): string {
     const translated = this.i18n.t(`cond.${cond}`);
     return translated === `cond.${cond}` ? cond : translated;
+  }
+
+  isOwnListing(item: { seller?: string | number } | null): boolean {
+    return isOwnListing(item?.seller, this.auth.user()?.id);
   }
 
   contactSeller(listingId: string) {

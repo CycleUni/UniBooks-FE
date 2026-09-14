@@ -146,9 +146,10 @@ export class Account implements AfterViewInit, OnDestroy {
         this.schoolName = data.school_name || '';
         this.verifiedAt = data.verified_at || null;
         this.avatarUrl = data.avatar_url || '';
+        const counts = data.myListingCounts;
         const listingResults = data.myListings?.results || [];
-        this.activeListingsCount = listingResults.filter((l: any) => l.status === 'active').length;
-        this.soldListingsCount = listingResults.filter((l: any) => l.status === 'sold').length;
+        this.activeListingsCount = counts?.active ?? listingResults.filter((l: any) => l.status === 'active').length;
+        this.soldListingsCount = counts?.sold ?? listingResults.filter((l: any) => l.status === 'sold').length;
         this.subscriptionsCount = (data.mySubscriptions || []).length;
         this.orderService.checkUnreadOrders(String(data.id), data.last_seen_bought_orders_at, data.last_seen_sold_orders_at);
         this.cdr.markForCheck();

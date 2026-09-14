@@ -249,8 +249,14 @@ export class AccountService {
         // address instead of the profile, since nothing has changed yet —
         // caching that as the profile would blank the account out.
         if (!profile || profile.id === undefined) return;
-        this.profileCache.set(profile);
-        this.cacheTimestamp = Date.now();
+        // PATCH answers with the bare user, without the myListings,
+        // myListingCounts and mySubscriptions a GET carries. Replacing the
+        // cache with it left the account page reading zero listings and
+        // requests for the next minute — which the orders tab, marking its
+        // orders seen on every visit, did every time it opened.
+        const cached = this.profileCache();
+        if (!cached) return;
+        this.profileCache.set({ ...cached, ...profile });
       })
     );
   }

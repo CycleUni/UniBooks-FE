@@ -66,9 +66,15 @@ import { PricePipe } from '../pipes/price.pipe';
            buyer with no conversation on this listing (checkout.errNoChat), so
            the leading button was sending every first-time buyer into a page
            that could only fail. -->
-      <div class="button-group">
+      <div class="button-group" *ngIf="!isOwn">
         <ui-button  class="flex-1" (onClick)="onContactSeller.emit(item.id)">{{ 'book.contactSeller' | t }}</ui-button>
         <ui-button variant="ghost"  class="flex-1" (onClick)="onBuyNow.emit(item.id)">{{ 'checkout.arrangeMeetup' | t }}</ui-button>
+      </div>
+      <!-- A seller cannot message or buy from themselves — the backend refuses
+           both — so their own copy offers the place they can act on it. -->
+      <div class="button-group own-listing" *ngIf="isOwn">
+        <span class="own-label">{{ 'listing.ownListing' | t }}</span>
+        <ui-button variant="ghost" class="flex-1" link="/account/listings">{{ 'listing.manageOwn' | t }}</ui-button>
       </div>
     </div>
   `,
@@ -109,6 +115,14 @@ import { PricePipe } from '../pipes/price.pipe';
       display: flex;
       gap: 8px;
       padding-top: 16px;
+    }
+    .button-group.own-listing {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .own-label {
+      font-size: var(--text-base);
+      color: var(--muted);
     }
     .listing-photo-container {
       width: 100%;
@@ -196,6 +210,9 @@ export class UiListingCard {
    * falls back to a `<button>` and the caller navigates in `(onClickCard)`.
    */
   @Input() link?: any[] | string;
+
+  /** The signed-in user is this listing's seller. */
+  @Input() isOwn = false;
 
   @Output() onClickCard = new EventEmitter<string>();
   @Output() onBuyNow = new EventEmitter<string>();

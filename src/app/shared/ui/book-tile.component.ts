@@ -63,7 +63,7 @@ import { UiBookCover } from './book-cover.component';
 
           <span class="price-tag stamp-tag" *ngIf="mode === 'sellers'" [class.unpriced]="!hasPrice">
             <ng-container *ngIf="hasPrice && !isFree">
-              {{ (isAveragePrice ? 'bookTile.priceApprox' : 'bookTile.price') | t:{price: (priceValue | price)} }}
+              {{ (isFromPrice ? 'bookTile.priceFrom' : 'bookTile.price') | t:{price: (priceValue | price)} }}
             </ng-container>
             <ng-container *ngIf="hasPrice && isFree">
               {{ 'bookTile.priceFree' | t }}
@@ -222,7 +222,8 @@ export class UiBookTile {
   /** Map of condition slug -> number of listings, as returned by recent_books/. */
   @Input() conditions?: Record<string, number> | null;
   @Input() minPrice: number | null = null;
-  @Input() isAveragePrice: boolean = false;
+  /** minPrice is the cheapest of copies priced differently, so it reads "from". */
+  @Input() isFromPrice: boolean = false;
 
   // mode: 'waitlist'
   @Input() waitingCount?: number;

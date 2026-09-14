@@ -72,14 +72,14 @@ describe('UiBookTile', () => {
     expect(sellers.nativeElement.textContent).toContain('n=9999+');
   });
 
-  it('sellers mode: uses the approximate-price key when isAveragePrice is set', () => {
+  it('sellers mode: quotes the price as a starting price when isFromPrice is set', () => {
     component.mode = 'sellers';
     component.minPrice = 300;
-    component.isAveragePrice = true;
+    component.isFromPrice = true;
     fixture.detectChanges();
 
     const priceTag = fixture.debugElement.query(By.css('.price-tag'));
-    expect(priceTag.nativeElement.textContent).toContain('bookTile.priceApprox');
+    expect(priceTag.nativeElement.textContent).toContain('bookTile.priceFrom');
   });
 
   it('waitlist mode: shows a waiting-count stamp and no seller line', () => {

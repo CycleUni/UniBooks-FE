@@ -42,8 +42,8 @@ import { I18nService, TPipe } from '../../core/i18n.service';
               [coverUrl]="item.data.cover_url"
               [sellerCount]="sellerCountFor(item.data.conditions)"
               [conditions]="item.data.conditions"
-              [minPrice]="item.data.avg_price"
-              [isAveragePrice]="isAveragePrice(item.data.conditions)"
+              [minPrice]="item.data.min_price"
+              [isFromPrice]="item.data.max_price > item.data.min_price"
               [link]="['/book']"
               [linkParams]="bookLinkParams(item.data)"
               (tileClick)="cacheBook(item.data)"
@@ -215,10 +215,6 @@ export class UiRecentListings {
   onPageChange(page: number) {
     this.currentPage = page;
     this.fetchRecentBooks();
-  }
-
-  isAveragePrice(conditions: any): boolean {
-    return conditions && Object.keys(conditions).length > 1;
   }
 
   sellerCountFor(conditions: any): number {
