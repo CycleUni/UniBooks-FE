@@ -11,6 +11,29 @@ export interface CourseFacet {
   count?: number;
 }
 
+/** An external catalogue the backend can look a book up in. */
+export type SearchEngine = 'googlebooks' | 'openlibrary' | 'isbnnet';
+
+export function parseSearchEngine(value: unknown): SearchEngine | null {
+  return value === 'googlebooks' || value === 'openlibrary' || value === 'isbnnet' ? value : null;
+}
+
+/**
+ * The engine a search result actually came from, read off its `source`.
+ * With no engine in the request the backend tries Google, then the ISBN
+ * registry, then Open Library, so the page's own engine no longer says where
+ * a given result was found. A book already in our catalogue (any other
+ * source) needs none: the book page finds it in the database first.
+ */
+export function engineForSource(source: unknown): SearchEngine | null {
+  switch (source) {
+    case 'google_api': return 'googlebooks';
+    case 'openlibrary_api': return 'openlibrary';
+    case 'isbnnet_api': return 'isbnnet';
+    default: return null;
+  }
+}
+
 const PUBLIC_NO_LANG = new HttpContext().set(SKIP_LANG_PARAM, true).set(SKIP_AUTH, true);
 const OPTIONAL_AUTH_NO_LANG = new HttpContext().set(SKIP_LANG_PARAM, true);
 
@@ -20,7 +43,13 @@ const OPTIONAL_AUTH_NO_LANG = new HttpContext().set(SKIP_LANG_PARAM, true);
 export class BookService {
   private http = inject(HttpClient);
 
-  searchBooks(query: string, category?: string, course?: string, school?: string, page: number = 1, engine?: string): Observable<any> {
+  /**
+   * Leave `engine` out unless the user asked for a specific catalogue. Only
+   * a request without it gets the backend's fallback chain (Google, then the
+   * ISBN registry, then Open Library); `engine=googlebooks` means Google
+   * alone, falling back only when Google rate-limits.
+   */
+  searchBooks(query: string, category?: string, course?: string, school?: string, page: number = 1, engine?: SearchEngine | null): Observable<any> {
     let url = `/search/books/?q=${encodeURIComponent(query)}&page=${page}`;
     if (category) {
       url += `&category=${encodeURIComponent(category)}`;

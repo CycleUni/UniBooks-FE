@@ -517,7 +517,7 @@ describe('Sell listing form guarding, drafts and field validation', () => {
 
     it('offers a found draft instead of restoring it silently', () => {
       localStorage.setItem(SELL_DRAFT_STORAGE_KEY, JSON.stringify({
-        version: 1, savedAt: Date.now(), step: 2, searchQuery: '', engine: 'googlebooks',
+        version: 1, savedAt: Date.now(), step: 2, searchQuery: '',
         bookPreview: { title: 'Clean Code', authors: 'Robert C. Martin', isManual: false },
         condition: 'like_new', category: 'engineering', course: 'CS101', professor: 'Chen',
         privateNote: '', description: '', price: 250, uploadedPhotos: ['https://cdn.example/photo.jpg']
@@ -541,7 +541,7 @@ describe('Sell listing form guarding, drafts and field validation', () => {
 
     it('drops a category that no longer exists in this region', () => {
       localStorage.setItem(SELL_DRAFT_STORAGE_KEY, JSON.stringify({
-        version: 1, savedAt: Date.now(), step: 2, searchQuery: '', engine: 'googlebooks',
+        version: 1, savedAt: Date.now(), step: 2, searchQuery: '',
         bookPreview: null, condition: 'new', category: 'retired-slug', course: 'CS101',
         professor: '', privateNote: '', description: '', price: null, uploadedPhotos: []
       }));
@@ -554,7 +554,7 @@ describe('Sell listing form guarding, drafts and field validation', () => {
 
     it('discards the draft on "start over"', () => {
       localStorage.setItem(SELL_DRAFT_STORAGE_KEY, JSON.stringify({
-        version: 1, savedAt: Date.now(), step: 2, searchQuery: '', engine: 'googlebooks',
+        version: 1, savedAt: Date.now(), step: 2, searchQuery: '',
         bookPreview: null, condition: 'new', category: '', course: 'CS101',
         professor: '', privateNote: '', description: '', price: null, uploadedPhotos: []
       }));
@@ -569,7 +569,7 @@ describe('Sell listing form guarding, drafts and field validation', () => {
     it('ignores and clears an expired draft', () => {
       localStorage.setItem(SELL_DRAFT_STORAGE_KEY, JSON.stringify({
         version: 1, savedAt: Date.now() - SELL_DRAFT_MAX_AGE_MS - 1000, step: 2,
-        searchQuery: '', engine: 'googlebooks', bookPreview: null, condition: 'new',
+        searchQuery: '', bookPreview: null, condition: 'new',
         category: '', course: 'CS101', professor: '', privateNote: '', description: '',
         price: null, uploadedPhotos: []
       }));
@@ -588,7 +588,7 @@ describe('Sell listing form guarding, drafts and field validation', () => {
 
     it('treats typing into a fresh form as an implicit "start over"', () => {
       localStorage.setItem(SELL_DRAFT_STORAGE_KEY, JSON.stringify({
-        version: 1, savedAt: Date.now(), step: 2, searchQuery: '', engine: 'googlebooks',
+        version: 1, savedAt: Date.now(), step: 2, searchQuery: '',
         bookPreview: null, condition: 'new', category: '', course: 'Old course',
         professor: '', privateNote: '', description: '', price: null, uploadedPhotos: []
       }));

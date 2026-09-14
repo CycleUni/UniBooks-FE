@@ -147,7 +147,6 @@ export interface SellDraft {
   savedAt: number;
   step: number;
   searchQuery: string;
-  engine: 'googlebooks' | 'openlibrary';
   bookPreview: any;
   condition: string;
   category: string;
@@ -188,7 +187,6 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
   apiError = '';
   isSearchQueryDirty = false;
   hideSearchButtonForNow = false;
-  engine: 'googlebooks' | 'openlibrary' = 'googlebooks';
 
   isScanning = false;
   cameraError = '';
@@ -556,10 +554,13 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
     this.isSearchQueryDirty = false;
     this.hideSearchButtonForNow = false;
 
-    this.bookService.searchBooks(this.searchQuery, '', '', '', 1, this.engine).subscribe({
+    // No engine: the seller has no way to pick one, and only a request
+    // without it lets the backend try the ISBN registry and Open Library when
+    // Google has no record of the book.
+    this.bookService.searchBooks(this.searchQuery, '', '', '', 1).subscribe({
       next: (data) => {
         this.isCheckingIsbn = false;
-        this.ga.trackEvent('isbn_lookup', { query: this.searchQuery, engine: this.engine });
+        this.ga.trackEvent('isbn_lookup', { query: this.searchQuery });
         const items = data.results || data;
         if (items && items.length > 0) {
           this.searchResults = items;
@@ -836,7 +837,6 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
       savedAt: Date.now(),
       step: this.step,
       searchQuery: this.searchQuery,
-      engine: this.engine,
       bookPreview: this.bookPreview,
       condition: this.condition,
       category: this.category,
@@ -901,7 +901,6 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
 
     this.step = Math.min(Math.max(draft.step || 1, 1), 3);
     this.searchQuery = draft.searchQuery || '';
-    this.engine = draft.engine === 'openlibrary' ? 'openlibrary' : 'googlebooks';
     this.bookPreview = draft.bookPreview ?? null;
     this.condition = draft.condition || DEFAULT_CONDITION;
     this.course = draft.course || '';

@@ -7,7 +7,7 @@ import { UiButton } from '../../shared/ui/button.component';
 import { UiListingRow } from '../../shared/ui/listing-row.component';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { FormsModule } from '@angular/forms';
-import { BookService, CourseFacet } from '../../core/services/book.service';
+import { BookService, CourseFacet, SearchEngine, engineForSource, parseSearchEngine } from '../../core/services/book.service';
 import { AuthStore } from '../../core/auth.store';
 import { ChangeDetectorRef } from '@angular/core';
 import { I18nService, TPipe } from '../../core/i18n.service';
@@ -36,7 +36,8 @@ interface SearchUrlState {
   q: string;
   category: string;
   course: string;
-  engine: 'googlebooks' | 'openlibrary' | 'isbnnet';
+  /** null = no source asked for, so the backend runs its fallback chain. */
+  engine: SearchEngine | null;
   page: number;
   /** 已勾選的書況。四個全勾等於沒有篩選。 */
   conditions: ConditionKey[];
@@ -291,7 +292,7 @@ const CONDITION_NONE = 'none';
 })
 export class Search implements OnInit {
   searchQuery = ''; activeQuery = ''; category = ''; course = '';
-  engine: 'googlebooks' | 'openlibrary' | 'isbnnet' = 'googlebooks';
+  engine: SearchEngine | null = null;
   googleUnavailable = false;
   /** Browsing a category reads the local catalogue up to a cap; past it the
    *  pages simply stop, so say so rather than let the list end unexplained. */
@@ -499,7 +500,7 @@ export class Search implements OnInit {
     this.activeQuery = q;
     this.category = params['category'] || '';
     this.course = params['course'] || '';
-    this.engine = params['engine'] === 'openlibrary' ? 'openlibrary' : params['engine'] === 'isbnnet' ? 'isbnnet' : 'googlebooks';
+    this.engine = parseSearchEngine(params['engine']);
     // 壞掉的 ?page=abc 當第 1 頁，別讓 NaN 一路傳到 API。
     this.currentPage = Math.max(1, parseInt(params['page'], 10) || 1);
 
@@ -543,14 +544,15 @@ export class Search implements OnInit {
     this.router.navigate(this.regionLink.path(['/search']), { queryParams: this.serializeState(state) });
   }
 
-  /** 預設值不寫進網址：網址是要能貼給別人的，塞滿 engine=googlebooks&page=1
-   *  之類的噪音只會讓人看不出哪些條件才是真的有在作用。 */
+  /** 預設值不寫進網址：網址是要能貼給別人的，塞滿 page=1 之類的噪音只會讓人
+   *  看不出哪些條件才是真的有在作用。engine 沒有預設值可省：寫了
+   *  engine=googlebooks 就是只查 Google，跟不寫（依序換來源）意思不同。 */
   private serializeState(state: SearchUrlState): Record<string, string> {
     const params: Record<string, string> = {};
     if (state.q) params['q'] = state.q;
     if (state.category) params['category'] = state.category;
     if (state.course) params['course'] = state.course;
-    if (state.engine !== 'googlebooks') params['engine'] = state.engine;
+    if (state.engine) params['engine'] = state.engine;
     if (state.page > 1) params['page'] = String(state.page);
     if (state.conditions.length < CONDITION_KEYS.length) {
       params['condition'] = state.conditions.length ? state.conditions.join(',') : CONDITION_NONE;
@@ -622,8 +624,12 @@ export class Search implements OnInit {
     // if the cache entry is missing (cleared tab, private browsing) the
     // book page falls back to a live lookup, which must use the same
     // engine this tile's data came from — otherwise the two pages can show
-    // different covers/titles for the same ISBN.
-    params['engine'] = this.engine;
+    // different covers/titles for the same ISBN. Read off the result, not
+    // this.engine: without an engine the backend picks the source per
+    // search, so one found in the ISBN registry would otherwise be looked
+    // up again in Google.
+    const engine = engineForSource(item.source);
+    if (engine) params['engine'] = engine;
     return params;
   }
 

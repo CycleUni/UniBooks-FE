@@ -5,7 +5,7 @@ import { UiButton } from '../../shared/ui/button.component';
 import { UiBackButton } from '../../shared/ui/back-button.component';
 import { UiBreadcrumb, BreadcrumbItem } from '../../shared/ui/breadcrumb.component';
 import { RegionService } from '../../core/region.service';
-import { BookService } from '../../core/services/book.service';
+import { BookService, SearchEngine, parseSearchEngine } from '../../core/services/book.service';
 import { MessageService } from '../../core/services/message.service';
 import { AccountService } from '../../core/services/account.service';
 import { AuthStore } from '../../core/auth.store';
@@ -257,7 +257,7 @@ export class Book implements OnInit {
   // instead of falling back to whichever one this page defaults to, which
   // is what caused the same ISBN to show a different cover here than on
   // the search result it was opened from.
-  private engine: string | null = null;
+  private engine: SearchEngine | null = null;
 
   get currentSchoolLabel(): string {
     return this.schoolStateService.getSchoolLabel(this.currentSchool);
@@ -318,7 +318,7 @@ export class Book implements OnInit {
 
     this.route.queryParamMap.subscribe(params => {
       this.bookId = params.get('isbn') || params.get('id');
-      this.engine = params.get('engine') === 'openlibrary' ? 'openlibrary' : null;
+      this.engine = parseSearchEngine(params.get('engine'));
       const localCache = params.get('local_cache');
 
       if (this.bookId) {
