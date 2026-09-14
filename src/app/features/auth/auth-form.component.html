@@ -32,7 +32,7 @@
       </div>
 
       <div class="auth-note">
-        {{ 'auth.agreeLogin' | t }}<a href="javascript:void(0)">{{ 'footer.tos' | t }}</a>{{ 'auth.and' | t }}<a href="javascript:void(0)">{{ 'footer.privacy' | t }}</a>{{ 'auth.period' | t }}
+        {{ 'auth.agreeLogin' | t }}<a [href]="termsUrl" target="_blank" rel="noopener noreferrer">{{ 'footer.tos' | t }}</a>{{ 'auth.and' | t }}<a [href]="privacyUrl" target="_blank" rel="noopener noreferrer">{{ 'footer.privacy' | t }}</a>{{ 'auth.period' | t }}
       </div>
     </ng-container>
 
@@ -80,7 +80,7 @@
       </div>
 
       <div class="auth-note">
-        {{ 'auth.agreeRegister' | t }}<a href="javascript:void(0)">{{ 'footer.tos' | t }}</a>{{ 'auth.and' | t }}<a href="javascript:void(0)">{{ 'footer.privacy' | t }}</a>{{ 'auth.period' | t }}
+        {{ 'auth.agreeRegister' | t }}<a [href]="termsUrl" target="_blank" rel="noopener noreferrer">{{ 'footer.tos' | t }}</a>{{ 'auth.and' | t }}<a [href]="privacyUrl" target="_blank" rel="noopener noreferrer">{{ 'footer.privacy' | t }}</a>{{ 'auth.period' | t }}
       </div>
     </ng-container>
   </div>

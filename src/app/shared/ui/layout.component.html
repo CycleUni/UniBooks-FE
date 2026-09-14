@@ -158,8 +158,8 @@
             <span class="footer-tagline">{{ 'footer.tagline' | t }}</span>
           </div>
           <div class="footer-links">
-            <a href="https://unibooks.github.io/About/" target="_blank" rel="noopener noreferrer">{{ 'footer.about' | t }}</a>
-            <a href="https://unibooks.github.io/About/" target="_blank" rel="noopener noreferrer">{{ 'footer.terms' | t }}</a>
+            <a [href]="aboutUrl" target="_blank" rel="noopener noreferrer">{{ 'footer.about' | t }}</a>
+            <a [href]="termsUrl" target="_blank" rel="noopener noreferrer">{{ 'footer.terms' | t }}</a>
           </div>
           <div class="footer-prefs">
             <ui-prefs-selector></ui-prefs-selector>

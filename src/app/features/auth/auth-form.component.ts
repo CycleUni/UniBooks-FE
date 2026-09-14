@@ -11,6 +11,7 @@ import { AuthStore } from '../../core/auth.store';
 import { GoogleAuthService } from '../../core/services/google-auth.service';
 import { I18nService, TPipe } from '../../core/i18n.service';
 import { ThemeService } from '../../core/services/theme.service';
+import { aboutUrl } from '../../core/about-site';
 
 /** The container Google's SDK renders its button into. A DOM id rather than a
  *  ViewChild because the SDK takes an element and writes an iframe into it —
@@ -72,6 +73,14 @@ export class AuthFormComponent implements OnInit, AfterViewInit {
    *  detours to sign up still lands back where the gate interrupted them. */
   get linkQueryParams(): Record<string, string> | null {
     return this.returnUrl ? { returnUrl: this.returnUrl } : null;
+  }
+
+  get termsUrl(): string {
+    return aboutUrl(this.i18n.lang(), 'about/terms');
+  }
+
+  get privacyUrl(): string {
+    return aboutUrl(this.i18n.lang(), 'about/privacy');
   }
 
   get authMessage(): string {
