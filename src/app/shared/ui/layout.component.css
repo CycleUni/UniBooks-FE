@@ -395,13 +395,6 @@
         font-size: var(--text-xs);
         font-weight: 500;
       }
-      /* Narrow phones: six tabs leave ~53px each, which clips the longer
-         English labels. Shrinking the label buys back the few pixels. */
-      @media (max-width: 360px) {
-        .bottom-tab-bar .tab-label {
-          font-size: var(--text-xs);
-        }
-      }
       .bottom-tab-bar .tab-with-badge {
         position: relative;
       }

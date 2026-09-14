@@ -43,6 +43,10 @@ export const en: Record<string, string> = {
   'nav.messages': 'Messages',
   'nav.account': 'Account',
   'nav.admin': 'Admin',
+  // Bottom tab bar: six tabs share ~62px each on a 375px phone, where
+  // "Find Books" and "後台管理" were cut to an ellipsis.
+  'nav.tabSearch': 'Search',
+  'nav.tabAdmin': 'Admin',
   'nav.languageSwitcher': 'Change language',
   'nav.themeSwitcher': 'Change appearance',
   'nav.themeSystem': 'System',
@@ -117,6 +121,7 @@ export const en: Record<string, string> = {
   'search.resultsFor': 'Search results for "{q}"',
   'search.categoryResults': 'Category search results',
   'search.foundCountScoped': 'Found {n} matching books at {school}',
+  'search.foundCountNoneAtSchool': 'Found {n} matching books, none listed at {school} yet',
   'search.foundCountAll': 'Found {n} matching books',
   'search.noLocalListings': 'No listings at {school}',
   'search.notifyMe': 'Request this book',

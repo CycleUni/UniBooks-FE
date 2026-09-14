@@ -179,7 +179,7 @@
           </div>
         </div>
 
-        <ui-empty class="chat-area" [fullPage]="true" *ngIf="!activeChat && !loadingChats">
+        <ui-empty class="chat-area select-prompt" [fullPage]="true" *ngIf="!activeChat && !loadingChats">
           <ui-verification-prompt
             *ngIf="showUnverifiedPrompt"
             (onDismiss)="showUnverifiedPrompt = false"

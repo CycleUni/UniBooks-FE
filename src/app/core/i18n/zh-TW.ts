@@ -43,6 +43,10 @@ export const zhTW: Record<string, string> = {
   'nav.messages': '訊息',
   'nav.account': '會員',
   'nav.admin': '後台管理',
+  // Bottom tab bar: six tabs share ~62px each on a 375px phone, where
+  // "Find Books" and "後台管理" were cut to an ellipsis.
+  'nav.tabSearch': '找書',
+  'nav.tabAdmin': '後台',
   'nav.languageSwitcher': '切換語言',
   'nav.themeSwitcher': '切換外觀',
   'nav.themeSystem': '跟隨系統',
@@ -114,6 +118,7 @@ export const zhTW: Record<string, string> = {
   'search.resultsFor': '「{q}」的搜尋結果',
   'search.categoryResults': '學院搜尋結果',
   'search.foundCountScoped': '在 {school} 找到 {n} 本符合的書',
+  'search.foundCountNoneAtSchool': '找到 {n} 本符合的書，{school} 還沒有人上架',
   'search.foundCountAll': '找到 {n} 本符合的書',
   'search.noLocalListings': '{school} 目前無人上架',
   'search.notifyMe': '登記求書',

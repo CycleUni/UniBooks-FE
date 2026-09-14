@@ -414,6 +414,13 @@
       .chat-area {
         display: none;
       }
+      /* The "select a conversation" prompt is a <ui-empty>, whose own
+         :host(.full-page) { display: flex } has the same specificity as
+         .chat-area above and loads after it, so it won — the prompt stayed
+         on screen as a squeezed column beside the inbox. Out-rank it. */
+      .messages-container .select-prompt {
+        display: none;
+      }
       .mobile-chat-open .sidebar {
         display: none;
       }

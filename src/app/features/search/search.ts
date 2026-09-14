@@ -137,7 +137,11 @@ const CONDITION_NONE = 'none';
           <h2 class="section-heading" *ngIf="activeQuery">{{ 'search.resultsFor' | t:{q: activeQuery} }}</h2>
           <h2 class="section-heading" *ngIf="!activeQuery && category">{{ 'search.categoryResults' | t }}</h2>
           <p class="scoped-count" *ngIf="(activeQuery || category) && !loading && !fetchError && filteredResults.length > 0">
-            <ng-container *ngIf="currentSchool">{{ 'search.foundCountScoped' | t:{school: currentSchoolLabel, n: localResultsCount} }}</ng-container>
+            <!-- The scoped count is books with a copy at this school. When that
+                 is zero while catalogue matches are listed right below,
+                 "Found 0 matching books" contradicted the page. -->
+            <ng-container *ngIf="currentSchool && localResultsCount > 0">{{ 'search.foundCountScoped' | t:{school: currentSchoolLabel, n: localResultsCount} }}</ng-container>
+            <ng-container *ngIf="currentSchool && localResultsCount === 0">{{ 'search.foundCountNoneAtSchool' | t:{school: currentSchoolLabel, n: filteredResults.length} }}</ng-container>
             <ng-container *ngIf="!currentSchool">{{ 'search.foundCountAll' | t:{n: filteredResults.length} }}</ng-container>
           </p>
 
