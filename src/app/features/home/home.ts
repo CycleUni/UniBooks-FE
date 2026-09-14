@@ -55,6 +55,9 @@ import { SchoolStateService } from '../../core/services/school-state.service';
                 [regionLink]="['/book']"
                 [queryParams]="waitlistParams(wait)"
               >
+                <!-- alt="" on purpose: the thumbnail sits in the same link as the
+                     visible title right beside it, so naming it would make a
+                     screen reader read every waitlisted title twice. -->
                 <span class="wcover" aria-hidden="true">
                   <img *ngIf="wait.cover_url" [src]="wait.cover_url" alt="" />
                   <span class="wcover-mark" *ngIf="!wait.cover_url">{{ (wait.title || '').slice(0, 1) }}</span>

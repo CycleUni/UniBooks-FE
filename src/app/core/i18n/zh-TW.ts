@@ -163,6 +163,7 @@ export const zhTW: Record<string, string> = {
   'auth.firstNamePlaceholder': '例：小明',
   'auth.nameHint': '此姓名將會在你與其他人交易時顯示',
   'auth.registerEmailLabel': '註冊信箱',
+  'auth.campusEmailHint': '任何信箱都能註冊。之後需在帳號設定驗證學校信箱{suffixesText}，才能上架書籍或私訊賣家。',
   'auth.setPasswordLabel': '設定密碼',
   'auth.confirmPasswordLabel': '確認密碼',
   'auth.passwordMin': '最少 8 個字元',

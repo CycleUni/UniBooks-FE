@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { of, throwError } from 'rxjs';
+import { By } from '@angular/platform-browser';
 
 import { AuthFormComponent } from './auth-form.component';
 import { AuthStore } from '../../core/auth.store';
@@ -24,6 +25,7 @@ describe('AuthFormComponent', () => {
   let mockRouter: any;
   let isAuthenticated: ReturnType<typeof signal<boolean>>;
   let queryParams: Record<string, string>;
+  let currentRegionObj: ReturnType<typeof signal<any>>;
 
   const build = (mode: 'login' | 'register') => {
     fixture = TestBed.createComponent(AuthFormComponent);
@@ -36,6 +38,7 @@ describe('AuthFormComponent', () => {
   beforeEach(() => {
     isAuthenticated = signal(false);
     queryParams = {};
+    currentRegionObj = signal({ code: 'TW', edu_email_suffix: ['.edu.tw'] });
     mockAuth = {
       isAuthenticated,
       isLoggedIn: () => isAuthenticated(),
@@ -59,14 +62,14 @@ describe('AuthFormComponent', () => {
         { provide: AuthStore, useValue: mockAuth },
         { provide: GoogleAuthService, useValue: mockGoogle },
         { provide: Router, useValue: mockRouter },
-        { provide: RegionService, useValue: { region: () => 'tw' } },
+        { provide: RegionService, useValue: { region: () => 'tw', currentRegionObj } },
         // tOrNull mirrors the service: null for anything this double does not
         // "translate", which is what tells a real error code from one no locale
         // declares. Returning the key here instead would hide the guard.
         {
           provide: I18nService,
           useValue: {
-            t: (k: string) => k,
+            t: (k: string, params?: Record<string, unknown>) => params ? `${k} ${JSON.stringify(params)}` : k,
             tOrNull: (k: unknown) => (typeof k === 'string' && k in KNOWN_KEYS ? KNOWN_KEYS[k] : null),
             lang: signal('zh-TW'),
           },
@@ -86,13 +89,15 @@ describe('AuthFormComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('auth.studentLogin');
   });
 
-  it('renders the register form and no Google container', () => {
+  it('renders the register form with the Google button container too', () => {
+    // The backend creates the account for a new Google address, so sign-up
+    // offers the same button as sign-in.
     build('register');
-    expect(fixture.nativeElement.querySelector('#google-btn')).toBeNull();
+    expect(fixture.nativeElement.querySelector('#google-btn')).toBeTruthy();
     expect(fixture.nativeElement.textContent).toContain('auth.registerTitle');
   });
 
-  it('asks the Google SDK to render its button on the login page only', async () => {
+  it('asks the Google SDK to render its button on both the login and register pages', async () => {
     build('login');
     await new Promise(r => setTimeout(r, 0));
     expect(mockGoogle.renderButton).toHaveBeenCalledWith('google-btn');
@@ -100,7 +105,111 @@ describe('AuthFormComponent', () => {
     mockGoogle.renderButton.mockClear();
     build('register');
     await new Promise(r => setTimeout(r, 0));
-    expect(mockGoogle.renderButton).not.toHaveBeenCalled();
+    expect(mockGoogle.renderButton).toHaveBeenCalledWith('google-btn');
+  });
+
+  describe('field semantics', () => {
+    const field = (id: string): HTMLInputElement => fixture.nativeElement.querySelector(`input#${id}`);
+
+    it('ties each login label to its field and marks the fields for password managers', () => {
+      build('login');
+      const email = field('login-email');
+      const password = field('login-password');
+      expect(email.labels?.[0].textContent).toContain('auth.emailLabel');
+      expect(email.type).toBe('email');
+      expect(email.getAttribute('autocomplete')).toBe('username');
+      expect(password.labels?.[0].textContent).toContain('auth.passwordLabel');
+      expect(password.type).toBe('password');
+      expect(password.getAttribute('autocomplete')).toBe('current-password');
+    });
+
+    it('ties each register label to its field with sign-up autocomplete tokens', () => {
+      build('register');
+      const expected: Record<string, [string, string]> = {
+        'register-last-name': ['auth.lastNameLabel', 'family-name'],
+        'register-first-name': ['auth.firstNameLabel', 'given-name'],
+        'register-email': ['auth.registerEmailLabel', 'email'],
+        'register-password': ['auth.setPasswordLabel', 'new-password'],
+        'register-confirm-password': ['auth.confirmPasswordLabel', 'new-password'],
+      };
+      for (const [id, [label, autocomplete]] of Object.entries(expected)) {
+        expect(field(id).labels?.[0].textContent, id).toContain(label);
+        expect(field(id).getAttribute('autocomplete'), id).toBe(autocomplete);
+      }
+      expect(field('register-email').type).toBe('email');
+    });
+  });
+
+  describe('form message', () => {
+    const message = (): HTMLElement | null => fixture.nativeElement.querySelector('#auth-msg');
+    const submitButton = (): HTMLElement => fixture.nativeElement.querySelector('ui-button');
+    // Through the button's output rather than calling onLogin() directly: the
+    // component is OnPush by default, and it is the template event that marks
+    // the view for re-render, exactly as a real click does.
+    const submit = () => {
+      fixture.debugElement.query(By.css('ui-button')).triggerEventHandler('onClick');
+      fixture.detectChanges();
+    };
+
+    it('shows an empty-login error right above the submit button and before the Google button', () => {
+      build('login');
+      submit();
+
+      const msg = message()!;
+      expect(msg.textContent).toContain('auth.errFillEmailPassword');
+      expect(msg.getAttribute('role')).toBe('alert');
+      expect(msg.nextElementSibling).toBe(submitButton());
+      const google = fixture.nativeElement.querySelector('#google-btn');
+      expect(msg.compareDocumentPosition(google) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('points the fields at the message only while one is showing', () => {
+      build('login');
+      const email = () => fixture.nativeElement.querySelector('input#login-email') as HTMLInputElement;
+      expect(email().hasAttribute('aria-describedby')).toBe(false);
+
+      submit();
+      expect(email().getAttribute('aria-describedby')).toBe('auth-msg');
+      expect(fixture.nativeElement.querySelector('input#login-password').getAttribute('aria-describedby')).toBe('auth-msg');
+    });
+
+    it('does the same on register, keeping the email field\'s own hint', () => {
+      build('register');
+      const email = () => fixture.nativeElement.querySelector('input#register-email') as HTMLInputElement;
+      expect(email().getAttribute('aria-describedby')).toBe('register-email-hint');
+
+      submit();
+      expect(message()!.textContent).toContain('auth.errFillAll');
+      expect(message()!.nextElementSibling).toBe(submitButton());
+      expect(email().getAttribute('aria-describedby')).toBe('register-email-hint auth-msg');
+      expect(fixture.nativeElement.querySelector('input#register-last-name').getAttribute('aria-describedby'))
+        .toBe('register-name-hint auth-msg');
+    });
+
+    it('announces the post-sign-up notice politely rather than as an alert', () => {
+      mockRouter.getCurrentNavigation.mockReturnValue({
+        extras: { state: { registeredEmail: 'new@example.com', registeredNotice: 'auth.registerSuccess' } }
+      });
+      build('login');
+      expect(message()!.getAttribute('role')).toBe('status');
+    });
+  });
+
+  describe('campus email hint', () => {
+    const hint = () => fixture.nativeElement.querySelector('#register-email-hint') as HTMLElement;
+
+    it('names the region\'s campus suffixes', () => {
+      currentRegionObj.set({ code: 'HK', edu_email_suffix: ['.edu.hk', '.hk'] });
+      build('register');
+      expect(hint().textContent).toContain('auth.campusEmailHint');
+      expect(hint().textContent).toContain('(.edu.hk, .hk)');
+    });
+
+    it('falls back to the generic sentence when the region has no suffix list yet', () => {
+      currentRegionObj.set(null);
+      build('register');
+      expect(hint().textContent).toContain('"suffixesText":""');
+    });
   });
 
   it('leaves for /account once signed in, replacing the auth page in history', () => {

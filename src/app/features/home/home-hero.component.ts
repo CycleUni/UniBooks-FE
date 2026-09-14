@@ -53,7 +53,10 @@ export interface HeroCover {
                   <circle cx="10.5" cy="10.5" r="6.5"/>
                   <line x1="20" y1="20" x2="15.4" y2="15.4"/>
                 </svg>
+                <!-- The placeholder was this field's only name, and a
+                     placeholder stops naming anything once text is typed. -->
                 <ui-input
+                  [ariaLabel]="'common.search' | t"
                   [placeholder]="'common.searchPlaceholder' | t"
                   [(ngModel)]="searchQuery"
                   (keyup.enter)="onSearch()"

@@ -7,15 +7,17 @@
       <p class="auth-required-hint" *ngIf="returnUrl">{{ 'auth.loginRequiredHint' | t }}</p>
 
       <div class="form-group">
-        <label>{{ 'auth.emailLabel' | t }}</label>
-        <ui-input placeholder="your.email@example.com" [(ngModel)]="email" (keyup.enter)="onLogin()" ></ui-input>
+        <label for="login-email">{{ 'auth.emailLabel' | t }}</label>
+        <ui-input inputId="login-email" type="email" name="email" autocomplete="username" [ariaDescribedby]="messageId" placeholder="your.email@example.com" [(ngModel)]="email" (keyup.enter)="onLogin()" ></ui-input>
       </div>
 
       <div class="form-group">
-        <label>{{ 'auth.passwordLabel' | t }}</label>
-        <ui-input type="password" [placeholder]="'auth.passwordPlaceholder' | t" [(ngModel)]="password" (keyup.enter)="onLogin()" ></ui-input>
+        <label for="login-password">{{ 'auth.passwordLabel' | t }}</label>
+        <ui-input inputId="login-password" type="password" name="password" autocomplete="current-password" [ariaDescribedby]="messageId" [placeholder]="'auth.passwordPlaceholder' | t" [(ngModel)]="password" (keyup.enter)="onLogin()" ></ui-input>
         <a regionLink="/forgot-password" class="forgot-password-link">{{ 'auth.forgotPassword' | t }}</a>
       </div>
+
+      <ng-container *ngTemplateOutlet="messageTpl"></ng-container>
 
       <ui-button  block class="mt-4" (onClick)="onLogin()" [disabled]="isLoading">
         {{ (isLoading ? 'auth.loggingIn' : 'auth.login') | t }}
@@ -25,10 +27,6 @@
 
       <div class="auth-toggle">
         {{ 'auth.noAccount' | t }}<a regionLink="/register" [queryParams]="linkQueryParams">{{ 'auth.clickToRegister' | t }}</a>
-      </div>
-
-      <div *ngIf="authMessage" class="inline-msg" [class.error]="authIsError">
-        {{ authMessage }}
       </div>
 
       <div class="auth-note">
@@ -42,46 +40,58 @@
 
       <div class="form-group"  style="display: flex; gap: 16px;">
         <div  class="flex-1">
-          <label>{{ 'auth.lastNameLabel' | t }}</label>
-          <ui-input [placeholder]="'auth.lastNamePlaceholder' | t" [(ngModel)]="registerLastName" (keyup.enter)="onRegister()" ></ui-input>
+          <label for="register-last-name">{{ 'auth.lastNameLabel' | t }}</label>
+          <ui-input inputId="register-last-name" name="family-name" autocomplete="family-name" [ariaDescribedby]="describedBy('register-name-hint')" [placeholder]="'auth.lastNamePlaceholder' | t" [(ngModel)]="registerLastName" (keyup.enter)="onRegister()" ></ui-input>
         </div>
         <div  class="flex-1">
-          <label>{{ 'auth.firstNameLabel' | t }}</label>
-          <ui-input [placeholder]="'auth.firstNamePlaceholder' | t" [(ngModel)]="registerFirstName" (keyup.enter)="onRegister()" ></ui-input>
+          <label for="register-first-name">{{ 'auth.firstNameLabel' | t }}</label>
+          <ui-input inputId="register-first-name" name="given-name" autocomplete="given-name" [ariaDescribedby]="describedBy('register-name-hint')" [placeholder]="'auth.firstNamePlaceholder' | t" [(ngModel)]="registerFirstName" (keyup.enter)="onRegister()" ></ui-input>
         </div>
       </div>
-      <p class="field-hint mb-4" >{{ 'auth.nameHint' | t }}</p>
+      <p class="field-hint mb-4" id="register-name-hint">{{ 'auth.nameHint' | t }}</p>
 
       <div class="form-group">
-        <label>{{ 'auth.registerEmailLabel' | t }}</label>
-        <ui-input placeholder="your.email@example.com" [(ngModel)]="registerEmail" (keyup.enter)="onRegister()" ></ui-input>
+        <label for="register-email">{{ 'auth.registerEmailLabel' | t }}</label>
+        <ui-input inputId="register-email" type="email" name="email" autocomplete="email" [ariaDescribedby]="describedBy('register-email-hint')" placeholder="your.email@example.com" [(ngModel)]="registerEmail" (keyup.enter)="onRegister()" [noMargin]="true"></ui-input>
+        <p class="field-hint" id="register-email-hint">{{ 'auth.campusEmailHint' | t:{suffixesText: eduSuffixesText} }}</p>
       </div>
 
       <div class="form-group">
-        <label>{{ 'auth.setPasswordLabel' | t }}</label>
-        <ui-input type="password" [placeholder]="'auth.passwordMin' | t" [(ngModel)]="registerPassword" (keyup.enter)="onRegister()" ></ui-input>
+        <label for="register-password">{{ 'auth.setPasswordLabel' | t }}</label>
+        <ui-input inputId="register-password" type="password" name="new-password" autocomplete="new-password" [ariaDescribedby]="messageId" [placeholder]="'auth.passwordMin' | t" [(ngModel)]="registerPassword" (keyup.enter)="onRegister()" ></ui-input>
       </div>
 
       <div class="form-group">
-        <label>{{ 'auth.confirmPasswordLabel' | t }}</label>
-        <ui-input type="password" [placeholder]="'auth.confirmPlaceholder' | t" [(ngModel)]="registerConfirmPassword" (keyup.enter)="onRegister()" ></ui-input>
+        <label for="register-confirm-password">{{ 'auth.confirmPasswordLabel' | t }}</label>
+        <ui-input inputId="register-confirm-password" type="password" name="confirm-password" autocomplete="new-password" [ariaDescribedby]="messageId" [placeholder]="'auth.confirmPlaceholder' | t" [(ngModel)]="registerConfirmPassword" (keyup.enter)="onRegister()" ></ui-input>
       </div>
+
+      <ng-container *ngTemplateOutlet="messageTpl"></ng-container>
 
       <ui-button  block class="mt-4" (onClick)="onRegister()" [disabled]="isLoading">
         {{ (isLoading ? 'auth.registering' : 'auth.register') | t }}
       </ui-button>
 
+      <div id="google-btn"  class="mt-4" style="display: flex; justify-content: center;"></div>
+
       <div class="auth-toggle">
         {{ 'auth.hasAccount' | t }}<a regionLink="/login" [queryParams]="linkQueryParams">{{ 'auth.backToLogin' | t }}</a>
-      </div>
-
-      <div *ngIf="authMessage" class="inline-msg" [class.error]="authIsError">
-        {{ authMessage }}
       </div>
 
       <div class="auth-note">
         {{ 'auth.agreeRegister' | t }}<a [href]="termsUrl" target="_blank" rel="noopener noreferrer">{{ 'footer.tos' | t }}</a>{{ 'auth.and' | t }}<a [href]="privacyUrl" target="_blank" rel="noopener noreferrer">{{ 'footer.privacy' | t }}</a>{{ 'auth.period' | t }}
       </div>
     </ng-container>
+
+    <!-- Directly above the submit button, not at the foot of the card: below
+         the Google button and the login/register toggle it sat out of view of
+         the fields it was about, and nothing tied it to them for a screen
+         reader. The id is what the fields' aria-describedby points at; alert
+         for a failure so it is announced, status for the post-sign-up notice. -->
+    <ng-template #messageTpl>
+      <div *ngIf="authMessage" [id]="MESSAGE_ID" class="inline-msg" [class.error]="authIsError" [attr.role]="authIsError ? 'alert' : 'status'">
+        {{ authMessage }}
+      </div>
+    </ng-template>
   </div>
 </div>

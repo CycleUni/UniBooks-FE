@@ -59,6 +59,12 @@ describe('HomeHero', () => {
     });
   });
 
+  it('gives the search box an accessible name, not just a placeholder', () => {
+    fixture.detectChanges();
+    const input = (fixture.nativeElement as HTMLElement).querySelector('.hero-input input')!;
+    expect(input.getAttribute('aria-label')).toBe('common.search');
+  });
+
   it('does not navigate on an empty or whitespace-only query', () => {
     component.searchQuery = '   ';
     component.onSearch();

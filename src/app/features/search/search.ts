@@ -62,7 +62,10 @@ const CONDITION_NONE = 'none';
               <circle cx="10.5" cy="10.5" r="6.5"/>
               <line x1="20" y1="20" x2="15.4" y2="15.4"/>
             </svg>
+            <!-- No visible label: the placeholder was the only name, and it
+                 stops naming anything once text is typed. -->
             <ui-input
+              [ariaLabel]="'common.search' | t"
               [placeholder]="'common.searchPlaceholder' | t"
               [(ngModel)]="searchQuery"
               (keyup.enter)="onSearch()"

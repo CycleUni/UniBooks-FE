@@ -2,15 +2,26 @@ import { Component, Input, forwardRef } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 
+/** Per-instance ids for the inner <input>. A counter rather than anything
+ *  random: the app is client-rendered only, and a counter keeps ids readable
+ *  in the DOM and stable across change detection. */
+let nextInputId = 0;
+
 @Component({
   selector: 'ui-input',
   standalone: true,
   imports: [CommonModule],
   template: `
     <div class="input-wrapper" [class.no-margin]="noMargin">
-      <label *ngIf="label">{{ label }}</label>
+      <label *ngIf="label" [attr.for]="controlId">{{ label }}</label>
       <input
+        [id]="controlId"
         [type]="type"
+        [attr.name]="name || null"
+        [attr.autocomplete]="autocomplete || null"
+        [attr.inputmode]="inputmode || null"
+        [attr.aria-label]="ariaLabel || null"
+        [attr.aria-describedby]="ariaDescribedby || null"
         [placeholder]="placeholder"
         [value]="value"
         [disabled]="disabled"
@@ -97,6 +108,32 @@ export class UiInput implements ControlValueAccessor {
   @Input() label: string = '';
   @Input() placeholder: string = '';
   @Input() type: string = 'text';
+
+  // The <input> lives inside this component, so attributes written on
+  // <ui-input> itself (autocomplete, aria-label, id...) land on the host
+  // element where neither password managers nor screen readers look. Each one
+  // a caller needs therefore has to be forwarded explicitly.
+  //
+  // `inputId`, not `id`: an input named `id` would also leave a static
+  // id="..." on the host, giving the page two elements with the same id.
+  // A caller whose label sits outside this component (the auth form) passes
+  // one and points its own <label for> at it; everyone else gets a generated
+  // id so the built-in `label` is still programmatically tied to the field.
+  @Input() inputId: string = '';
+  @Input() name: string = '';
+  @Input() autocomplete: string = '';
+  @Input() inputmode: string = '';
+  // For fields with no visible label, where the placeholder was the only
+  // name — and a placeholder is not an accessible name once text is typed.
+  @Input() ariaLabel: string = '';
+  @Input() ariaDescribedby: string | null = null;
+
+  private readonly generatedId = `ui-input-${++nextInputId}`;
+
+  get controlId(): string {
+    return this.inputId || this.generatedId;
+  }
+
   @Input() error: string = '';
   @Input() noMargin: boolean = false;
   // The template already binds this and `input:disabled` is already styled;

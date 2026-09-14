@@ -166,6 +166,7 @@ export const en: Record<string, string> = {
   'auth.firstNamePlaceholder': 'e.g. Alex',
   'auth.nameHint': 'This name will be displayed when you trade with others.',
   'auth.registerEmailLabel': 'Registration Email',
+  'auth.campusEmailHint': 'Any email works for signing up. To list books or message sellers, you will then verify a school email{suffixesText} in Account Settings.',
   'auth.setPasswordLabel': 'Set Password',
   'auth.confirmPasswordLabel': 'Confirm Password',
   'auth.passwordMin': 'At least 8 characters',

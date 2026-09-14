@@ -163,6 +163,7 @@ export const zhHK: Record<string, string> = {
   'auth.firstNamePlaceholder': '例：小明',
   'auth.nameHint': '此姓名將會在你與其他人交易時顯示',
   'auth.registerEmailLabel': '註冊電郵',
+  'auth.campusEmailHint': '任何電郵都可以註冊。之後需在帳戶設定驗證學校電郵{suffixesText}，才能上架書籍或私訊賣家。',
   'auth.setPasswordLabel': '設定密碼',
   'auth.confirmPasswordLabel': '確認密碼',
   'auth.passwordMin': '最少 8 個字元',

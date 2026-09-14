@@ -12,11 +12,16 @@ import { GoogleAuthService } from '../../core/services/google-auth.service';
 import { I18nService, TPipe } from '../../core/i18n.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { aboutUrl as aboutSiteUrl } from '../../core/about-site';
+import { RegionService } from '../../core/region.service';
 
 /** The container Google's SDK renders its button into. A DOM id rather than a
  *  ViewChild because the SDK takes an element and writes an iframe into it —
  *  it is not an Angular-rendered control. */
 const GOOGLE_BUTTON_ID = 'google-btn';
+
+/** The form-level message (validation failure, server error, post-sign-up
+ *  notice). Only one mode renders at a time, so one id serves both. */
+const MESSAGE_ID = 'auth-msg';
 
 /** Handed from /register to /login after a successful sign-up, through the
  *  navigation state rather than a query param: the address is personal data
@@ -63,6 +68,9 @@ export class AuthFormComponent implements OnInit, AfterViewInit {
   private cdr = inject(ChangeDetectorRef);
   private i18n = inject(I18nService);
   private theme = inject(ThemeService);
+  private regionService = inject(RegionService);
+
+  protected readonly MESSAGE_ID = MESSAGE_ID;
 
   /** Guards against the leave-effect firing twice — it reacts to a signal, and
    *  a second read while the navigation is still in flight would queue a
@@ -81,6 +89,27 @@ export class AuthFormComponent implements OnInit, AfterViewInit {
 
   get privacyUrl(): string {
     return aboutSiteUrl(this.i18n.lang(), 'about/privacy');
+  }
+
+  /** Points the fields at the form message only while there is one — an
+   *  aria-describedby naming a missing element is ignored at best and flagged
+   *  as a broken reference by checkers at worst. */
+  get messageId(): string | null {
+    return this.authMessage ? MESSAGE_ID : null;
+  }
+
+  /** A field's own hint plus the form message when one is showing. */
+  describedBy(hintId: string): string {
+    return this.authMessage ? `${hintId} ${MESSAGE_ID}` : hintId;
+  }
+
+  /** The region's campus suffixes for the sign-up hint, formatted the way
+   *  account settings formats them (" (.edu.tw, .edu)"). Empty when the
+   *  regions have not loaded or an admin left the list blank, so the hint
+   *  degrades to the generic sentence instead of printing "()". */
+  get eduSuffixesText(): string {
+    const suffixes = this.regionService.currentRegionObj()?.edu_email_suffix ?? [];
+    return suffixes.length ? ` (${suffixes.join(', ')})` : '';
   }
 
   get authMessage(): string {
@@ -228,8 +257,10 @@ export class AuthFormComponent implements OnInit, AfterViewInit {
     }
   }
 
+  // Rendered on /register too: GoogleLoginView creates the account when the
+  // address is new, so "Continue with Google" is as much a sign-up as a login,
+  // and the leave-effect above handles either outcome the same way.
   private renderGoogleButton() {
-    if (this.mode !== 'login') return;
     // Deferred a macrotask: the SDK measures the container to size the button,
     // and reads 0 if it runs before the element is laid out — which is exactly
     // what happens when this is triggered from the language/theme effect.
