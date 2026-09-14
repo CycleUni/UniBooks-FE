@@ -1,6 +1,6 @@
 import { RegionLinkDirective } from '../../core/region-link.directive';
 import { stripRegionPrefix, isSameRegion } from '../../core/region-path';
-import { Component, effect, inject, ChangeDetectorRef, OnDestroy } from '@angular/core';
+import { Component, effect, inject, ChangeDetectorRef, OnDestroy, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -71,7 +71,6 @@ export class UiLayout implements OnDestroy {
 
   private unreadCountSubscription: Subscription;
   private routerSubscription?: Subscription;
-  private hubConnectedForUserId: string | null = null;
 
   get selectedSchoolLabel(): string {
     const found = this.schools.find(s => s.value === this.selectedSchool);
@@ -111,8 +110,12 @@ export class UiLayout implements OnDestroy {
         this.applyFooterVisibility();
         this.mobileLayout.setHideBottomNav(false);
         this.cdr.markForCheck();
+        this.messageService.retryHubIfOwed();
       }
     });
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.onVisibilityChange);
+    }
 
     // Runs on init and again whenever the language changes, so school labels
     // are re-fetched in the newly selected language
@@ -129,10 +132,9 @@ export class UiLayout implements OnDestroy {
     // in this tab, or in another tab via AuthStore's storage-event sync).
     effect(() => {
       if (this.authStore.isAuthenticated()) {
-        this.connectHub();
+        untracked(() => this.messageService.openHub());
       } else {
-        this.hubConnectedForUserId = null;
-        this.messageService.disconnectHub();
+        untracked(() => this.messageService.closeHub());
         // Clear manual school selection on logout - next session uses bound school
         this.schoolStateService.clearManualSchool();
       }
@@ -174,21 +176,17 @@ export class UiLayout implements OnDestroy {
   ngOnDestroy() {
     this.routerSubscription?.unsubscribe();
     this.unreadCountSubscription.unsubscribe();
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    }
   }
 
-  private connectHub() {
-    this.messageService.getHubToken().subscribe({
-      next: (res) => {
-        let uid = '';
-        try {
-          uid = JSON.parse(atob(res.token.split('.')[1])).user_id;
-        } catch (e) { }
-        if (!uid || uid === this.hubConnectedForUserId) return;
-        this.hubConnectedForUserId = uid;
-        this.messageService.connectHub(res.token, uid, res.edge_chat_url);
-      }
-    });
-  }
+  /** A hub that failed to open gets another chance when the visitor returns. */
+  private readonly onVisibilityChange = () => {
+    if (document.visibilityState === 'visible') {
+      this.messageService.retryHubIfOwed();
+    }
+  };
 
   onThemeChange(mode: string) {
     this.theme.setMode(mode as ThemeMode);

@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Component, signal } from '@angular/core';
 import { UiLayout } from './layout.component';
 import { Router, provideRouter } from '@angular/router';
-import { EMPTY, of } from 'rxjs';
+import { of } from 'rxjs';
 import { MetadataService } from '../../core/services/metadata.service';
 import { AuthStore } from '../../core/auth.store';
 import { AccountService } from '../../core/services/account.service';
@@ -40,7 +40,7 @@ describe('UiLayout', () => {
         { provide: AuthStore, useValue: { isAuthenticated: signal(false), user: signal(null) } },
         { provide: AccountService, useValue: {} },
         { provide: SchoolStateService, useValue: { currentSchool: '', hasInitialized: false, getManualSchool: () => null, setSchools: vi.fn(), setSchool: vi.fn(), clearManualSchool: vi.fn() } },
-        { provide: MessageService, useValue: { unreadCount$: of(0), disconnectHub: vi.fn() } },
+        { provide: MessageService, useValue: { unreadCount$: of(0), openHub: vi.fn(), closeHub: vi.fn(), retryHubIfOwed: vi.fn() } },
         { provide: I18nService, useValue: { t: (k: string) => k, lang: signal('zh-TW') } },
         { provide: ThemeService, useValue: { mode: signal('system'), resolved: signal('light'), setMode: vi.fn() } },
         { provide: MobileLayoutService, useValue: { hideBottomNav: signal(false), setHideBottomNav: vi.fn() } },
@@ -109,11 +109,6 @@ describe('UiLayout', () => {
     const accountLink = () =>
       (fixture.nativeElement as HTMLElement).querySelector('.nav-links a[href$="/account"]') as HTMLAnchorElement;
 
-    beforeEach(() => {
-      // Signing in connects the message hub; keep that out of the way.
-      (TestBed.inject(MessageService) as any).getHubToken = () => EMPTY;
-    });
-
     it('shows a placeholder, not the signed-out label, while signed in without a profile', () => {
       const auth = TestBed.inject(AuthStore) as any;
       auth.isAuthenticated.set(true);
@@ -145,6 +140,50 @@ describe('UiLayout', () => {
       const link = accountLink();
       expect(link.querySelector('.nav-label-pending')).toBeNull();
       expect(link.textContent?.trim()).toBe('nav.account');
+    });
+  });
+
+  // The retry logic itself lives in MessageService (its own spec); this is the
+  // layout's part: when to open and close the hub, and when to nudge a retry.
+  describe('notification hub wiring', () => {
+    let messages: any;
+    let auth: any;
+
+    beforeEach(() => {
+      messages = TestBed.inject(MessageService) as any;
+      auth = TestBed.inject(AuthStore) as any;
+    });
+
+    it('opens the hub when the session is authenticated and closes it when it ends', () => {
+      auth.isAuthenticated.set(true);
+      TestBed.tick();
+      expect(messages.openHub).toHaveBeenCalledTimes(1);
+
+      auth.isAuthenticated.set(false);
+      TestBed.tick();
+      expect(messages.closeHub).toHaveBeenCalled();
+    });
+
+    it('nudges a hub retry on navigation', async () => {
+      messages.retryHubIfOwed.mockClear();
+      await router.navigateByUrl('/search');
+
+      expect(messages.retryHubIfOwed).toHaveBeenCalled();
+    });
+
+    it('nudges a hub retry when the visitor comes back to the tab', () => {
+      messages.retryHubIfOwed.mockClear();
+      document.dispatchEvent(new Event('visibilitychange'));
+
+      expect(messages.retryHubIfOwed).toHaveBeenCalled();
+    });
+
+    it('stops listening for the tab coming back once destroyed', () => {
+      fixture.destroy();
+      messages.retryHubIfOwed.mockClear();
+      document.dispatchEvent(new Event('visibilitychange'));
+
+      expect(messages.retryHubIfOwed).not.toHaveBeenCalled();
     });
   });
 });

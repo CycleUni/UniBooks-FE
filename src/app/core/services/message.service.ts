@@ -1,9 +1,10 @@
 import { Injectable, inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
-import { Observable, Subject, BehaviorSubject, from } from 'rxjs';
+import { Observable, Subject, BehaviorSubject, Subscription, from } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+import { isTransientHttpFailure } from '../http-failure';
 
 // Debug logging only outside production, to keep the prod console noise-free.
 function devLog(...args: unknown[]): void {
@@ -74,6 +75,16 @@ export class MessageService {
   private hubReconnectAttempts = 0;
   private hubReconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private hubClosingIntentionally = false;
+
+  // Opening the hub for a signed-in visitor (openHub), as opposed to
+  // reconnecting one that dropped (scheduleHubReconnect).
+  private hubOpenWanted = false;
+  private hubOpenOwed = false;
+  private hubTokenRequest: Subscription | null = null;
+  private hubOpenRetryTimeout: ReturnType<typeof setTimeout> | null = null;
+  private hubOpenRetryIndex = 0;
+  /** Same schedule as AuthStore's profile retry, for the same cold start. */
+  private static readonly HUB_OPEN_RETRY_DELAYS_MS = [3000, 10000, 30000];
 
   public roomUpdates$ = new Subject<RoomUpdate>();
   // Total unread conversation count from CFEdgeChat's UserHub. Kept fresh
@@ -391,6 +402,85 @@ export class MessageService {
     } else {
       devError('[EdgeChat] Cannot delete message, WebSocket is not open');
     }
+  }
+
+  /**
+   * Open the hub for the signed-in visitor: fetch a hub token, then connect.
+   *
+   * The hub is the only thing that tells CFEdgeChat the visitor is on the site;
+   * with no socket on it they count as away and get emailed about new
+   * messages. scheduleHubReconnect brings back a hub that *dropped*, but
+   * nothing brought back one that never opened: the token request ran once,
+   * when the session became authenticated, and a failure — a cold serverless
+   * start, or the token refresh behind it — went unhandled (logged by Angular
+   * as an uncaught ERROR) and left the visitor without a hub until a reload.
+   *
+   * A transient failure is now retried on a schedule, and again on
+   * retryHubIfOwed() (the layout calls it on navigation and on returning to
+   * the tab). A 401/403 is not: the session is over, and AuthStore ends it.
+   */
+  openHub(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    this.hubOpenWanted = true;
+    // Already open (or reconnecting), or a token request is already out.
+    if (this.currentHubUserId) return;
+    if (this.hubTokenRequest && !this.hubTokenRequest.closed) return;
+
+    this.hubTokenRequest = this.getHubToken().subscribe({
+      next: (res) => {
+        if (!this.hubOpenWanted) return;
+        this.hubOpenOwed = false;
+        this.cancelHubOpenRetry();
+        let userId = '';
+        try {
+          userId = String(JSON.parse(atob(res.token.split('.')[1])).user_id ?? '');
+        } catch { /* unreadable token: nothing to connect as */ }
+        if (!userId) return;
+        this.connectHub(res.token, userId, res.edge_chat_url);
+      },
+      error: (err: unknown) => {
+        if (!this.hubOpenWanted || !isTransientHttpFailure(err)) return;
+        this.hubOpenOwed = true;
+        this.scheduleHubOpenRetry();
+      },
+    });
+  }
+
+  /** Open the hub if an earlier attempt failed for a reason worth retrying. */
+  retryHubIfOwed(): void {
+    if (this.hubOpenOwed && this.hubOpenWanted && !this.currentHubUserId) {
+      this.openHub();
+    }
+  }
+
+  /** The visitor signed out: stop trying to open the hub, and close it. */
+  closeHub(): void {
+    this.hubOpenWanted = false;
+    this.hubOpenOwed = false;
+    this.cancelHubOpenRetry();
+    this.hubTokenRequest?.unsubscribe();
+    this.hubTokenRequest = null;
+    this.disconnectHub();
+  }
+
+  private scheduleHubOpenRetry(): void {
+    if (this.hubOpenRetryTimeout !== null) return;
+    const delay = MessageService.HUB_OPEN_RETRY_DELAYS_MS[this.hubOpenRetryIndex];
+    // Out of timed retries: the next navigation or return to the tab asks again.
+    if (delay === undefined) return;
+    this.hubOpenRetryIndex++;
+    this.hubOpenRetryTimeout = setTimeout(() => {
+      this.hubOpenRetryTimeout = null;
+      this.retryHubIfOwed();
+    }, delay);
+  }
+
+  private cancelHubOpenRetry(): void {
+    if (this.hubOpenRetryTimeout !== null) {
+      clearTimeout(this.hubOpenRetryTimeout);
+      this.hubOpenRetryTimeout = null;
+    }
+    this.hubOpenRetryIndex = 0;
   }
 
   connectHub(token: string, userId: string, edgeChatUrl: string) {
