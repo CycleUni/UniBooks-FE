@@ -452,6 +452,7 @@ export const en: Record<string, string> = {
   'sell.successDesc': 'Your book has been successfully listed. You can now view it in your profile.',
   'sell.backHome': 'Back to Home',
   'sell.notFoundIsbn': 'Book with this ISBN not found. Please enter the title and author manually.',
+  'sell.upstreamTimeout': 'External book database timed out. Please try again.',
   'sell.networkError': 'A network error occurred while searching for the book. Please try again later.',
   'sell.listFailed': 'Listing failed: {msg}',
   'listing.errPhotoNotOwned': 'That photo does not belong to you.',

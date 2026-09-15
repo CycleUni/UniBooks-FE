@@ -261,6 +261,7 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
   isScanning = false;
   cameraError = '';
   private html5QrCode: Html5Qrcode | null = null;
+  private isProcessingScan = false;
 
   /** Shown when a saved draft is found on entry — never restored silently. */
   showDraftPrompt = false;
@@ -556,6 +557,8 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
   }
 
   handleScanResult(decodedText: string): boolean {
+    if (this.isProcessingScan) return false;
+
     const validIsbn = cleanAndValidateIsbn(decodedText);
     if (!validIsbn || !isValidIsbnChecksum(validIsbn)) {
       const errorMsg = this.i18n.t('sell.invalidBarcodeScanned');
@@ -566,17 +569,21 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
       return false;
     }
 
+    this.isProcessingScan = true;
     this.cameraError = '';
     this.searchQuery = validIsbn;
     this.onSearchQueryChange();
     this.stopScanner().then(() => {
       this.searchBook();
+    }).finally(() => {
+      this.isProcessingScan = false;
     });
     return true;
   }
 
   async startScanner() {
     this.cameraError = '';
+    this.isProcessingScan = false;
     this.isScanning = true;
     this.cdr.markForCheck();
 
@@ -628,6 +635,7 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
       console.error('Scanner error', err);
       this.cameraError = this.i18n.t('sell.cameraPermission');
       this.isScanning = false;
+      this.isProcessingScan = false;
       this.cdr.markForCheck();
     }
   }
@@ -645,6 +653,7 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
       this.cameraError = '';
     }
     this.isScanning = false;
+    this.isProcessingScan = false;
     this.cdr.markForCheck();
   }
 
@@ -673,9 +682,14 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
         }
         this.cdr.markForCheck();
       },
-      error: () => {
+      error: (err) => {
         this.isCheckingIsbn = false;
-        this.apiError = this.i18n.t('sell.networkError');
+        if (err && (err.status === 504 || err.status === 502 || err.status === 503)) {
+          this.apiError = this.i18n.t('sell.upstreamTimeout');
+        } else {
+          this.apiError = this.i18n.t('sell.networkError');
+        }
+        this.hideSearchButtonForNow = false;
         this.cdr.markForCheck();
       }
     });

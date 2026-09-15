@@ -448,6 +448,7 @@ export const zhHK: Record<string, string> = {
   'sell.successDesc': '你本書已經成功上架，可以去自己個賣場睇下。',
   'sell.backHome': '回首頁',
   'sell.notFoundIsbn': '搵唔到呢個 ISBN 嘅書，請自己輸入書名同作者。',
+  'sell.upstreamTimeout': '外部圖書資料庫連線逾時，請再試一次。',
   'sell.networkError': '查詢書籍時發生網絡錯誤，請稍後再試。',
   'sell.listFailed': '上架失敗：{msg}',
   'listing.errPhotoNotOwned': '這張照片不屬於你，無法使用。',

@@ -448,6 +448,7 @@ export const zhTW: Record<string, string> = {
   'sell.successDesc': '你的書籍已成功上架，現在可以前往你的個人賣場查看。',
   'sell.backHome': '回首頁',
   'sell.notFoundIsbn': '找不到此 ISBN 的書籍，請手動輸入書名與作者。',
+  'sell.upstreamTimeout': '外部圖書資料庫連線逾時，請再試一次。',
   'sell.networkError': '查詢書籍時發生網路錯誤，請稍後再試。',
   'sell.listFailed': '上架失敗：{msg}',
   'listing.errPhotoNotOwned': '這張照片不屬於你，無法使用。',

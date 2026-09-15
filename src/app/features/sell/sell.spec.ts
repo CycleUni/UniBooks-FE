@@ -184,7 +184,10 @@ describe('Sell Component Barcode Scanner Validation', () => {
       t: vi.fn((key: string) => {
         const translations: Record<string, string> = {
           'sell.invalidBarcodeScanned': "Scanned code doesn't look like a valid ISBN, try again.",
-          'sell.cameraPermission': 'Cannot access camera. Please check your permissions.'
+          'sell.cameraPermission': 'Cannot access camera. Please check your permissions.',
+          'sell.upstreamTimeout': 'External book database timed out. Please try again.',
+          'sell.networkError': 'A network error occurred while searching for the book. Please try again later.',
+          'sell.notFoundIsbn': 'Book with this ISBN not found. Please enter the title and author manually.'
         };
         return translations[key] || key;
       }),
@@ -340,6 +343,15 @@ describe('Sell Component Barcode Scanner Validation', () => {
 
     expect(component.cameraError).toBe('');
     expect(component.isScanning).toBe(false);
+  });
+
+  it('blocks second scan while first scan is already processing', () => {
+    component.isScanning = true;
+    (component as any).isProcessingScan = true;
+
+    const result = component.handleScanResult('9786264140720');
+    expect(result).toBe(false);
+    expect(component.searchQuery).toBe('');
   });
 
   it('should clear cameraError when succeeding after a previous invalid scan', async () => {
@@ -533,6 +545,33 @@ describe('Sell listing form guarding, drafts and field validation', () => {
       component.isCheckingIsbn = true;
       component.onSearchEnter(new KeyboardEvent('keyup', { key: 'Enter' }));
       expect((TestBed.inject(BookService) as any).searchBooks).not.toHaveBeenCalled();
+    });
+
+    it('handles 504 gateway timeout without switching to manual entry', () => {
+      create();
+      const books = TestBed.inject(BookService) as any;
+      books.searchBooks.mockReturnValue(throwError(() => ({ status: 504 })));
+
+      component.searchQuery = '9789863126942';
+      component.searchBook();
+
+      expect(component.isCheckingIsbn).toBe(false);
+      expect(component.apiError).toBe('sell.upstreamTimeout');
+      expect(component.bookPreview).toBeNull();
+      expect(component.canSearch).toBe(true);
+    });
+
+    it('handles 200 empty results by prompting manual entry', () => {
+      create();
+      const books = TestBed.inject(BookService) as any;
+      books.searchBooks.mockReturnValue(of({ results: [] }));
+
+      component.searchQuery = '9789863126942';
+      component.searchBook();
+
+      expect(component.isCheckingIsbn).toBe(false);
+      expect(component.apiError).toBe('sell.notFoundIsbn');
+      expect(component.bookPreview?.isManual).toBe(true);
     });
   });
 
