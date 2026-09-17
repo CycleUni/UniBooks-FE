@@ -44,6 +44,70 @@ Cloudflare Pages 時 Function 由平台自動執行，不需要這一步。
 
 ---
 
+## Google Analytics 4
+
+站上的行為分析（搜尋、瀏覽、流量來源、活躍使用者）走 GA4；交易結果與金額則以
+後台統計為準（資料庫），兩者分工見 `core/services/google-analytics.service.ts`。
+
+### 啟用
+
+在 `.env` 填入 `NG_APP_GA_MEASUREMENT_ID`（格式 `G-XXXXXXXXXX`）。留空時完全
+不會載入追蹤碼，所有事件也不會送出。
+
+### 送出的事件
+
+| 事件 | 觸發時機 | 主要參數 |
+|---|---|---|
+| `search` | 搜尋有結果回來時 | `search_term`、`total_results`、`school` |
+| `view_item` | 開啟商品頁 | `items[]`、`value`、`currency` |
+| `view_book` | 開啟書本頁 | `item_id`、`listing_count`（0 代表無人上架） |
+| `request_book` | 登記求書 | `item_id`、`source`（`book` / `search`） |
+| `contact_seller` | 聯絡賣家 | `item_id` |
+| `send_message` | 送出訊息 | `conversation_id` |
+| `begin_checkout` | 進入結帳頁 | `items[]`、`value`、`currency` |
+| `place_order` | 送出訂單（尚未成交） | `order_id`、`value`、`currency` |
+| `order_accepted`／`order_handed_over` | 賣家同意／完成面交 | `order_id` |
+| `purchase` | **買家確認收到**（才算成交） | `transaction_id`、`value`、`currency` |
+| `cancel_order` | 取消訂單 | `order_id`、`cancel_reason` |
+| `publish_listing` | 上架商品 | `item_category`、`item_condition`、`price` |
+| `sign_up`／`login`／`sign_up_verified`／`verify_edu_request` | 註冊、登入、完成學校驗證 | — |
+| `submit_review`、`report_listing`、`isbn_lookup`、`upload_listing_photo`、`click_buy_now`、`checkout_to_chat`、`scroll`（商品頁捲動深度） | 其他互動 | — |
+
+兩個容易誤解的地方：
+
+- **`purchase` 只在買家確認收到時送出**，送出訂單是 `place_order`。GA 的營收因此
+  和後台的「成交金額」算同一件事，不會把待處理或後來取消的訂單算進去。
+- **金額一律換算成該筆訂單幣別的「元」**（台幣無小數、港幣兩位小數），API 傳的是
+  最小單位，服務層會自動換算。
+
+每個事件都會帶 `region`（`TW` / `HK`），報表可分站查看。
+
+### GA 後台需要自行建立的設定
+
+事件送出後，還要在 GA4 後台建立對應的自訂定義，報表裡才看得到這些欄位：
+
+1. **管理 → 自訂定義 → 自訂維度**（範圍皆為「事件」）
+
+   | 維度名稱 | 事件參數 | 用途 |
+   |---|---|---|
+   | `region` | `region` | 分別查看台灣站與香港站 |
+   | `listing_count` | `listing_count` | 找出有人看、卻沒人上架的書 |
+   | `source` | `source` | 求書是從書本頁或搜尋頁登記 |
+   | `school` | `school` | 搜尋時選擇的學校 |
+   | `cancel_reason` | `cancel_reason` | 取消原因分布 |
+
+2. **管理 → 自訂定義 → 自訂指標**
+
+   | 指標名稱 | 事件參數 | 單位 |
+   |---|---|---|
+   | `total_results` | `total_results` | 標準（用來看搜尋零結果率） |
+
+3. **探索 → 程序探索（漏斗）** 建議步驟：
+
+   `search` → `view_item` → `contact_seller` → `place_order` → `order_accepted` → `order_handed_over` → `purchase`
+
+自訂維度與指標只對**建立之後**送出的資料生效，先前的事件不會回溯。
+
 ## 📁 前端專案結構說明
 
 ### 1️⃣ Feature 資料夾 (Feature‑Folder Pattern)
