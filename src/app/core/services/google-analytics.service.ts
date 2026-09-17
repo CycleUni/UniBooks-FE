@@ -1,8 +1,9 @@
-import { Injectable, inject, PLATFORM_ID } from '@angular/core';
+import { Injectable, Injector, inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+import { RegionService } from '../region.service';
 
 @Injectable({
   providedIn: 'root'
@@ -10,6 +11,9 @@ import { environment } from '../../../environments/environment';
 export class GoogleAnalyticsService {
   private platformId = inject(PLATFORM_ID);
   private router = inject(Router);
+  // Looked up on use, not injected: RegionService's own dependencies lead back
+  // to AuthStore, which injects this service.
+  private injector = inject(Injector);
   private initialized = false;
   private gaId: string | null = null;
 
@@ -56,12 +60,50 @@ export class GoogleAnalyticsService {
   }
 
   /**
-   * Generic GA4 event tracking
+   * Generic GA4 event tracking. Every event carries the site `region` (TW /
+   * HK) so reports can be split the way the admin statistics are; register
+   * it as an event-scoped custom dimension in GA to use it.
    */
   public trackEvent(eventName: string, params: Record<string, any> = {}): void {
     if (isPlatformBrowser(this.platformId) && (window as any).gtag) {
-      (window as any).gtag('event', eventName, params);
+      (window as any).gtag('event', eventName, { region: this.region() || undefined, ...params });
     }
+  }
+
+  private region(): string {
+    try {
+      return this.injector.get(RegionService).region().toUpperCase();
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * GA wants money in major units with its currency; the API sends minor
+   * units (TWD has none, HKD has cents). Without a currency, the current
+   * region's is assumed.
+   */
+  private money(minor: number | null | undefined, currencyCode?: string | null): { value: number; currency: string } {
+    let code = currencyCode || 'TWD';
+    let places = 0;
+    try {
+      const regions = this.injector.get(RegionService);
+      const current = regions.currency();
+      code = currencyCode || current.code;
+      const match = regions.regions().find(r => r.currency.code === code)?.currency ?? (current.code === code ? current : null);
+      places = match ? match.decimal_places : 0;
+    } catch {
+      // No region data (tests, early boot): fall through with TWD / 0.
+    }
+    return { value: (minor ?? 0) / Math.pow(10, places), currency: code };
+  }
+
+  private orderItem(order: { listing?: string | number | null; listing_title?: string; total_amount?: number | null; currency?: string | null }) {
+    return {
+      item_id: order.listing != null ? String(order.listing) : '',
+      item_name: order.listing_title || '',
+      price: this.money(order.total_amount, order.currency).value,
+    };
   }
 
   /**
@@ -102,17 +144,19 @@ export class GoogleAnalyticsService {
     name?: string;
     category?: string;
     price?: number;
+    currency?: string | null;
   }): void {
     const itemId = item.isbn || (item.bookId != null ? String(item.bookId) : '');
+    const { value, currency } = this.money(item.price, item.currency);
     this.trackEvent('view_item', {
-      currency: 'TWD',
-      value: item.price,
+      currency,
+      value,
       items: [
         {
           item_id: itemId,
           item_name: item.name || '',
           item_category: item.category || '',
-          price: item.price,
+          price: value,
           ...(item.listingId != null ? { listing_id: String(item.listingId) } : {})
         }
       ]
@@ -123,10 +167,12 @@ export class GoogleAnalyticsService {
    * Track seller item publication
    */
   public trackPublishListing(category?: string, condition?: string, price?: number | null): void {
+    const { value, currency } = this.money(price);
     this.trackEvent('publish_listing', {
       item_category: category || '',
       item_condition: condition || '',
-      price: price ?? 0
+      price: value,
+      currency
     });
   }
 
@@ -140,33 +186,75 @@ export class GoogleAnalyticsService {
     isbn?: string | null;
     itemName?: string;
     price?: number | null;
+    currency?: string | null;
   }): void {
     const itemId = opts.isbn || (opts.bookId != null ? String(opts.bookId) : '');
+    const { value, currency } = this.money(opts.price, opts.currency);
     this.trackEvent('begin_checkout', {
-      currency: 'TWD',
-      value: opts.price ?? 0,
+      currency,
+      value,
       items: [{
         item_id: itemId,
         item_name: opts.itemName || '',
-        price: opts.price ?? 0,
+        price: value,
         ...(opts.listingId != null ? { listing_id: String(opts.listingId) } : {})
       }]
     });
   }
 
   /**
-   * Track completed purchase/order (GA4 standard purchase)
+   * An order request sent to the seller. Not GA's `purchase`: most requests
+   * are still to be accepted and met, and some never are.
    */
-  public trackPurchase(orderId?: string | number | null, value?: number, currency = 'TWD', items: any[] = []): void {
-    this.trackEvent('purchase', {
-      transaction_id: orderId != null ? String(orderId) : '',
-      value: value ?? 0,
+  public trackPlaceOrder(order: { id?: string | null; listing?: string | number | null; listing_title?: string; total_amount?: number | null; currency?: string | null }): void {
+    const { value, currency } = this.money(order.total_amount, order.currency);
+    this.trackEvent('place_order', {
+      order_id: order.id || '',
       currency,
-      items: items.map(item => ({
-        item_id: String(item.item_id || item.id || ''),
-        item_name: item.item_name || item.name || '',
-        price: item.price ?? value ?? 0
-      }))
+      value,
+      items: [this.orderItem(order)]
+    });
+  }
+
+  /**
+   * GA4 standard `purchase`, sent when the buyer confirms receipt — the point
+   * the admin statistics count a transaction — so GA revenue and the admin's
+   * sales total describe the same thing.
+   */
+  public trackPurchase(order: { id?: string | null; listing?: string | number | null; listing_title?: string; total_amount?: number | null; currency?: string | null }): void {
+    const { value, currency } = this.money(order.total_amount, order.currency);
+    this.trackEvent('purchase', {
+      transaction_id: order.id || '',
+      currency,
+      value,
+      items: [this.orderItem(order)]
+    });
+  }
+
+  /** Seller accepted, or handed the book over: the steps between request and purchase. */
+  public trackOrderStep(orderId: string | null | undefined, status: 'accepted' | 'handed_over'): void {
+    this.trackEvent(status === 'accepted' ? 'order_accepted' : 'order_handed_over', {
+      order_id: orderId || ''
+    });
+  }
+
+  /**
+   * A book page opened. Book-level demand, including books nobody is
+   * selling — `listing_count` 0 marks interest the platform cannot meet yet.
+   */
+  public trackViewBook(book: { id?: string | number | null; isbn?: string | null; title?: string; listingCount?: number }): void {
+    this.trackEvent('view_book', {
+      item_id: book.isbn || (book.id != null ? String(book.id) : ''),
+      item_name: book.title || '',
+      listing_count: book.listingCount ?? 0
+    });
+  }
+
+  /** A book request (求書) registered. */
+  public trackRequestBook(bookId: string | number | null | undefined, source: 'book' | 'search'): void {
+    this.trackEvent('request_book', {
+      item_id: bookId != null ? String(bookId) : '',
+      source
     });
   }
 

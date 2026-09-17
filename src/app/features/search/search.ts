@@ -682,6 +682,7 @@ export class Search implements OnInit {
     const doSubscribe = (id: string) => {
       this.bookService.subscribe(id).subscribe({
         next: res => {
+          this.ga.trackRequestBook(id, 'search');
           this.toast.success(this.i18n.t('alert.subscribed'));
           item.waitlistCount++; item.is_subscribed = true; item.subscription_id = res.id; item.id = id;
           this.cdr.markForCheck();

@@ -24,6 +24,7 @@ import { SeoService } from '../../core/services/seo.service';
 import { navigationWantsBookPreview, bookQueryParams } from '../../core/book-preview';
 import { BookCoverPipe } from '../../shared/pipes/book-cover.pipe';
 import { displayPublisher } from '../../core/publisher';
+import { GoogleAnalyticsService } from '../../core/services/google-analytics.service';
 
 
 @Component({
@@ -281,6 +282,9 @@ export class Book implements OnInit {
 
   private bookService = inject(BookService);
   private messageService = inject(MessageService);
+  private ga = inject(GoogleAnalyticsService);
+  /** The book whose view was already sent; pages of its listings are not new views. */
+  private viewTracked: string | null = null;
   private accountService = inject(AccountService);
   private auth = inject(AuthStore);
   private regionService = inject(RegionService);
@@ -422,6 +426,10 @@ export class Book implements OnInit {
           this.totalListings = this.listings.length;
         }
         this.localListingsCount = data.local_listings_count ?? -1;
+        if (this.viewTracked !== this.bookId) {
+          this.viewTracked = this.bookId ?? null;
+          this.ga.trackViewBook({ id: data.id ?? this.bookId, isbn: data.isbn13, title: data.title, listingCount: this.totalListings });
+        }
         this.describePage();
         this.isLoadingListings = false;
         this.isLocalCache = false;
@@ -510,6 +518,7 @@ export class Book implements OnInit {
     // real conversation id, not the listing id (they're different UUIDs).
     this.messageService.startConversation(listingId).subscribe({
       next: (conv) => {
+        this.ga.trackContactSeller(listingId);
         this.router.navigate(this.regionLink.path(['/messages']), { queryParams: { chat: conv.id } });
       },
       error: (err) => {
@@ -544,6 +553,7 @@ export class Book implements OnInit {
     if (this.bookId) {
       this.bookService.subscribe(this.bookId).subscribe({
         next: (res) => {
+          this.ga.trackRequestBook(this.bookId, 'book');
           this.toast.success(this.i18n.t('alert.subscribed'));
           if (this.book) {
             this.book.waiting_count++;

@@ -575,6 +575,10 @@ export class OrdersComponent implements OnInit {
       next: (updatedOrder) => {
         if (status === 'cancelled') {
           this.ga.trackCancelOrder(order.id, cancelReason);
+        } else if (status === 'accepted' || status === 'handed_over') {
+          this.ga.trackOrderStep(order.id, status);
+        } else if (status === 'completed') {
+          this.ga.trackPurchase({ ...order, ...updatedOrder });
         }
         // Find and replace - MERGE updated fields with existing order
         if (this.activeTab === 'buying') {

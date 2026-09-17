@@ -970,6 +970,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
     this.getOrFetchOrderId((orderId) => {
       this.orderService.updateOrderStatus(orderId, 'accepted').subscribe({
         next: () => {
+          this.ga.trackOrderStep(orderId, 'accepted');
           if (this.activeChat) this.activeChat.order_status = 'accepted';
           this.cdr.markForCheck();
         },
@@ -986,6 +987,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
     this.getOrFetchOrderId((orderId) => {
       this.orderService.updateOrderStatus(orderId, 'cancelled', 'seller_declined').subscribe({
         next: () => {
+          this.ga.trackCancelOrder(orderId, 'seller_declined');
           if (this.activeChat) this.activeChat.order_status = 'cancelled';
           this.cdr.markForCheck();
         },
@@ -1002,6 +1004,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
     this.getOrFetchOrderId((orderId) => {
       this.orderService.updateOrderStatus(orderId, 'cancelled', 'buyer_cancelled').subscribe({
         next: () => {
+          this.ga.trackCancelOrder(orderId, 'buyer_cancelled');
           if (this.activeChat) this.activeChat.order_status = 'cancelled';
           this.cdr.markForCheck();
         },

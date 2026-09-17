@@ -35,6 +35,16 @@ function onSuperuserRoute(router: Router): boolean {
         <div class="sidebar-content">
           <ul class="nav-groups">
             <li class="nav-group">
+              <div class="group-title">{{ 'admin.groupOverview' | t }}</div>
+              <ul>
+                <!-- Exact: the overview's path is a prefix of the other two. -->
+                <li><a regionLink="stats" routerLinkActive="active" [routerLinkActiveOptions]="exactPath">{{ 'admin.navStatsOverview' | t }}</a></li>
+                <li><a regionLink="stats/books" routerLinkActive="active">{{ 'admin.navStatsBooks' | t }}</a></li>
+                <li><a regionLink="stats/academics" routerLinkActive="active">{{ 'admin.navStatsAcademics' | t }}</a></li>
+                <li><a regionLink="stats/growth" routerLinkActive="active">{{ 'admin.navStatsGrowth' | t }}</a></li>
+              </ul>
+            </li>
+            <li class="nav-group">
               <div class="group-title">{{ 'admin.groupUsers' | t }}</div>
               <ul>
                 <li><a regionLink="users" routerLinkActive="active">{{ 'admin.navUsers' | t }}</a></li>
@@ -306,6 +316,8 @@ function onSuperuserRoute(router: Router): boolean {
   `]
 })
 export class AdminShellComponent {
+  /** Active on this path only, whatever the query string says. */
+  readonly exactPath = { paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' } as const;
   auth = inject(AuthStore);
   isSuperuser() { return this.auth.user()?.is_superuser; }
 

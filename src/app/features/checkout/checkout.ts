@@ -166,7 +166,8 @@ export class CheckoutComponent implements OnInit {
           bookId: data.book,
           isbn: data.isbn,
           itemName: data.book_title,
-          price: data.price
+          price: data.price,
+          currency: data.currency
         });
         this.cdr.markForCheck();
       },
@@ -198,17 +199,14 @@ export class CheckoutComponent implements OnInit {
 
     this.orderService.createOrder(orderData).subscribe({
       next: (order) => {
-        this.ga.trackPurchase(
-          order.id,
-          this.listing?.price,
-          this.listing?.currency || 'TWD',
-          [{
-            item_id: this.listing?.isbn || (this.listing?.book != null ? String(this.listing.book) : ''),
-            item_name: this.listing?.book_title,
-            price: this.listing?.price,
-            listing_id: this.listing?.id
-          }]
-        );
+        // A request to the seller, not a sale: GA's purchase is sent when the
+        // buyer confirms receipt (account/orders).
+        this.ga.trackPlaceOrder({
+          ...order,
+          listing_title: order.listing_title || this.listing?.book_title,
+          total_amount: order.total_amount ?? this.listing?.price,
+          currency: order.currency || this.listing?.currency,
+        });
         this.router.navigate(this.regionLink.path(['/checkout/success']));
       },
       error: (err) => {

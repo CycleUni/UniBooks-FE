@@ -184,7 +184,8 @@ export class ListingDetail implements OnInit, OnDestroy {
           listingId: data.id,
           name: data.book_title,
           category: data.category_name,
-          price: data.price
+          price: data.price,
+          currency: data.currency
         });
         
         // Setup photos array (combine user uploaded photos + book cover)
