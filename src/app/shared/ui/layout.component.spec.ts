@@ -97,6 +97,34 @@ describe('UiLayout', () => {
     expect(fixture.nativeElement.querySelector('.app-footer')).toBeNull();
   });
 
+  describe('bottom navigation bar', () => {
+    let mobileLayout: any;
+
+    beforeEach(() => {
+      mobileLayout = TestBed.inject(MobileLayoutService) as any;
+    });
+
+    it('keeps it hidden when a page only changes its query string', async () => {
+      // The messages page hides the bar when a chat opens, and puts the chat
+      // in the URL as ?chat=<id>. That navigation must not undo the hiding.
+      await router.navigateByUrl('/messages');
+      mobileLayout.setHideBottomNav.mockClear();
+
+      await router.navigateByUrl('/messages?chat=abc');
+
+      expect(mobileLayout.setHideBottomNav).not.toHaveBeenCalled();
+    });
+
+    it('brings it back when the page itself changes', async () => {
+      await router.navigateByUrl('/messages?chat=abc');
+      mobileLayout.setHideBottomNav.mockClear();
+
+      await router.navigateByUrl('/search');
+
+      expect(mobileLayout.setHideBottomNav).toHaveBeenCalledWith(false);
+    });
+  });
+
   it('hides the entire footer on full-bleed routes like /messages', async () => {
     await router.navigateByUrl('/messages');
     fixture.detectChanges();

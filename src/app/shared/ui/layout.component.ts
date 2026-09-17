@@ -79,6 +79,9 @@ export class UiLayout implements OnDestroy {
   showFooter = false;
 
   private unreadCountSubscription: Subscription;
+  /** Route of the page on screen, so query-only navigations are not page changes. */
+  private currentPath = '';
+
   private routerSubscription?: Subscription;
 
   get selectedSchoolLabel(): string {
@@ -113,11 +116,21 @@ export class UiLayout implements OnDestroy {
     // does not fire for the route the app boots on.
     this.applyFullBleed();
     this.applyFooterVisibility();
+    this.currentPath = this.pathOf(this.router.url);
     this.routerSubscription = this.router.events.subscribe(event => {
       if (event instanceof NavigationEnd) {
         this.applyFullBleed();
         this.applyFooterVisibility();
-        this.mobileLayout.setHideBottomNav(false);
+        // Only a different page gets the bottom bar back. A page that puts
+        // its own state in the query string — the messages page opening a
+        // chat as `?chat=<id>` — navigates without leaving, and resetting on
+        // that undid the hiding it had just asked for: the bar only
+        // disappeared after a reload, when no navigation followed.
+        const path = this.pathOf(event.urlAfterRedirects);
+        if (path !== this.currentPath) {
+          this.currentPath = path;
+          this.mobileLayout.setHideBottomNav(false);
+        }
         this.cdr.markForCheck();
         this.messageService.retryHubIfOwed();
         if (this.metadataOwed) {
@@ -178,6 +191,11 @@ export class UiLayout implements OnDestroy {
   private applyFullBleed() {
     const url = stripRegionPrefix(this.router.url);
     this.fullBleed = UiLayout.FULL_BLEED_ROUTES.some(r => url === r || url.startsWith(r + '/'));
+  }
+
+  /** The route part of a URL: no query string, no fragment, no region prefix. */
+  private pathOf(url: string): string {
+    return stripRegionPrefix(url).split(/[?#]/)[0];
   }
 
   private applyFooterVisibility() {
