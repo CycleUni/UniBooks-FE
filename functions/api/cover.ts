@@ -45,6 +45,25 @@ function isPlaceholderResponse(response: Response): boolean {
   return parseInt(match[1], 10) < DURABLE_MAX_AGE_SECONDS;
 }
 
+/**
+ * "No cover here", cached like a cover is. It used to go out bare — no
+ * Cache-Control, never put in the edge cache — so every view of a book with
+ * no jacket re-ran this Function and up to three upstream fetches, and a page
+ * that kept re-requesting the image (see UiRecentListings.gridItems) spent a
+ * billed Functions request on each try. A day is long enough to stop that and
+ * short enough for a cover added upstream to appear.
+ */
+const MISSING_COVER_MAX_AGE_SECONDS = 86400;
+
+function missingCover(context: EventContext<unknown, any, Record<string, unknown>>): Response {
+  const response = new Response(null, {
+    status: 404,
+    headers: { 'Cache-Control': `public, max-age=${MISSING_COVER_MAX_AGE_SECONDS}` },
+  });
+  context.waitUntil(caches.default.put(context.request, response.clone()));
+  return response;
+}
+
 // Cache-Control on the returned Response only governs the *browser's* cache.
 // Cloudflare's edge/CDN cache does not automatically store dynamic
 // Pages Functions responses just because a Cache-Control header is present —
@@ -99,10 +118,16 @@ export const onRequestGet: PagesFunction = async (context) => {
   }
 
   if (srcUrl.hostname === 'covers.openlibrary.org' || srcUrl.hostname === 'pdsapp.ncl.edu.tw') {
+    // Open Library answers a missing cover with a 43-byte blank GIF and a
+    // 200 unless asked not to; default=false makes it a plain 404.
+    const upstreamUrl = new URL(srcUrl.toString());
+    if (upstreamUrl.hostname === 'covers.openlibrary.org') {
+      upstreamUrl.searchParams.set('default', 'false');
+    }
     try {
-      const upstreamResponse = await fetch(srcUrl.toString());
+      const upstreamResponse = await fetch(upstreamUrl.toString());
       if (!upstreamResponse.ok) {
-        return new Response(null, { status: 404 });
+        return upstreamResponse.status >= 500 ? new Response(null, { status: 404 }) : missingCover(context);
       }
 
       let byteLength = -1;
@@ -122,7 +147,7 @@ export const onRequestGet: PagesFunction = async (context) => {
       }
 
       if (byteLength < 100) {
-        return new Response(null, { status: 404 });
+        return missingCover(context);
       }
 
       if (!bodyBuffer) {
@@ -130,7 +155,7 @@ export const onRequestGet: PagesFunction = async (context) => {
       }
 
       if (bodyBuffer.byteLength < 100) {
-        return new Response(null, { status: 404 });
+        return missingCover(context);
       }
 
       const contentType = upstreamResponse.headers.get('content-type') || 'image/jpeg';
@@ -144,6 +169,8 @@ export const onRequestGet: PagesFunction = async (context) => {
       context.waitUntil(cache.put(context.request, response.clone()));
       return response;
     } catch {
+      // A network failure says nothing about whether the cover exists: not
+      // cached, so the next request tries again.
       return new Response(null, { status: 404 });
     }
   }
@@ -157,6 +184,9 @@ export const onRequestGet: PagesFunction = async (context) => {
     }
   }
 
+  // Set when an attempt failed for a reason that says nothing about the
+  // cover (network error, upstream 5xx), so that "missing" is not cached.
+  let transientFailure = false;
   for (let currentZoom = initialZoom; currentZoom >= 1; currentZoom--) {
     const targetUrl = new URL(srcUrl.toString());
     targetUrl.searchParams.set('zoom', currentZoom.toString());
@@ -164,6 +194,7 @@ export const onRequestGet: PagesFunction = async (context) => {
     try {
       const upstreamResponse = await fetch(targetUrl.toString());
       if (!upstreamResponse.ok) {
+        if (upstreamResponse.status >= 500) transientFailure = true;
         continue;
       }
 
@@ -210,11 +241,10 @@ export const onRequestGet: PagesFunction = async (context) => {
         return response;
       }
     } catch {
+      transientFailure = true;
       continue;
     }
   }
 
-  return new Response(null, {
-    status: 404,
-  });
+  return transientFailure ? new Response(null, { status: 404 }) : missingCover(context);
 };

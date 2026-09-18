@@ -14,6 +14,16 @@ import { TPipe } from '../../core/i18n.service';
  * cover — so this component only needs the plain (error) fallback below, not
  * any client-side dimension/content-type heuristics.
  */
+/**
+ * Covers that failed to load in this page session, keyed by URL and zoom.
+ * Module-level, not per instance: a list that re-creates its tiles — or the
+ * same book shown on another page — would otherwise ask again for an image
+ * already known to be missing, and a list that re-created them on every
+ * change detection turned that into an endless request loop. A reload
+ * starts over, so a cover added later is still picked up.
+ */
+const failedCovers = new Set<string>();
+
 @Component({
   selector: 'ui-book-cover',
   standalone: true,
@@ -62,11 +72,16 @@ export class UiBookCover implements OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['coverUrl'] || changes['zoom']) {
-      this.imageBroken = false;
+      this.imageBroken = failedCovers.has(this.coverKey);
     }
   }
 
   onImageError(): void {
+    failedCovers.add(this.coverKey);
     this.imageBroken = true;
+  }
+
+  private get coverKey(): string {
+    return `${this.zoom}|${this.coverUrl ?? ''}`;
   }
 }

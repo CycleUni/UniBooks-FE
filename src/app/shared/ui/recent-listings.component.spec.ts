@@ -72,4 +72,27 @@ describe('UiRecentListings', () => {
     expect(hasBookPreviewState(router.lastSuccessfulNavigation()?.extras.state)).toBe(true);
     sessionStorage.removeItem('cachedBook_9781449319793');
   });
+  it('keeps the same tiles across change detection, so a failed cover is not re-requested', () => {
+    // gridItems used to build new wrapper objects on every read; *ngFor then
+    // re-created every tile on each change detection, and a cover's (error)
+    // event — itself a change detection — started the next request.
+    listingService.getRecentBooks.mockReturnValue(of({
+      count: 1,
+      results: [{ id: 9, isbn: '9786263241893', title: 'No cover', authors: '', conditions: { good: 1 }, min_price: 200,
+        cover_url: 'https://covers.openlibrary.org/b/isbn/9786263241893-L.jpg' }],
+    }));
+    const fixture = render();
+    const component = fixture.componentInstance;
+    expect(component.gridItems).toBe(component.gridItems);
+
+    const img = fixture.nativeElement.querySelector('ui-book-cover img') as HTMLImageElement;
+    expect(img).not.toBeNull();
+    img.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    // The placeholder stays, and no new <img> (no new request) appears.
+    expect(fixture.nativeElement.querySelector('ui-book-cover img')).toBeNull();
+    expect(fixture.nativeElement.querySelector('ui-book-cover .book-placeholder')).not.toBeNull();
+  });
 });

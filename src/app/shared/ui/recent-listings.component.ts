@@ -39,7 +39,7 @@ export const RECENT_BOOKS_PAGE_SIZE = 20;
         (retry)="reload()"
       ></ui-error-state>
       <div class="discover-grid" [class.has-feature]="showFeatureTile" *ngIf="!errorMessage">
-        <ng-container *ngFor="let item of gridItems; let i = index">
+        <ng-container *ngFor="let item of gridItems; let i = index; trackBy: trackGridItem">
           <ng-container *ngIf="item.type === 'ad'">
             <ui-promo-banner [ad]="item.data" [feature]="showFeatureTile && i === 0" (adClick)="adClick.emit($event)"></ui-promo-banner>
           </ng-container>
@@ -153,7 +153,33 @@ export class UiRecentListings {
       onto a second row. */
   private static readonly COLD_START_SLOTS = 3;
 
+  /**
+   * Built once per change of books or ads, not on every read. As a plain
+   * getter it wrapped every book in a new object on each change detection,
+   * and *ngFor (tracking by identity) destroyed and recreated every tile each
+   * time. A cover that failed to load fired (error), which ran change
+   * detection, which recreated the tile, which requested the cover again: an
+   * endless request loop per open page, and the placeholder never stayed up
+   * long enough to be seen. It burned through the Pages Functions quota that
+   * /api/cover shares with CFEdgeChat.
+   */
+  private gridMemo: { books: any[]; ads: any[] | undefined; value: any[] } | null = null;
+
   get gridItems(): any[] {
+    if (this.gridMemo && this.gridMemo.books === this.recentBooks && this.gridMemo.ads === this.ads) {
+      return this.gridMemo.value;
+    }
+    const value = this.buildGridItems();
+    this.gridMemo = { books: this.recentBooks, ads: this.ads, value };
+    return value;
+  }
+
+  /** Same tile for the same book or ad across rebuilds (a page change, a refetch). */
+  trackGridItem(index: number, item: any): string {
+    return `${item.type}:${item.data?.id ?? item.data?.isbn ?? index}`;
+  }
+
+  private buildGridItems(): any[] {
     const items: any[] = [...this.recentBooks];
     if (this.ads && this.ads.length) {
       const sortedAds = [...this.ads].sort((a, b) => (a.slot_index || 1) - (b.slot_index || 1));

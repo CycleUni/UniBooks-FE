@@ -128,4 +128,20 @@ describe('UiBookCover', () => {
     const img = fixture.debugElement.query(By.css('img')).nativeElement;
     expect(img.alt).toBe('Custom Alt');
   });
+  it('does not ask again for a cover that already failed, in any instance', () => {
+    const url = 'https://covers.openlibrary.org/b/isbn/0000000000001-L.jpg';
+    fixture.componentRef.setInput('coverUrl', url);
+    fixture.detectChanges();
+    fixture.debugElement.query(By.css('img')).nativeElement.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+    expect(fixture.debugElement.query(By.css('img'))).toBeNull();
+
+    // A new instance — a re-created tile, or the same book on another page —
+    // goes straight to the placeholder.
+    const again = TestBed.createComponent(UiBookCover);
+    again.componentRef.setInput('coverUrl', url);
+    again.detectChanges();
+    expect(again.debugElement.query(By.css('img'))).toBeNull();
+    expect(again.debugElement.query(By.css('.book-placeholder'))).toBeTruthy();
+  });
 });
