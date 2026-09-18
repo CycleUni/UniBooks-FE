@@ -26,6 +26,25 @@ import { BookCoverPipe } from '../../shared/pipes/book-cover.pipe';
 import { displayPublisher } from '../../core/publisher';
 import { GoogleAnalyticsService } from '../../core/services/google-analytics.service';
 
+/**
+ * The i18n key naming each catalogue `source` the backend records on a book.
+ * Spelled out rather than built from the value, so a source this list does
+ * not know yet (or a missing one) shows nothing instead of a raw key.
+ */
+export const BOOK_SOURCE_LABEL_KEYS: Readonly<Record<string, string>> = {
+  google_api: 'book.sourceGoogle',
+  openlibrary_api: 'book.sourceOpenLibrary',
+  isbnnet_api: 'book.sourceIsbnnet',
+  manual: 'book.sourceManual',
+  listed: 'book.sourceListed',
+  preseed: 'book.sourcePreseed',
+};
+
+export function bookSourceLabelKey(source: unknown): string | null {
+  return typeof source === 'string' && Object.hasOwn(BOOK_SOURCE_LABEL_KEYS, source)
+    ? BOOK_SOURCE_LABEL_KEYS[source]
+    : null;
+}
 
 @Component({
   selector: 'app-book',
@@ -104,6 +123,10 @@ import { GoogleAnalyticsService } from '../../core/services/google-analytics.ser
 
           <ui-empty *ngIf="!isLoadingListings && listings.length === 0" [message]="'book.emptyState' | t"></ui-empty>
         </div>
+
+        <p class="data-source" *ngIf="sourceLabelKey as key">
+          {{ 'book.dataSource' | t:{ source: (key | t) } }}
+        </p>
       </div>
   `,
   styles: [`
@@ -205,6 +228,16 @@ import { GoogleAnalyticsService } from '../../core/services/google-analytics.ser
       color: var(--danger);
       border-radius: 8px;
       font-size: var(--text-base);
+      text-align: center;
+    }
+    /* A footnote, not content: it answers "where did these details come
+       from" for the reader who wonders, and stays out of everyone else's way. */
+    .data-source {
+      margin: var(--space-7) 0 0;
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--line);
+      font-size: var(--text-xs);
+      color: var(--ink-soft);
       text-align: center;
     }
     .course-info {
@@ -348,7 +381,10 @@ export class Book implements OnInit {
                   publisher: cached.publisher || '',
                   published_date: cached.published_date || '',
                   cover_url: cached.coverUrl || cached.cover_url || '',
-                  source: 'manual',
+                  // Unknown until the backend answers: the stashed search
+                  // result may carry a guessed 'manual', and the page footer
+                  // would state that as the book's provenance.
+                  source: '',
                   listings: { count: 0, results: [] },
                   waiting_count: cached.waitlistCount ?? 0,
                   is_subscribed: cached.is_subscribed ?? false,
@@ -415,7 +451,7 @@ export class Book implements OnInit {
         // authoritative record), not another external lookup — always
         // trust that over the preview.
         this.book = (previewToKeep && !data.id)
-          ? { ...previewToKeep, listings: data.listings, waiting_count: data.waiting_count, is_subscribed: data.is_subscribed, subscription_id: data.subscription_id }
+          ? { ...previewToKeep, source: data.source, listings: data.listings, waiting_count: data.waiting_count, is_subscribed: data.is_subscribed, subscription_id: data.subscription_id }
           : data;
         // handle both raw array (old API) or paginated object (new API)
         if (data.listings && !Array.isArray(data.listings)) {
@@ -470,6 +506,11 @@ export class Book implements OnInit {
       canonicalPath,
       image: book.cover_url ? new BookCoverPipe().transform(book.cover_url, 2) : undefined,
     });
+  }
+
+  /** i18n key for where this book's details came from, or null to show nothing. */
+  get sourceLabelKey(): string | null {
+    return bookSourceLabelKey(this.book?.source);
   }
 
   /** Publisher as shown; strips the quotes some catalogue records wrap it in. */

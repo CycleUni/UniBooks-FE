@@ -140,6 +140,13 @@ export const zhTW: Record<string, string> = {
   'book.coursePrefix': '修課：{course}',
   'book.contactSeller': '聯絡賣家',
   'book.emptyState': '這本書目前沒有人上架，你可以點擊上方的「登記求書」，有人上架時就會通知你。',
+  'book.dataSource': '書目資料來源：{source}',
+  'book.sourceGoogle': 'Google Books',
+  'book.sourceOpenLibrary': 'Open Library',
+  'book.sourceIsbnnet': 'ISBNnet',
+  'book.sourceManual': '使用者手動新增',
+  'book.sourceListed': '賣家上架時建立',
+  'book.sourcePreseed': '平台預建書單',
 
   // Auth / account
   'auth.login': '登入',

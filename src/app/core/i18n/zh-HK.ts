@@ -140,6 +140,13 @@ export const zhHK: Record<string, string> = {
   'book.coursePrefix': '修課：{course}',
   'book.contactSeller': '聯絡賣家',
   'book.emptyState': '呢本書而家未有人上架，可以撳上面嘅「登記求書」，有人上架就會通知你。',
+  'book.dataSource': '書目資料來源：{source}',
+  'book.sourceGoogle': 'Google Books',
+  'book.sourceOpenLibrary': 'Open Library',
+  'book.sourceIsbnnet': 'ISBNnet',
+  'book.sourceManual': '用戶自行新增',
+  'book.sourceListed': '賣家上架時建立',
+  'book.sourcePreseed': '平台預設書單',
 
   // Auth / account
   'auth.login': '登入',

@@ -143,6 +143,13 @@ export const en: Record<string, string> = {
   'book.coursePrefix': 'Course: {course}',
   'book.contactSeller': 'Contact seller',
   'book.emptyState': 'No one has listed this book yet. Use "Request this book" above and we\'ll notify you when someone does.',
+  'book.dataSource': 'Book details from {source}',
+  'book.sourceGoogle': 'Google Books',
+  'book.sourceOpenLibrary': 'Open Library',
+  'book.sourceIsbnnet': 'ISBNnet',
+  'book.sourceManual': 'a user who added it by hand',
+  'book.sourceListed': 'the seller who first listed it',
+  'book.sourcePreseed': 'the UniBooks preset book list',
 
   // Auth / account
   'auth.login': 'Log in',
