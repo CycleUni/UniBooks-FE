@@ -22,6 +22,7 @@ import { GoogleAnalyticsService } from '../../core/services/google-analytics.ser
 // import the first time the camera is opened, not on every visit to /sell.
 import type { Html5Qrcode } from 'html5-qrcode';
 import { RegionLinkService } from '../../core/region-link.service';
+import { RegionLinkDirective } from '../../core/region-link.directive';
 import { HasUnsavedChanges } from '../../core/unsaved-changes.guard';
 import { Subscription, catchError, concatMap, defaultIfEmpty, from, map, of, take } from 'rxjs';
 
@@ -226,7 +227,7 @@ export interface SellDraft {
 @Component({
   selector: 'app-sell',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, UiInput, UiTextarea, UiButton, UiDropdown, UiConditionPicker, UiBookCover, UiVerificationPrompt, TPipe, PricePipe],
+  imports: [CommonModule, RouterModule, FormsModule, RegionLinkDirective, UiInput, UiTextarea, UiButton, UiDropdown, UiConditionPicker, UiBookCover, UiVerificationPrompt, TPipe, PricePipe],
   templateUrl: './sell.html',
   styleUrls: ['./sell.css']
 })

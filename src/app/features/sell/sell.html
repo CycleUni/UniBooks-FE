@@ -235,6 +235,13 @@
           <h2>{{ 'sell.successTitle' | t }}</h2>
           <p>{{ 'sell.successDesc' | t }}</p>
           <ui-button (onClick)="goToHome()">{{ 'sell.backHome' | t }}</ui-button>
+          <!-- Where this listing lives from now on. The path is spelled with
+               the same keys as the menu it points at, so it can't drift from
+               what the seller will actually see there. -->
+          <p class="success-manage-hint">
+            {{ 'sell.successManageHint' | t }}
+            <a regionLink="/account/listings">{{ 'nav.account' | t }} → {{ 'acct.tabListings' | t }}</a>
+          </p>
         </div>
       </div>
       </ng-container>

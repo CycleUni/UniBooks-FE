@@ -814,6 +814,22 @@ describe('Sell listing form guarding, drafts and field validation', () => {
       expect(component.hasUnsavedChanges()).toBe(false);
     });
 
+    it('tells the seller where to edit or take down the listing after publishing', () => {
+      create();
+      component.step = 4;
+      (component as any).cdr.markForCheck();
+      fixture.detectChanges();
+
+      const hint = fixture.nativeElement.querySelector('.success-manage-hint') as HTMLElement;
+      expect(hint).not.toBeNull();
+      expect(hint.textContent).toContain('sell.successManageHint');
+      const link = hint.querySelector('a') as HTMLAnchorElement;
+      // Named with the same keys as the account menu it points at.
+      expect(link.textContent?.trim()).toBe('nav.account → acct.tabListings');
+      // Region-prefixed, like every other in-app link.
+      expect(link.getAttribute('href')).toBe('/tw/account/listings');
+    });
+
     it('uses the sell.leaveConfirm key for the confirmation message', () => {
       create();
       expect(component.unsavedChangesMessage()).toBe('sell.leaveConfirm');

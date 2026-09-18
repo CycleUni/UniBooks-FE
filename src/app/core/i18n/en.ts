@@ -458,6 +458,7 @@ export const en: Record<string, string> = {
   'sell.errValidation': 'Listing data format is incorrect, please check again',
   'sell.successTitle': 'Listing Successful!',
   'sell.successDesc': 'Your book has been successfully listed. You can now view it in your profile.',
+  'sell.successManageHint': 'To edit or take down this listing later, go to',
   'sell.backHome': 'Back to Home',
   'sell.notFoundIsbn': 'Book with this ISBN not found. Please enter the title and author manually.',
   'sell.upstreamTimeout': 'External book database timed out. Please try again.',

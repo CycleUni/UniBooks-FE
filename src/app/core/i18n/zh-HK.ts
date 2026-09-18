@@ -454,6 +454,7 @@ export const zhHK: Record<string, string> = {
   'sell.leaveConfirm': '你仲有未發布嘅上架內容，走咗就會唔見。確定要離開？',
   'sell.successTitle': '刊登成功！',
   'sell.successDesc': '你本書已經成功上架，可以去自己個賣場睇下。',
+  'sell.successManageHint': '之後想修改或者下架呢筆刊登，可以去：',
   'sell.backHome': '回首頁',
   'sell.notFoundIsbn': '搵唔到呢個 ISBN 嘅書，請自己輸入書名同作者。',
   'sell.upstreamTimeout': '外部圖書資料庫連線逾時，請再試一次。',
