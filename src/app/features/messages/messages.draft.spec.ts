@@ -22,6 +22,7 @@ describe('Messages draft persistence', () => {
       getEdgeMessages: vi.fn(() => of([])),
       getEdgeMessagePage: vi.fn(() => of({ messages: [], has_more: false })),
       markConversationReadCF: vi.fn(() => of(undefined)),
+      markRoomRead: vi.fn(),
       connectEdgeChat: vi.fn(),
       disconnectEdgeChat: vi.fn(),
       sendEdgeMessage: vi.fn(() => true),

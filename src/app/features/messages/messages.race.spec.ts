@@ -43,6 +43,7 @@ describe('Messages.selectChat — out-of-order response race', () => {
         historySubjects[id].asObservable().pipe(map(messages => ({ messages, has_more: false })))
       ),
       markConversationReadCF: vi.fn(() => of(undefined)),
+      markRoomRead: vi.fn(),
       connectEdgeChat,
       disconnectEdgeChat: vi.fn(),
       // Unused by selectChat(), but referenced elsewhere in the component.

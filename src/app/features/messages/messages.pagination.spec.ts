@@ -28,6 +28,7 @@ describe('Messages — history pagination', () => {
       getEdgeMessages: vi.fn(() => of([])),
       getEdgeMessagePage,
       markConversationReadCF: vi.fn(() => of(undefined)),
+      markRoomRead: vi.fn(),
       connectEdgeChat: vi.fn(),
       disconnectEdgeChat: vi.fn(),
       roomUpdates$: EMPTY,

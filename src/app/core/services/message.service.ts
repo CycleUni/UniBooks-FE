@@ -19,6 +19,13 @@ function devError(...args: unknown[]): void {
   }
 }
 
+/** The visitor can see the page and the device has a network. */
+function isActive(): boolean {
+  const visible = typeof document === 'undefined' || !document.hidden;
+  const online = typeof navigator === 'undefined' || navigator.onLine !== false;
+  return visible && online;
+}
+
 export interface EdgeChatMessage {
   id: string;
   user_id: string;
@@ -52,6 +59,28 @@ export class MessageService {
   private reconnectAttempts = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private delayedReconnectingTimer: ReturnType<typeof setTimeout> | null = null;
+  private roomStableTimer: ReturnType<typeof setTimeout> | null = null;
+  /** A room reconnect was held back (tab hidden, offline, or out of attempts). */
+  private roomReconnectOwed = false;
+  private readTimer: ReturnType<typeof setTimeout> | null = null;
+  private readOwed = false;
+
+  /**
+   * How long a connection has to stay up before its retry count starts over.
+   * Resetting on open instead meant a socket that opened and was dropped
+   * straight away — the Durable Object reset, "no longer active", 1006 —
+   * retried every second forever, and each round cost a token request, the
+   * upgrade, and (for the hub) a snapshot fetch with its preflight.
+   */
+  private static readonly STABLE_CONNECTION_MS = 30_000;
+  /**
+   * Failed attempts in a row before reconnecting waits for the visitor instead:
+   * the next return to the tab, or the network coming back. An unattended tab
+   * against a broken server otherwise kept dialing every 30s all night.
+   */
+  private static readonly MAX_RECONNECT_ATTEMPTS = 8;
+  /** Mark-reads for a burst of live messages collapse into one. */
+  private static readonly READ_DEBOUNCE_MS = 1_500;
 
   // Set right before a deliberate close (switching rooms, leaving the page)
   // so onclose can tell that apart from the connection actually dropping.
@@ -76,6 +105,8 @@ export class MessageService {
   private currentHubEdgeChatUrl: string | null = null;
   private hubReconnectAttempts = 0;
   private hubReconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private hubStableTimer: ReturnType<typeof setTimeout> | null = null;
+  private hubReconnectOwed = false;
   private hubClosingIntentionally = false;
 
   // Opening the hub for a signed-in visitor (openHub), as opposed to
@@ -97,6 +128,16 @@ export class MessageService {
   // Per-conversation unread state from CFEdgeChat's UserHub. Keyed by
   // conversation id (string). Updated from hub snapshot + live events.
   public conversationUnreadState$ = new BehaviorSubject<Map<string, boolean>>(new Map());
+
+  constructor() {
+    if (!isPlatformBrowser(this.platformId)) return;
+    // Reconnects and mark-reads held back while the tab was hidden or the
+    // device offline go out when the visitor is back. Root service, so these
+    // live as long as the page and need no teardown.
+    const resume = () => { if (isActive()) this.resumeOwed(); };
+    document.addEventListener('visibilitychange', resume);
+    window.addEventListener('online', resume);
+  }
 
   getConversations(): Observable<any[]> {
     return this.http.get<any>('/messaging/conversations/').pipe(
@@ -136,16 +177,6 @@ export class MessageService {
       `${edgeChatUrl}/api/unibooks/${roomId}/read`,
       {},
       { headers: { Authorization: `Bearer ${token}`, 'ngsw-bypass': 'true' }, params: { userId } }
-    );
-  }
-
-  // Pull the UserHub's current unread state via CFEdgeChat on reconnect.
-  // Cheaper than guessing from `room_update` events and survives cases
-  // (offline period, page reload, fresh tab) where no events have fired yet.
-  getHubSnapshot(edgeChatUrl: string, userId: string, token: string): Observable<{ unread: string[]; lastReadAt: Record<string, number>; count: number }> {
-    return this.http.get<{ unread: string[]; lastReadAt: Record<string, number>; count: number }>(
-      `${edgeChatUrl}/api/internal/users/${userId}/snapshot`,
-      { headers: { Authorization: `Bearer ${token}`, 'ngsw-bypass': 'true' } }
     );
   }
 
@@ -275,7 +306,15 @@ export class MessageService {
     ws.onopen = () => {
       if (this.ws !== ws) return;
       devLog(`[EdgeChat] Connected to room ${roomId}`);
-      this.reconnectAttempts = 0;
+      this.clearRoomStableTimer();
+      this.roomStableTimer = setTimeout(() => {
+        this.roomStableTimer = null;
+        this.reconnectAttempts = 0;
+      }, MessageService.STABLE_CONNECTION_MS);
+      // Opening the room is reading it. Sent here rather than over REST
+      // before the socket exists; also covers catching up after a reconnect.
+      this.clearReadTimer();
+      this.flushRoomRead();
       if (this.delayedReconnectingTimer) {
         clearTimeout(this.delayedReconnectingTimer);
         this.delayedReconnectingTimer = null;
@@ -313,6 +352,7 @@ export class MessageService {
       if (this.ws !== ws) return;
       devLog(`[EdgeChat] Disconnected from room ${roomId}`);
       this.ws = null;
+      this.clearRoomStableTimer();
       // A deliberate close (switching chats, leaving the page) isn't a send
       // failure — only flag it when the connection dropped on its own,
       // since anything sent right before that will never get its ack now.
@@ -335,13 +375,21 @@ export class MessageService {
 
   private scheduleReconnect() {
     if (this.reconnectTimeout) return;
-    
+    if (this.reconnectAttempts >= MessageService.MAX_RECONNECT_ATTEMPTS) {
+      this.roomReconnectOwed = true;
+      return;
+    }
+
     // Exponential backoff: 1s, 2s, 4s, 8s, up to max 30s
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
     devLog(`[EdgeChat] Scheduling reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1})`);
     
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectTimeout = null;
+      if (!isActive()) {
+        this.roomReconnectOwed = true;
+        return;
+      }
       this.reconnectAttempts++;
       if (this.currentRoomId && this.currentToken && this.currentUserId && this.currentEdgeChatUrl) {
         this.connectEdgeChat(
@@ -355,7 +403,11 @@ export class MessageService {
   }
 
   disconnectEdgeChat(intentional: boolean = true) {
+    this.clearRoomStableTimer();
+    this.clearReadTimer();
+    this.readOwed = false;
     if (intentional) {
+      this.roomReconnectOwed = false;
       if (this.reconnectTimeout) {
         clearTimeout(this.reconnectTimeout);
         this.reconnectTimeout = null;
@@ -403,6 +455,76 @@ export class MessageService {
       this.ws.send(JSON.stringify({ type: 'delete', id }));
     } else {
       devError('[EdgeChat] Cannot delete message, WebSocket is not open');
+    }
+  }
+
+  /**
+   * Mark the open room read, for a live message the visitor is looking at.
+   * Debounced so a burst of messages costs one mark, and sent over the room
+   * socket, which (unlike the REST /read with its preflight) is not a billed
+   * Worker request. Joining the room marks it read on its own — see onopen.
+   */
+  markRoomRead(): void {
+    if (this.readTimer) return;
+    this.readTimer = setTimeout(() => {
+      this.readTimer = null;
+      this.flushRoomRead();
+    }, MessageService.READ_DEBOUNCE_MS);
+  }
+
+  private flushRoomRead(): void {
+    // A hidden tab isn't reading anything; it catches up when shown again.
+    if (!isActive()) {
+      this.readOwed = true;
+      return;
+    }
+    this.readOwed = false;
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'read' }));
+      return;
+    }
+    // No socket right now: fall back to the REST endpoint.
+    if (this.currentRoomId && this.currentToken && this.currentEdgeChatUrl && this.currentUserId) {
+      this.markConversationReadCF(this.currentRoomId, this.currentToken, this.currentEdgeChatUrl, this.currentUserId)
+        .subscribe({ error: () => { } });
+    }
+  }
+
+  private clearReadTimer(): void {
+    if (this.readTimer) {
+      clearTimeout(this.readTimer);
+      this.readTimer = null;
+    }
+  }
+
+  private clearRoomStableTimer(): void {
+    if (this.roomStableTimer) {
+      clearTimeout(this.roomStableTimer);
+      this.roomStableTimer = null;
+    }
+  }
+
+  private clearHubStableTimer(): void {
+    if (this.hubStableTimer) {
+      clearTimeout(this.hubStableTimer);
+      this.hubStableTimer = null;
+    }
+  }
+
+  /** Pick up whatever was held back while the visitor was away. */
+  private resumeOwed(): void {
+    if (this.roomReconnectOwed && !this.ws && this.currentRoomId) {
+      this.roomReconnectOwed = false;
+      this.reconnectAttempts = 0;
+      this.scheduleReconnect();
+    }
+    if (this.hubReconnectOwed && !this.hubWs && this.currentHubUserId) {
+      this.hubReconnectOwed = false;
+      this.hubReconnectAttempts = 0;
+      this.scheduleHubReconnect();
+    }
+    if (this.readOwed) {
+      this.flushRoomRead();
     }
   }
 
@@ -510,23 +632,13 @@ export class MessageService {
     hubWs.onopen = () => {
       if (this.hubWs !== hubWs) return;
       devLog('[EdgeChat] Hub connected');
-      this.hubReconnectAttempts = 0;
-      // Authoritative snapshot from the Worker — captures the unread state
-      // accumulated during the offline gap (events we never saw locally).
-      // Without this, the badge would be wrong on every reconnect until
-      // some unrelated room_update or mark-read refreshed it.
-      this.getHubSnapshot(edgeChatUrl, userId, token).subscribe({
-        next: (snap) => {
-          this.unreadCount$.next(snap.count);
-          // Populate per-conversation unread state from the Hub snapshot.
-          const state = new Map<string, boolean>();
-          for (const roomId of (snap.unread || [])) {
-            state.set(roomId, true);
-          }
-          this.conversationUnreadState$.next(state);
-        },
-        error: () => { /* hub may not yet be ready in the Worker — events will catch up */ }
-      });
+      this.clearHubStableTimer();
+      this.hubStableTimer = setTimeout(() => {
+        this.hubStableTimer = null;
+        this.hubReconnectAttempts = 0;
+      }, MessageService.STABLE_CONNECTION_MS);
+      // The unread snapshot arrives as the socket's first message (see
+      // onmessage) — no separate REST fetch and preflight per connect.
     };
 
     hubWs.onmessage = (event) => {
@@ -549,7 +661,10 @@ export class MessageService {
             updated.set(data.room_id, true);
             this.conversationUnreadState$.next(updated);
           }
-        } else if (data.type === 'unread_count') {
+        } else if (data.type === 'unread_count' || data.type === 'snapshot') {
+          // `snapshot` is the authoritative state the hub sends on connect,
+          // covering the offline gap (events this tab never saw); it has the
+          // same shape as a live `unread_count`.
           if (typeof data.count === 'number') {
             this.unreadCount$.next(data.count);
           }
@@ -571,6 +686,7 @@ export class MessageService {
       if (this.hubWs !== hubWs) return;
       devLog('[EdgeChat] Hub disconnected');
       this.hubWs = null;
+      this.clearHubStableTimer();
       if (!this.hubClosingIntentionally) {
         this.scheduleHubReconnect();
       }
@@ -580,10 +696,21 @@ export class MessageService {
 
   private scheduleHubReconnect() {
     if (this.hubReconnectTimeout) return;
+    if (this.hubReconnectAttempts >= MessageService.MAX_RECONNECT_ATTEMPTS) {
+      this.hubReconnectOwed = true;
+      return;
+    }
 
     const delay = Math.min(1000 * Math.pow(2, this.hubReconnectAttempts), 30000);
     this.hubReconnectTimeout = setTimeout(() => {
       this.hubReconnectTimeout = null;
+      // Hidden tab or no network: the hub is only there to tell CFEdgeChat
+      // the visitor is here, and they aren't — being counted away (and
+      // emailed about new messages) is right until they come back.
+      if (!isActive()) {
+        this.hubReconnectOwed = true;
+        return;
+      }
       this.hubReconnectAttempts++;
       const userId = this.currentHubUserId;
       const edgeChatUrl = this.currentHubEdgeChatUrl;
@@ -633,6 +760,8 @@ export class MessageService {
   }
 
   disconnectHub() {
+    this.clearHubStableTimer();
+    this.hubReconnectOwed = false;
     if (this.hubReconnectTimeout) {
       clearTimeout(this.hubReconnectTimeout);
       this.hubReconnectTimeout = null;

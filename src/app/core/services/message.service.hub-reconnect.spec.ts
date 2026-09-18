@@ -148,7 +148,23 @@ describe('MessageService hub reconnect', () => {
     expect(sockets).toHaveLength(4);
   });
 
-  it('starts the backoff over once a reconnect actually succeeds', () => {
+  it('starts the backoff over once a reconnect has stayed up', () => {
+    const closeLatest = () => sockets[sockets.length - 1].onclose?.();
+    closeLatest();
+    vi.advanceTimersByTime(1_000);
+    closeLatest();
+    vi.advanceTimersByTime(2_000);
+    expect(sockets).toHaveLength(3);
+
+    sockets[2].onopen?.();
+    vi.advanceTimersByTime(30_000);
+    closeLatest();
+    vi.advanceTimersByTime(1_000);
+    expect(sockets).toHaveLength(4);
+  });
+
+  it('keeps backing off when a connection opens and drops straight away', () => {
+    // Resetting on open made an open-then-1006 loop retry every second.
     const closeLatest = () => sockets[sockets.length - 1].onclose?.();
     closeLatest();
     vi.advanceTimersByTime(1_000);
@@ -158,7 +174,9 @@ describe('MessageService hub reconnect', () => {
 
     sockets[2].onopen?.();
     closeLatest();
-    vi.advanceTimersByTime(1_000);
+    vi.advanceTimersByTime(3_999);
+    expect(sockets).toHaveLength(3);
+    vi.advanceTimersByTime(1);
     expect(sockets).toHaveLength(4);
   });
 

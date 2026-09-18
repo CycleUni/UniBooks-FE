@@ -39,6 +39,7 @@ describe('Messages ?chat= URL sync', () => {
       getChatToken: vi.fn(() => of({ token: 'header.eyJ1c2VyX2lkIjoidXNlci0xIn0.sig', edge_chat_url: 'https://edge.example' })),
       getEdgeMessagePage: vi.fn(() => of({ messages: [], has_more: false })),
       markConversationReadCF: vi.fn(() => of(undefined)),
+      markRoomRead: vi.fn(),
       connectEdgeChat: vi.fn(),
       disconnectEdgeChat: vi.fn(),
       roomUpdates$: roomUpdates,

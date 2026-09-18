@@ -183,9 +183,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
         // Keep the server-side read pointer moving while this chat is
         // actively open, so it doesn't show as unread elsewhere (nav badge,
         // another device) for messages the user is already looking at live.
-        this.messageService.markConversationReadCF(this.activeChat.id, this.chatToken, this.edgeChatUrl, this.userId).subscribe({
-          error: () => { }
-        });
+        this.messageService.markRoomRead();
       }
     });
 
@@ -487,7 +485,8 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
           this.userId = payload.user_id;
         } catch (e) { }
 
-        this.messageService.markConversationReadCF(chat.id, this.chatToken, this.edgeChatUrl, this.userId).subscribe();
+        // Not marked read here any more: the room socket marks it on open
+        // (MessageService.connectEdgeChat), with no REST call or preflight.
 
         // Fetch message history immediately via REST — don't wait for the
         // WebSocket connection to reach 'connected' (it may be delayed or
