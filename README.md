@@ -190,6 +190,12 @@ npm run e2e           # Playwright
    - **Cloudflare Pages**：上傳 `dist/unibooks-fe/browser/` 作為靜態資產
    - **環境變數**：在 Cloudflare Dashboard 設定 `API_URL`（指向後端 API）與 `APP_ENV=production`
 3. **安全設定**：`angular.json` production 中 `security.allowedHosts` 必須空白，避免跨域 400 錯誤。
+4. **資源路徑**：`angular.json` 的 `deployUrl: "/"`，加上 `src/index.html` 內手寫的
+   `/theme-init.js`、`/favicon.ico`、`/manifest.webmanifest`，讓 `index.html` 一律用絕對
+   路徑引用資源。瀏覽器的預先載入掃描器會在套用 `<base href="/">` 之前，就用目前網址
+   解析相對路徑；在 `/tw/search` 這種深層網址上，它會去抓 `/tw/chunk-*.js`，被 SPA
+   導向規則回一份 `index.html`，於是 console 出現「MIME type text/html」錯誤，也白下載
+   了一輪。改絕對路徑後就不會發生。
 
 ---
 

@@ -134,7 +134,10 @@ describe('public/_headers', () => {
 
     it('keeps the pre-paint theme script as a file the policy allows', () => {
       expect(fs.existsSync(path.join(process.cwd(), 'public/theme-init.js'))).toBe(true);
-      expect(indexHtml).toContain('<script src="theme-init.js"></script>');
+      // Absolute, like every other asset reference: on a deep URL the
+      // browser's preload scanner resolves a relative one against the path
+      // instead of <base>, and fetches /tw/theme-init.js.
+      expect(indexHtml).toContain('<script src="/theme-init.js"></script>');
     });
 
     it("does not let the build add an onload handler to the stylesheet link", () => {
