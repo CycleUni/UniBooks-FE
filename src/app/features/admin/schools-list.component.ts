@@ -38,6 +38,9 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
             <th>ID</th>
             <th>{{ 'admin.schoolCode' | t }}</th>
             <th>{{ 'admin.schoolName' | t }}</th>
+            <!-- The name in each of the region's own languages, read from the
+                 translations: zh-TW in Taiwan, zh-HK in Hong Kong. -->
+            <th *ngFor="let lang of languages()">{{ 'admin.schoolNameIn' | t:{ lang: lang } }}</th>
             <th>{{ 'admin.colDomain' | t }}</th>
             <th>{{ 'admin.colActions' | t }}</th>
           </tr>
@@ -47,6 +50,7 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
             <td>{{ school.id }}</td>
             <td><code>{{ school.code }}</code></td>
             <td>{{ school.name }}</td>
+            <td *ngFor="let lang of languages()" [class.missing]="!school.translations?.[lang]?.name">{{ school.translations?.[lang]?.name || ('admin.translationMissing' | t) }}</td>
             <td>{{ school.email_domain }}</td>
             <td>
               <ui-button size="sm" variant="outline" [link]="[school.id]">{{ 'common.edit' | t }}</ui-button>
@@ -77,9 +81,12 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
           </div>
           <div class="form-group">
             <label>{{ 'admin.translationsSection' | t }}</label>
-            <div class="translation-row">
-              <span class="lang-tag">zh-TW</span>
-              <input type="text" class="admin-form-control" [(ngModel)]="newSchoolZhTwName" [placeholder]="'admin.schoolName' | t">
+            <!-- One field per language of the region the school is added to;
+                 this used to be a fixed zh-TW, which filed Hong Kong schools'
+                 Chinese names under the Taiwanese key. -->
+            <div class="translation-row" *ngFor="let lang of languages()">
+              <label class="lang-tag" [for]="'new-school-name-' + lang">{{ lang }}</label>
+              <input [id]="'new-school-name-' + lang" type="text" class="admin-form-control" [(ngModel)]="newSchoolNames[lang]" [placeholder]="'admin.schoolName' | t">
             </div>
           </div>
         </div>
@@ -102,6 +109,9 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
     .form-group { margin-bottom: 16px; }
     .form-group label { display: block; margin-bottom: 8px; font-weight: 600; }
     .translation-row { display: flex; align-items: center; gap: 8px; }
+    .translation-row + .translation-row { margin-top: 8px; }
+    .form-group .translation-row label.lang-tag { display: inline-block; margin-bottom: 0; }
+    td.missing { color: var(--muted); }
     .code-input { text-transform: uppercase; }
     .lang-tag { flex: 0 0 auto; padding: 4px 8px; border-radius: 4px; background: var(--paper-warm); font-size: var(--text-xs); font-weight: 600; }
   `]
@@ -123,7 +133,9 @@ export class AdminSchoolsListComponent implements OnInit {
   showCreateModal = false;
   showImportModal = false;
   newSchool: Partial<AdminSchool> = { name: '', email_domain: '', code: '' };
-  newSchoolZhTwName = '';
+  /** Localized names for a new school, keyed by language. */
+  newSchoolNames: Record<string, string> = {};
+  readonly languages = this.regionService.translationLanguages;
 
   ngOnInit() {
     this.loadPage(1);
@@ -171,7 +183,7 @@ export class AdminSchoolsListComponent implements OnInit {
 
   openCreateModal() {
     this.newSchool = { name: '', email_domain: '', code: '' };
-    this.newSchoolZhTwName = '';
+    this.newSchoolNames = {};
     this.showCreateModal = true;
   }
 
@@ -185,8 +197,12 @@ export class AdminSchoolsListComponent implements OnInit {
       code: (this.newSchool.code || '').trim().toUpperCase(),
       region: this.regionService.region().toUpperCase(),
     };
-    if (this.newSchoolZhTwName.trim()) {
-      payload.translations = { 'zh-TW': { name: this.newSchoolZhTwName.trim() } };
+    const translations: Record<string, { name: string }> = {};
+    for (const [lang, name] of Object.entries(this.newSchoolNames)) {
+      if (name && name.trim()) translations[lang] = { name: name.trim() };
+    }
+    if (Object.keys(translations).length) {
+      payload.translations = translations;
     }
     this.adminService.createSchool(payload).subscribe({
       next: () => {

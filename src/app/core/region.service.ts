@@ -29,6 +29,13 @@ export interface Region {
 
 const STORAGE_KEY = 'region';
 
+function translationLanguagesOf(region: Region | null): string[] {
+  if (!region) return [];
+  const langs = [region.default_language, ...(region.languages || [])]
+    .filter((lang): lang is string => !!lang && lang !== 'en');
+  return [...new Set(langs)];
+}
+
 @Injectable({ providedIn: 'root' })
 export class RegionService {
   private http = inject(HttpClient);
@@ -44,6 +51,21 @@ export class RegionService {
     const code = this.region().toUpperCase();
     return regs.find(r => r.code === code) || null;
   });
+
+  /**
+   * The languages content in this region is translated into, default first:
+   * every language the region offers except English, which is what canonical
+   * fields (a school's `name`, a category's `title`) are written in. The
+   * admin editors offer these instead of assuming zh-TW, which put Hong Kong
+   * schools' Chinese names under the Taiwanese key.
+   */
+  readonly translationLanguages = computed(() => translationLanguagesOf(this.currentRegionObj()));
+
+  /** translationLanguages for a given region, e.g. the one a school belongs to. */
+  translationLanguagesFor(code: string | null | undefined): string[] {
+    const upper = (code || '').toUpperCase();
+    return translationLanguagesOf(this.regions().find(r => r.code === upper) || null);
+  }
 
   readonly currency = computed(() => {
     return this.currentRegionObj()?.currency || { code: 'TWD', symbol: 'NT$', decimal_places: 0, symbol_position: 'prefix' };

@@ -1,5 +1,6 @@
 import { UiButton } from '../../shared/ui/button.component';
 import { RegionLinkDirective } from '../../core/region-link.directive';
+import { RegionService } from '../../core/region.service';
 import { Component, inject, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
@@ -47,6 +48,7 @@ import { TranslationEditorComponent, TranslationField } from './translation-edit
           <app-translation-editor 
             [fields]="translationFields"
             [translations]="editData.translations"
+            [languages]="regionService.translationLanguagesFor(school.region || regionService.region())"
             (translationsChange)="editData.translations = $event">
           </app-translation-editor>
         </div>
@@ -70,6 +72,7 @@ import { TranslationEditorComponent, TranslationField } from './translation-edit
 })
 export class AdminSchoolDetailComponent implements OnInit {
   private adminService = inject(AdminService);
+  readonly regionService = inject(RegionService);
   private route = inject(ActivatedRoute);
   private cdr = inject(ChangeDetectorRef);
   private i18n = inject(I18nService);

@@ -143,43 +143,37 @@ export class BulkImportModalComponent {
   @Output() close = new EventEmitter<void>();
   @Output() imported = new EventEmitter<void>();
 
+  /**
+   * The placeholder shows the shape of an import for the region being
+   * managed. It used to be Taiwan's whatever the region — NTU with a zh-TW
+   * name — and put the Chinese name in `name`, which is the canonical
+   * English one; followed as written, a Hong Kong file came out wrong twice.
+   */
   get sampleFormat(): string {
+    const lang = this.regionService.translationLanguages()[0] || 'zh-TW';
     if (this.endpoint === 'schools') {
-      return `[
-  {
-    "name": "國立臺灣大學",
-    "email_domain": "ntu.edu.tw",
-    "code": "NTU",
-    "translations": {
-      "en": { "name": "National Taiwan University" },
-      "zh-TW": { "name": "國立臺灣大學" }
+      const example = this.regionService.region() === 'hk'
+        ? { name: 'The University of Hong Kong', email_domain: 'hku.hk', code: 'HKU', local: '香港大學' }
+        : { name: 'National Taiwan University', email_domain: 'ntu.edu.tw', code: 'NTU', local: '國立臺灣大學' };
+      return JSON.stringify([{
+        name: example.name,
+        email_domain: example.email_domain,
+        code: example.code,
+        translations: { [lang]: { name: example.local } },
+      }], null, 2);
     }
-  }
-]`;
-    } else {
-      return `[
-  {
-    "slug": "csci",
-    "title": "資訊工程",
-    "description": "資訊相關科系",
-    "sort_order": 10,
-    "is_active": true,
-    "translations": {
-      "en": {
-        "title": "Computer Science",
-        "description": "CS related departments"
-      },
-      "zh-TW": {
-        "title": "資訊工程",
-        "description": "資訊相關科系"
-      }
-    }
-  }
-]`;
-    }
+    return JSON.stringify([{
+      slug: 'csci',
+      title: 'Computer Science',
+      description: 'CS related departments',
+      sort_order: 10,
+      is_active: true,
+      translations: { [lang]: { title: '資訊工程', description: '資訊相關科系' } },
+    }], null, 2);
   }
 
   private adminService = inject(AdminService);
+  private regionService = inject(RegionService);
   private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
   private i18n = inject(I18nService);

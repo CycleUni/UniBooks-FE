@@ -19,7 +19,7 @@ describe('BulkImportModalComponent', () => {
     TestBed.configureTestingModule({
       imports: [BulkImportModalComponent],
       providers: [
-        { provide: RegionService, useValue: { regions: () => [{ code: 'tw', currency: { code: 'TWD', decimal_places: 0 } }], currency: () => ({ code: 'TWD', decimal_places: 0 }), region: () => 'tw', currentRegionObj: () => ({ search_engines: ['googlebooks'] }) } },
+        { provide: RegionService, useValue: { regions: () => [{ code: 'tw', currency: { code: 'TWD', decimal_places: 0 } }], currency: () => ({ code: 'TWD', decimal_places: 0 }), region: () => 'tw', currentRegionObj: () => ({ search_engines: ['googlebooks'] }), translationLanguages: () => ['zh-TW'] } },
         { provide: AdminService, useValue: mockAdminService },
         { provide: HttpClient, useValue: { get: vi.fn() } },
       ],

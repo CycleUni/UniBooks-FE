@@ -772,6 +772,8 @@ export const en: Record<string, string> = {
   'admin.domainDesc': 'e.g., ntu{suffix}',
   'admin.schoolCode': 'School code',
   'admin.schoolCodeDesc': 'e.g. NTU. Must be unique within the region; if left blank, it is generated from the email domain.',
+  'admin.schoolNameIn': 'Name ({lang})',
+  'admin.translationMissing': 'Not translated',
   'admin.translationsSection': 'Translations',
   'admin.addVerificationRegion': 'Add Verification Region',
   'admin.grantAdmin': 'Grant Admin',

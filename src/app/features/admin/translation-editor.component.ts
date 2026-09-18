@@ -59,6 +59,26 @@ export class TranslationEditorComponent {
       lang,
       data: { ...this._translations[lang] }
     }));
+    this.addMissingLanguages();
+  }
+
+  /**
+   * Languages that always get a row, filled or not — the region's own, so an
+   * admin in Hong Kong is offered zh-HK rather than having to know to type
+   * it. An empty row is left out of what is emitted, like any other.
+   */
+  private _languages: string[] = [];
+  @Input() set languages(val: string[] | null | undefined) {
+    this._languages = val || [];
+    this.addMissingLanguages();
+  }
+
+  private addMissingLanguages() {
+    for (const lang of this._languages) {
+      if (!this.translationsList.some(t => t.lang.trim() === lang)) {
+        this.translationsList.push({ lang, data: {} });
+      }
+    }
   }
   @Output() translationsChange = new EventEmitter<any>();
 

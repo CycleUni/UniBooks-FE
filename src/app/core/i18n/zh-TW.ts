@@ -774,6 +774,8 @@ export const zhTW: Record<string, string> = {
   'admin.domainDesc': '例如：ntu{suffix}',
   'admin.schoolCode': '學校代碼',
   'admin.schoolCodeDesc': '例如 NTU。同一地區內不可重複；留空則依電子郵件網域自動產生。',
+  'admin.schoolNameIn': '名稱（{lang}）',
+  'admin.translationMissing': '未翻譯',
   'admin.translationsSection': '多語言翻譯',
   'admin.addVerificationRegion': '新增驗證地區',
   'admin.grantAdmin': '設為管理員',
