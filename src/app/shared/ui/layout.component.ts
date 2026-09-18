@@ -10,7 +10,7 @@ import { RegionService } from '../../core/region.service';
 import { MetadataService } from '../../core/services/metadata.service';
 import { AuthStore } from '../../core/auth.store';
 import { AccountService } from '../../core/services/account.service';
-import { SchoolStateService, MANUAL_SCHOOL_KEY } from '../../core/services/school-state.service';
+import { SchoolStateService, SchoolOption } from '../../core/services/school-state.service';
 import { MessageService } from '../../core/services/message.service';
 import { I18nService, TPipe } from '../../core/i18n.service';
 import { Lang } from '../../core/i18n';
@@ -27,9 +27,10 @@ import { aboutUrl as aboutSiteUrl } from '../../core/about-site';
   styleUrls: ['./layout.component.css']
 })
 export class UiLayout implements OnDestroy {
+  /** The selected school's code ('' = all schools). */
   selectedSchool = '';
   schools: { value: string, label: string }[] = [];
-  rawSchools: any[] = [];
+  rawSchools: SchoolOption[] = [];
   unreadCount = 0;
   readonly theme = inject(ThemeService);
   readonly mobileLayout = inject(MobileLayoutService);
@@ -143,10 +144,28 @@ export class UiLayout implements OnDestroy {
     }
 
     // Runs on init and again whenever the language changes, so school labels
-    // are re-fetched in the newly selected language
+    // are re-fetched in the newly selected language — and whenever the region
+    // changes, since each region has its own schools. It used to follow the
+    // language only, so a visitor whose last region was Taiwan opened /hk to
+    // a selector of Taiwan's schools, and switching region never replaced
+    // them; with codes only unique per region, picking "HKU" there sent
+    // Taiwan's HKU to the Hong Kong pages.
     effect(() => {
       this.i18n.lang();
-      this.loadMetadata();
+      const region = this.regionService.region();
+      untracked(() => {
+        if (region !== this.metadataRegion) {
+          this.metadataRegion = region;
+          // The old region's list and selection mean nothing here: show only
+          // "all schools" until this region's list arrives, and let it pick
+          // this region's saved or verified school afresh.
+          this.schoolStateService.hasInitialized = false;
+          this.rawSchools = [];
+          this.schools = this.schools.filter(s => s.value === '');
+          this.selectedSchool = '';
+        }
+        this.loadMetadata();
+      });
     });
 
     // The single per-user notification connection lives here (the persistent
@@ -179,8 +198,8 @@ export class UiLayout implements OnDestroy {
       const userSchoolId = verification?.school;
       if (userSchoolId && this.rawSchools.length > 0 && this.schoolStateService.getManualSchool() === null) {
         const userSchool = this.rawSchools.find(s => s.id === userSchoolId);
-        if (userSchool && this.selectedSchool !== userSchool.name) {
-          this.selectedSchool = userSchool.name;
+        if (userSchool && this.selectedSchool !== userSchool.code) {
+          this.selectedSchool = userSchool.code;
           this.schoolStateService.setSchool(this.selectedSchool);
           this.cdr.markForCheck();
         }
@@ -225,6 +244,8 @@ export class UiLayout implements OnDestroy {
 
   /** Set when loading metadata gave up, until a later load succeeds. */
   private metadataOwed = false;
+  /** The region the loaded school list belongs to. */
+  private metadataRegion: string | null = null;
   private metadataSubscription: Subscription | null = null;
 
   private loadMetadata() {
@@ -243,8 +264,10 @@ export class UiLayout implements OnDestroy {
           this.rawSchools = data.schools;
           this.schools = [
             { value: '', label: this.i18n.t('layout.allSchools') || '全部大學' },
-            ...data.schools.map((s: any) => ({
-              value: s.name,
+            // By code, not name: the code is what goes out as ?school= and
+            // into sessionStorage.
+            ...data.schools.map((s: SchoolOption) => ({
+              value: s.code,
               label: s.display_name || s.name
             }))
           ];
@@ -261,7 +284,9 @@ export class UiLayout implements OnDestroy {
 
           this.schoolStateService.hasInitialized = true;
 
-          // Check for manual school selection from sessionStorage (single-session memory)
+          // Check for manual school selection from sessionStorage (single-session
+          // memory, per region). getManualSchool() has already turned a
+          // full name saved before codes into its code, or dropped it.
           const manualSchool = this.schoolStateService.getManualSchool();
           if (manualSchool !== null && this.schools.some(s => s.value === manualSchool)) {
             this.selectedSchool = manualSchool;
@@ -282,7 +307,7 @@ export class UiLayout implements OnDestroy {
           const verification = profile?.verifications?.find(v => isSameRegion(v.region, region) && !!v.verified_at);
           const userSchoolId = verification?.school;
           const userSchool = userSchoolId ? this.rawSchools.find(s => s.id === userSchoolId) : undefined;
-          this.selectedSchool = userSchool ? userSchool.name : '';
+          this.selectedSchool = userSchool ? userSchool.code : '';
           this.schoolStateService.setSchool(this.selectedSchool);
           this.cdr.markForCheck();
         }

@@ -10,6 +10,7 @@ import { AdminService, AdminSchool, Paginated } from '../../core/services/admin.
 import { TPipe, I18nService } from '../../core/i18n.service';
 import { ToastService } from '../../core/services/toast.service';
 import { ConfirmService } from '../../core/services/confirm.service';
+import { RegionService } from '../../core/region.service';
 import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
 import { BulkImportModalComponent } from './bulk-import-modal.component';
 
@@ -35,6 +36,7 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
         <thead>
           <tr>
             <th>ID</th>
+            <th>{{ 'admin.schoolCode' | t }}</th>
             <th>{{ 'admin.schoolName' | t }}</th>
             <th>{{ 'admin.colDomain' | t }}</th>
             <th>{{ 'admin.colActions' | t }}</th>
@@ -43,6 +45,7 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
         <tbody>
           <tr *ngFor="let school of schoolsData.results">
             <td>{{ school.id }}</td>
+            <td><code>{{ school.code }}</code></td>
             <td>{{ school.name }}</td>
             <td>{{ school.email_domain }}</td>
             <td>
@@ -67,6 +70,10 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
           <div class="form-group">
             <label>{{ 'admin.colDomain' | t }}</label>
             <input type="text" class="admin-form-control" [(ngModel)]="newSchool.email_domain" [placeholder]="'admin.domainDesc' | t">
+          </div>
+          <div class="form-group">
+            <label for="new-school-code">{{ 'admin.schoolCode' | t }}</label>
+            <input id="new-school-code" type="text" class="admin-form-control code-input" maxlength="20" [(ngModel)]="newSchool.code" [placeholder]="'admin.schoolCodeDesc' | t">
           </div>
           <div class="form-group">
             <label>{{ 'admin.translationsSection' | t }}</label>
@@ -95,6 +102,7 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
     .form-group { margin-bottom: 16px; }
     .form-group label { display: block; margin-bottom: 8px; font-weight: 600; }
     .translation-row { display: flex; align-items: center; gap: 8px; }
+    .code-input { text-transform: uppercase; }
     .lang-tag { flex: 0 0 auto; padding: 4px 8px; border-radius: 4px; background: var(--paper-warm); font-size: var(--text-xs); font-weight: 600; }
   `]
 })
@@ -104,6 +112,7 @@ export class AdminSchoolsListComponent implements OnInit {
   private i18n = inject(I18nService);
   private toast = inject(ToastService);
   private confirms = inject(ConfirmService);
+  private regionService = inject(RegionService);
 
   schoolsData?: Paginated<AdminSchool>;
   currentPage = 1;
@@ -113,7 +122,7 @@ export class AdminSchoolsListComponent implements OnInit {
 
   showCreateModal = false;
   showImportModal = false;
-  newSchool: Partial<AdminSchool> = { name: '', email_domain: '' };
+  newSchool: Partial<AdminSchool> = { name: '', email_domain: '', code: '' };
   newSchoolZhTwName = '';
 
   ngOnInit() {
@@ -161,21 +170,35 @@ export class AdminSchoolsListComponent implements OnInit {
   }
 
   openCreateModal() {
-    this.newSchool = { name: '', email_domain: '' };
+    this.newSchool = { name: '', email_domain: '', code: '' };
     this.newSchoolZhTwName = '';
     this.showCreateModal = true;
   }
 
   createSchool() {
     if (!this.newSchool.name || !this.newSchool.email_domain) return;
-    const payload: Partial<AdminSchool> = { ...this.newSchool };
+    // The region is part of the school's identity now — its code only has
+    // to be unique inside it — so it is sent rather than left for the
+    // backend to reject as missing.
+    const payload: Partial<AdminSchool> = {
+      ...this.newSchool,
+      code: (this.newSchool.code || '').trim().toUpperCase(),
+      region: this.regionService.region().toUpperCase(),
+    };
     if (this.newSchoolZhTwName.trim()) {
       payload.translations = { 'zh-TW': { name: this.newSchoolZhTwName.trim() } };
     }
-    this.adminService.createSchool(payload).subscribe(() => {
-      this.showCreateModal = false;
-      this.cdr.markForCheck();
-      this.loadPage(1);
+    this.adminService.createSchool(payload).subscribe({
+      next: () => {
+        this.showCreateModal = false;
+        this.cdr.markForCheck();
+        this.loadPage(1);
+      },
+      // Kept open on failure so a clashing code can be corrected in place.
+      error: (err) => {
+        this.toast.error(parseAdminError(err, this.i18n));
+        this.cdr.markForCheck();
+      }
     });
   }
 }

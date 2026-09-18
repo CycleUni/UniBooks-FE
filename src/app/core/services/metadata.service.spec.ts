@@ -4,6 +4,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { MetadataService } from './metadata.service';
 import { I18nService } from '../i18n.service';
+import { RegionService } from '../region.service';
 
 /**
  * getMetadataWithRetry is for callers with no error state of their own — the
@@ -95,5 +96,40 @@ describe('MetadataService.getMetadataWithRetry', () => {
     vi.advanceTimersByTime(60_000);
 
     expect(requests()).toEqual([]);
+  });
+});
+
+/**
+ * The school list differs per region while the request's parameters do not
+ * (ApiUrlInterceptor adds the region), so a cache keyed on the school alone
+ * served Taiwan's schools to a visitor who had just landed on /hk.
+ */
+describe('MetadataService cache', () => {
+  it('does not share a cached response between regions', () => {
+    const region = signal('tw');
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: I18nService, useValue: { lang: signal('en') } },
+        { provide: RegionService, useValue: { region } },
+      ],
+    });
+    const service = TestBed.inject(MetadataService);
+    const httpMock = TestBed.inject(HttpTestingController);
+    TestBed.tick();
+
+    let tw: any = null;
+    service.getMetadata().subscribe(d => (tw = d));
+    httpMock.expectOne(req => req.url === '/core/metadata/').flush({ schools: [{ code: 'HKU', name: 'Hungkuang' }] });
+
+    region.set('hk');
+    let hk: any = null;
+    service.getMetadata().subscribe(d => (hk = d));
+    httpMock.expectOne(req => req.url === '/core/metadata/').flush({ schools: [{ code: 'HKU', name: 'The University of Hong Kong' }] });
+
+    expect(tw.schools[0].name).toBe('Hungkuang');
+    expect(hk.schools[0].name).toBe('The University of Hong Kong');
+    httpMock.verify();
   });
 });

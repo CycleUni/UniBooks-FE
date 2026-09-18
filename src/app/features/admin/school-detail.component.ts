@@ -5,7 +5,9 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AdminService, AdminSchool, Paginated } from '../../core/services/admin.service';
-import { TPipe } from '../../core/i18n.service';
+import { TPipe, I18nService } from '../../core/i18n.service';
+import { ToastService } from '../../core/services/toast.service';
+import { parseAdminError } from '../../core/admin-error.util';
 import { TranslationEditorComponent, TranslationField } from './translation-editor.component';
 
 @Component({
@@ -15,7 +17,7 @@ import { TranslationEditorComponent, TranslationField } from './translation-edit
   template: `
     <div class="header-actions">
       <div>
-        <h2>{{ 'common.edit' | t }}: {{ school?.name }}</h2>
+        <h2>{{ 'common.edit' | t }}: {{ school?.name }} <code *ngIf="school?.code">{{ school?.code }}</code></h2>
         <ui-button size="sm" variant="outline" regionLink="..">‹ {{ 'admin.backToList' | t }}</ui-button>
       </div>
     </div>
@@ -32,6 +34,12 @@ import { TranslationEditorComponent, TranslationField } from './translation-edit
         <div class="form-group">
           <label>{{ 'admin.colDomain' | t }}</label>
           <input type="text" class="admin-form-control" [(ngModel)]="editData.email_domain">
+        </div>
+
+        <div class="form-group">
+          <label for="school-code">{{ 'admin.schoolCode' | t }}</label>
+          <input id="school-code" type="text" class="admin-form-control code-input" maxlength="20" [(ngModel)]="editData.code">
+          <small class="hint">{{ 'admin.schoolCodeDesc' | t }}</small>
         </div>
 
         <div class="form-group">
@@ -56,16 +64,20 @@ import { TranslationEditorComponent, TranslationField } from './translation-edit
     .panel h3 { margin-top: 0; margin-bottom: 24px; }
     .form-group { margin-bottom: 16px; }
     .form-group label { display: block; margin-bottom: 8px; font-weight: 600; }
+    .code-input { text-transform: uppercase; }
+    .hint { display: block; margin-top: 4px; color: var(--muted); font-size: var(--text-xs); }
   `]
 })
 export class AdminSchoolDetailComponent implements OnInit {
   private adminService = inject(AdminService);
   private route = inject(ActivatedRoute);
   private cdr = inject(ChangeDetectorRef);
+  private i18n = inject(I18nService);
+  private toast = inject(ToastService);
 
   schoolId!: string;
   school?: AdminSchool;
-  editData: Partial<AdminSchool> = { name: '', email_domain: '' };
+  editData: Partial<AdminSchool> = { name: '', email_domain: '', code: '' };
   
   translationFields: TranslationField[] = [
     { key: 'name', placeholder: 'admin.schoolName', type: 'text' }
@@ -81,17 +93,25 @@ export class AdminSchoolDetailComponent implements OnInit {
   loadSchool() {
     this.adminService.getSchool(this.schoolId).subscribe(data => {
       this.school = data;
-      this.editData = { name: data.name, email_domain: data.email_domain, translations: data.translations || {} };
+      this.editData = { name: data.name, email_domain: data.email_domain, code: data.code, translations: data.translations || {} };
       this.cdr.markForCheck();
     });
   }
 
   saveSchool() {
-    const payload = { ...this.editData };
-    this.adminService.updateSchool(this.schoolId, payload).subscribe(data => {
-      this.school = data;
-      this.editData = { name: data.name, email_domain: data.email_domain, translations: data.translations || {} };
-      this.cdr.markForCheck();
+    const payload = { ...this.editData, code: (this.editData.code || '').trim().toUpperCase() };
+    this.adminService.updateSchool(this.schoolId, payload).subscribe({
+      next: data => {
+        this.school = data;
+        this.editData = { name: data.name, email_domain: data.email_domain, code: data.code, translations: data.translations || {} };
+        this.cdr.markForCheck();
+      },
+      // Silently doing nothing left the old code on the page looking saved;
+      // a code already used in this region is the likely reason, and says so.
+      error: err => {
+        this.toast.error(parseAdminError(err, this.i18n));
+        this.cdr.markForCheck();
+      }
     });
   }
 }

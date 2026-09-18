@@ -50,6 +50,7 @@ export class RegionService {
   });
 
   constructor() {
+    this.schoolState.setRegion(this.region());
     // Deferred by a microtask, not called inline. fetchRegions() issues an
     // HTTP request, which runs ApiUrlInterceptor, which resolves this very
     // service — from inside its own constructor. DI hands back the
@@ -112,14 +113,17 @@ export class RegionService {
     
     const oldRegion = this.region();
     this.region.set(code);
+    this.schoolState.setRegion(code);
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(STORAGE_KEY, code);
     }
 
     if (oldRegion !== code || isInit) {
       if (!isInit) {
+        // The hand-picked school is not cleared: it is saved per region, so
+        // the other region's choice can never be read here, and coming back
+        // to this region finds its own choice where it was left.
         this.schoolState.setSchool('');
-        this.schoolState.clearManualSchool();
       }
       
       const newRegionObj = regs.find(r => r.code.toLowerCase() === code);

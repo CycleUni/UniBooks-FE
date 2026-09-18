@@ -57,7 +57,7 @@ export interface AdminListing {
   id: string;
   book: { id: string; title: string };
   seller: { id: string | number; email: string };
-  school: { id: string | number; name: string } | null;
+  school: { id: string | number; code?: string; name: string } | null;
   price: number;
   /** ISO 4217 code for this row, so a merged multi-region list formats each
    *  price in its own currency instead of the viewer's region default. */
@@ -133,6 +133,9 @@ export interface AdminReport {
 
 export interface AdminSchool {
   id: number;
+  /** Short code ("NTU"), unique within the school's region only. Sent blank
+   *  or left out on create, the backend derives one from the email domain. */
+  code: string;
   name: string;
   display_name: string;
   email_domain: string;

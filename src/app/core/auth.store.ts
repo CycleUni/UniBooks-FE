@@ -13,6 +13,9 @@ import { isTransientHttpFailure } from './http-failure';
 export interface RegionVerification {
   region: string;
   school: any;
+  /** The school's short code, unique only within `region`. */
+  school_code?: string;
+  school_name?: string;
   edu_email: string;
   verified_at: string | null;
 }

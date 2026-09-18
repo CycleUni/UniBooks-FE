@@ -6,6 +6,7 @@ import { HttpClient } from '@angular/common/http';
 import { AdminService } from '../../core/services/admin.service';
 import { RegionService } from '../../core/region.service';
 import { I18nService, TPipe } from '../../core/i18n.service';
+import { translateApiError } from '../../core/api-error.util';
 import { UiTextarea } from '../../shared/ui/textarea.component';
 import { UiFocusTrapDirective } from '../../shared/ui/focus-trap.directive';
 
@@ -148,6 +149,7 @@ export class BulkImportModalComponent {
   {
     "name": "國立臺灣大學",
     "email_domain": "ntu.edu.tw",
+    "code": "NTU",
     "translations": {
       "en": { "name": "National Taiwan University" },
       "zh-TW": { "name": "國立臺灣大學" }
@@ -288,7 +290,7 @@ export class BulkImportModalComponent {
         this.cdr.markForCheck();
       },
       error: (err: any) => {
-        this.errorMsg = this.i18n.t('admin.importErrPreviewFailed', { message: err.error?.error || err.message });
+        this.errorMsg = this.i18n.t('admin.importErrPreviewFailed', { message: this.errorDetail(err) });
         this.loading = false;
         this.loadingAction = null;
         this.cdr.markForCheck();
@@ -329,6 +331,23 @@ export class BulkImportModalComponent {
     }
   }
 
+  /**
+   * What went wrong, for the "failed" message. Most failures here are a plain
+   * string in `error`; a school code that is malformed or already used in
+   * this region comes back as a code to translate plus the domains at fault,
+   * and printing that object as-is showed "[object Object]".
+   */
+  private errorDetail(err: any): string {
+    const body = err?.error?.error;
+    if (typeof body === 'string') return body;
+    const translated = translateApiError(err, this.i18n);
+    if (translated) {
+      const domains: unknown = body?.domains;
+      return Array.isArray(domains) && domains.length ? `${translated} (${domains.join(', ')})` : translated;
+    }
+    return err?.message || '';
+  }
+
   private isValidItem(item: any): boolean {
     if (!item || typeof item !== 'object') return false;
     if (this.endpoint === 'schools') {
@@ -348,7 +367,7 @@ export class BulkImportModalComponent {
         this.cdr.markForCheck();
       },
       error: (err: any) => {
-        this.errorMsg = this.i18n.t('admin.importErrApplyFailed', { message: err.error?.error || err.message });
+        this.errorMsg = this.i18n.t('admin.importErrApplyFailed', { message: this.errorDetail(err) });
         this.loading = false;
         this.loadingAction = null;
         this.cdr.markForCheck();

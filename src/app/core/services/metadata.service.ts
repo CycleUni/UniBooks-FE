@@ -5,6 +5,7 @@ import { catchError, retry, shareReplay } from 'rxjs/operators';
 import { SKIP_AUTH } from '../auth.interceptor';
 import { I18nService } from '../i18n.service';
 import { isTransientHttpFailure } from '../http-failure';
+import { RegionService } from '../region.service';
 
 export interface PublicAd {
   id: number;
@@ -25,6 +26,7 @@ export interface PublicAd {
 export class MetadataService {
   private http = inject(HttpClient);
   private i18n = inject(I18nService);
+  private regionService = inject(RegionService);
 
   // The layout shell and the home page both ask for the homepage metadata on
   // load, so without this every visit fired the same request twice. Entries
@@ -42,7 +44,12 @@ export class MetadataService {
   }
 
   getMetadata(schoolId?: string | number): Observable<any> {
-    const key = schoolId ? String(schoolId) : '';
+    // Keyed by region too: ApiUrlInterceptor adds the current region to the
+    // request, so the same school parameter means a different school list in
+    // Taiwan and in Hong Kong. Without it, arriving at /hk with Taiwan
+    // remembered served Taiwan's schools from this cache (or from the request
+    // that was already in flight) to the Hong Kong school selector.
+    const key = `${this.regionService.region()}|${schoolId ? String(schoolId) : ''}`;
     const hit = this.metadataCache.get(key);
     if (hit && Date.now() - hit.at < MetadataService.METADATA_TTL_MS) {
       return hit.request$;
