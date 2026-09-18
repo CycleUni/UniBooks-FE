@@ -1120,8 +1120,6 @@ export const zhTW: Record<string, string> = {
   'acct.noListingsMatch': '沒有符合條件的商品。',
   'acct.clearFilters': '清除篩選',
   'acct.moreFields': '詳細資訊',
-  'acct.markedSold': '已標記為售出。',
-  'acct.markedActive': '已重新上架。',
   'acct.saved': '已儲存。',
   'acct.linkCopied': '已複製連結。',
   'acct.errLoadFailed': '無法載入你的商品，請再試一次。',

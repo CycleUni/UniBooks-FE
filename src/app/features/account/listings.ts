@@ -494,19 +494,6 @@ export class ListingsComponent implements OnInit {
     }
   }
 
-  private setStatus(id: number | string, status: string, successKey: string) {
-    this.listingService.updateListing(id, { status }).subscribe({
-      next: () => {
-        this.toast.success(this.i18n.t(successKey));
-        this.afterChange();
-      },
-      error: (err) => {
-        const code = err.error?.error?.code;
-        this.toast.error(this.i18n.t('acct.errUpdate', { msg: code ? this.i18n.t(code) : (err.error?.error?.message || err.message) }));
-      }
-    });
-  }
-
   private afterChange() {
     this.accountService.clearProfileCache();
     this.loadMyListings();

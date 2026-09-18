@@ -1118,8 +1118,6 @@ export const en: Record<string, string> = {
   'acct.noListingsMatch': 'No listings match this filter.',
   'acct.clearFilters': 'Clear filters',
   'acct.moreFields': 'More details',
-  'acct.markedSold': 'Marked as sold.',
-  'acct.markedActive': 'Back on sale.',
   'acct.saved': 'Saved.',
   'acct.linkCopied': 'Link copied.',
   'acct.errLoadFailed': 'Could not load your listings. Please try again.',
