@@ -159,28 +159,28 @@ describe('ListingsComponent listing management', () => {
     expect(component.totalListings).toBe(3);
   });
 
-  /** Taking a listing down is reversible, so it must not ask; deleting must. */
-  it('takes a listing down without a confirmation, and says so', async () => {
-    await component.onListingAction({ type: 'unlist', id: 'l1' });
-    expect(askDanger).not.toHaveBeenCalled();
-    expect(updateListing).toHaveBeenCalledWith('l1', { status: 'removed' });
-    expect(toast.success).toHaveBeenCalledWith('acct.unlisted');
-  });
-
   it('confirms before deleting, and does nothing when refused', async () => {
     askDanger.mockResolvedValueOnce(false);
-    await component.onListingAction({ type: 'delete', id: 'l1' });
+    await component.onDelete('l1');
     expect(deleteListing).not.toHaveBeenCalled();
 
-    await component.onListingAction({ type: 'delete', id: 'l1' });
+    await component.onDelete('l1');
     expect(deleteListing).toHaveBeenCalledWith('l1');
     expect(toast.success).toHaveBeenCalledWith('acct.listingDeleted');
   });
 
-  it('reports the outcome of putting a listing back up', async () => {
-    await component.onListingAction({ type: 'mark_active', id: 'l1' });
-    expect(updateListing).toHaveBeenCalledWith('l1', { status: 'active' });
-    expect(toast.success).toHaveBeenCalledWith('acct.markedActive');
+  it('saves a status change through the edit form', () => {
+    component.editingListing = listing();
+    component.editForm = {
+      price: 300, condition: 'new', status: 'sold',
+      category: '', course_name: '', professor_name: '',
+      private_note: '', description: '', photos: [],
+    };
+    component.submitEdit();
+    const payload = updateListing.mock.calls[0][1];
+    expect(payload.status).toBe('sold');
+    expect(toast.success).toHaveBeenCalledWith('acct.saved');
+    expect(component.editingListing).toBeNull();
   });
 
   it('copies the public link of a listing', async () => {

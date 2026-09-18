@@ -60,11 +60,7 @@ import { PricePipe } from '../pipes/price.pipe';
              nobody has reserved is safe to take down or delete. -->
         <div class="manage-actions" *ngIf="isEditable">
           <ui-button variant="ghost" *ngIf="status !== 'removed'" (onClick)="action.emit({type: 'copy_link', id: id})">{{ 'row.copyLink' | t }}</ui-button>
-          <ui-button variant="ghost" *ngIf="status === 'active' || status === 'reserved'" (onClick)="action.emit({type: 'edit', id: id})">{{ 'common.edit' | t }}</ui-button>
-          <ui-button variant="ghost" *ngIf="status === 'active'" (onClick)="action.emit({type: 'mark_sold', id: id})">{{ 'row.markSold' | t }}</ui-button>
-          <ui-button variant="ghost" *ngIf="status === 'sold' || status === 'reserved' || status === 'removed'" (onClick)="action.emit({type: 'mark_active', id: id})">{{ (status === 'removed' ? 'row.relist' : 'row.markUnsold') | t }}</ui-button>
-          <ui-button variant="ghost" *ngIf="status === 'active' || status === 'sold'" (onClick)="action.emit({type: 'unlist', id: id})">{{ 'row.unlist' | t }}</ui-button>
-          <ui-button variant="ghost" class="text-danger" (onClick)="action.emit({type: 'delete', id: id})">{{ 'common.delete' | t }}</ui-button>
+          <ui-button variant="ghost" (onClick)="action.emit({type: 'edit', id: id})">{{ 'common.edit' | t }}</ui-button>
         </div>
       </div>
     </div>
@@ -191,6 +187,7 @@ import { PricePipe } from '../pipes/price.pipe';
         flex-wrap: wrap;
         align-items: center;
         justify-content: flex-end;
+        gap: 6px;
         min-width: 0;
         max-width: 100%;
       }
@@ -205,6 +202,7 @@ import { PricePipe } from '../pipes/price.pipe';
         font-size: var(--text-lg);
       }
       .manage-actions {
+        flex-basis: 100%;
         margin-top: 0;
       }
     }

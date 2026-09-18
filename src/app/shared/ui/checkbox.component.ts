@@ -17,6 +17,7 @@ import { CommonModule } from '@angular/common';
     <label class="checkbox-wrapper" [class.disabled]="disabled">
       <input
         type="checkbox"
+        [class.variant-switch]="variant === 'switch'"
         [checked]="checked"
         [disabled]="disabled"
         (change)="onCheckboxChange($event)"
@@ -54,7 +55,7 @@ import { CommonModule } from '@angular/common';
       place-content: center;
       flex-shrink: 0;
     }
-    input[type="checkbox"]::before {
+    input[type="checkbox"]:not(.variant-switch)::before {
       content: "";
       width: 10px;
       height: 10px;
@@ -63,18 +64,18 @@ import { CommonModule } from '@angular/common';
       transform: scale(0);
       transition: transform var(--motion-fast) ease-in-out;
     }
-    input[type="checkbox"]:checked {
+    input[type="checkbox"]:not(.variant-switch):checked {
       background-color: var(--accent);
       border-color: var(--accent);
     }
-    input[type="checkbox"]:checked::before {
+    input[type="checkbox"]:not(.variant-switch):checked::before {
       transform: scale(1);
     }
-    input[type="checkbox"]:disabled {
+    input[type="checkbox"]:not(.variant-switch):disabled {
       background-color: var(--paper-warm);
       border-color: var(--line);
     }
-    input[type="checkbox"]:disabled:checked {
+    input[type="checkbox"]:not(.variant-switch):disabled:checked {
       background-color: var(--muted);
       border-color: var(--muted);
     }
@@ -85,10 +86,42 @@ import { CommonModule } from '@angular/common';
     .checkbox-wrapper.disabled .label-text {
       color: var(--muted);
     }
+
+    input[type="checkbox"].variant-switch {
+      width: 44px;
+      height: 24px;
+      border-radius: 12px;
+      background-color: var(--line-strong);
+      border: none;
+      position: relative;
+    }
+    input[type="checkbox"].variant-switch::before {
+      content: "";
+      width: 20px;
+      height: 20px;
+      background-color: var(--paper);
+      border-radius: 50%;
+      position: absolute;
+      left: 2px;
+      top: 2px;
+      transition: transform var(--motion-fast) ease-in-out;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    input[type="checkbox"].variant-switch:checked {
+      background-color: var(--accent);
+    }
+    input[type="checkbox"].variant-switch:checked::before {
+      transform: translateX(20px);
+    }
+    input[type="checkbox"].variant-switch:disabled {
+      background-color: var(--paper-warm);
+      opacity: 0.6;
+    }
   `]
 })
 export class UiCheckbox implements ControlValueAccessor {
   @Input() label: string = '';
+  @Input() variant: 'checkbox' | 'switch' = 'checkbox';
   @Input() disabled: boolean = false;
   @Input() set checked(val: boolean | undefined | null) { this._checked = !!val; }
   get checked(): boolean { return this._checked; }

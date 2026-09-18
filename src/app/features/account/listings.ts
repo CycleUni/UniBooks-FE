@@ -128,6 +128,7 @@ const PAGE_SIZE = 20;
             class="mb-4"
           ></ui-input>
           <ui-dropdown [label]="'common.condition' | t" [(ngModel)]="editForm.condition" [options]="conditionOptions" [searchable]="false" class="mb-4"></ui-dropdown>
+          <ui-dropdown [label]="'acct.statusLabel' | t" [(ngModel)]="editForm.status" [options]="statusOptions" [searchable]="false" class="mb-4"></ui-dropdown>
 
           <div class="photo-upload mb-4">
             <label class="photo-label">{{ 'acct.photoLabel' | t }}</label>
@@ -161,9 +162,12 @@ const PAGE_SIZE = 20;
             </div>
           </details>
         </div>
-        <div class="actions app-modal-actions">
-          <ui-button variant="ghost" (onClick)="closeEdit()">{{ 'common.cancel' | t }}</ui-button>
-          <ui-button [disabled]="saving" (onClick)="submitEdit()">{{ (saving ? 'sell.uploading' : 'acct.save') | t }}</ui-button>
+        <div class="actions app-modal-actions modal-footer-actions">
+          <ui-button variant="ghost" class="text-danger" (onClick)="onDelete(editingListing.id)">{{ 'common.delete' | t }}</ui-button>
+          <div class="modal-footer-right">
+            <ui-button variant="ghost" (onClick)="closeEdit()">{{ 'common.cancel' | t }}</ui-button>
+            <ui-button [disabled]="saving" (onClick)="submitEdit()">{{ (saving ? 'sell.uploading' : 'acct.save') | t }}</ui-button>
+          </div>
         </div>
       </div>
     </div>
@@ -250,6 +254,8 @@ const PAGE_SIZE = 20;
       box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
     .delete-photo-btn:hover { opacity: 0.9; }
+    .modal-footer-actions { justify-content: space-between; }
+    .modal-footer-right { display: flex; gap: 8px; }
     @media (max-width: 768px) {
       .section-head-row { flex-wrap: wrap; gap: 12px; }
       .edit-modal { padding: 16px; }
@@ -424,6 +430,7 @@ export class ListingsComponent implements OnInit {
         this.editForm = {
           price: listing.price,
           condition: listing.condition,
+          status: listing.status,
           category: listing.category || '',
           course_name: listing.course_name || '',
           professor_name: listing.professor_name || '',
@@ -442,37 +449,36 @@ export class ListingsComponent implements OnInit {
       await this.copyLink(event.id);
       return;
     }
+  }
 
-    if (event.type === 'mark_sold') {
-      this.setStatus(event.id, 'sold', 'acct.markedSold');
-      return;
+  get statusOptions(): DropdownOption[] {
+    const opts: DropdownOption[] = [
+      { value: 'active', label: this.i18n.t('row.active') },
+      { value: 'sold', label: this.i18n.t('row.sold') },
+      { value: 'removed', label: this.i18n.t('row.removed') },
+    ];
+    // Reserved is a system state; only show it if the listing is currently reserved
+    // so the seller can see it, but can't pick it for a non-reserved listing.
+    if (this.editForm?.status === 'reserved') {
+      opts.splice(1, 0, { value: 'reserved', label: this.i18n.t('row.reserved') });
     }
+    return opts;
+  }
 
-    if (event.type === 'mark_active') {
-      this.setStatus(event.id, 'active', 'acct.markedActive');
-      return;
-    }
-
-    if (event.type === 'unlist') {
-      // Taking a listing down is reversible, so it asks nothing; deleting is
-      // not, and says so.
-      this.setStatus(event.id, 'removed', 'acct.unlisted');
-      return;
-    }
-
-    if (event.type === 'delete') {
-      const confirmed = await this.confirms.askDanger(this.i18n.t('acct.confirmDelete'), {
-        confirmLabel: this.i18n.t('common.delete'),
-      });
-      if (!confirmed) return;
-      this.listingService.deleteListing(event.id).subscribe({
-        next: () => {
-          this.toast.success(this.i18n.t('acct.listingDeleted'));
-          this.afterChange();
-        },
-        error: (err) => this.toast.error(parseApiError(err, this.i18n, 'acct.updateFailed')),
-      });
-    }
+  async onDelete(id: number | string) {
+    const confirmed = await this.confirms.askDanger(this.i18n.t('acct.confirmDelete'), {
+      confirmLabel: this.i18n.t('common.delete'),
+    });
+    if (!confirmed) return;
+    
+    this.closeEdit();
+    this.listingService.deleteListing(id).subscribe({
+      next: () => {
+        this.toast.success(this.i18n.t('acct.listingDeleted'));
+        this.afterChange();
+      },
+      error: (err) => this.toast.error(parseApiError(err, this.i18n, 'acct.updateFailed')),
+    });
   }
 
   /** The public link a seller sends to a classmate. */
@@ -534,6 +540,7 @@ export class ListingsComponent implements OnInit {
     const payload: any = {
       price: this.editForm.price,
       condition: this.editForm.condition,
+      status: this.editForm.status,
       category: this.editForm.category || null,
       course_name: this.editForm.course_name || '',
       professor_name: this.editForm.professor_name || '',
