@@ -317,6 +317,9 @@
            so it can never wrap onto a second row with the theme switcher. */
         width: auto;
       }
+      .school-trigger {
+        min-width: auto;
+      }
       .school-icon {
         display: inline-flex;
       }
