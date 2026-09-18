@@ -1104,4 +1104,6 @@ export const en: Record<string, string> = {
   'admin.stats.termSpring': 'Spring {year}',
   'admin.stats.titleOverview': 'Statistics overview',
   'admin.stats.titleBooks': 'Book statistics',
+  'common.leave': 'Leave',
+  'common.stay': 'Stay on this page',
 };

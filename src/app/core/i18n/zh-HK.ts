@@ -1106,4 +1106,6 @@ export const zhHK: Record<string, string> = {
   'admin.stats.termSpring': '{year} 春季',
   'admin.stats.titleOverview': '統計總覽',
   'admin.stats.titleBooks': '書本統計',
+  'common.leave': '離開',
+  'common.stay': '留在這頁',
 };

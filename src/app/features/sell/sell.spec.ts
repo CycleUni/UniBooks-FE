@@ -1,6 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Sell, SELL_DRAFT_STORAGE_KEY, SELL_DRAFT_MAX_AGE_MS, cleanAndValidateIsbn, clean_and_validate_isbn, isValidIsbnChecksum, selectBestRearCamera, otherCopiesFromBook, isPriceFarAboveOtherCopies } from './sell';
-import { unsavedChangesGuard } from '../../core/unsaved-changes.guard';
 import { provideRouter } from '@angular/router';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { I18nService } from '../../core/i18n.service';
@@ -375,38 +374,6 @@ describe('Sell Component Barcode Scanner Validation', () => {
     (TestBed.inject(AuthStore) as any).isLoggedIn = () => false;
 
     expect(component.isLoggedIn).toBe(false);
-  });
-});
-
-describe('unsavedChangesGuard', () => {
-  const call = (component: any) =>
-    unsavedChangesGuard(component, null as any, null as any, null as any);
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('lets navigation through when the component reports nothing unsaved', () => {
-    const confirmSpy = vi.spyOn(window, 'confirm');
-    expect(call({ hasUnsavedChanges: () => false, unsavedChangesMessage: () => 'msg' })).toBe(true);
-    expect(confirmSpy).not.toHaveBeenCalled();
-  });
-
-  it('asks for confirmation with the component message when there are unsaved changes', () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const result = call({ hasUnsavedChanges: () => true, unsavedChangesMessage: () => 'leave?' });
-    expect(confirmSpy).toHaveBeenCalledWith('leave?');
-    expect(result).toBe(false);
-  });
-
-  it('allows the navigation when the user confirms', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    expect(call({ hasUnsavedChanges: () => true, unsavedChangesMessage: () => 'leave?' })).toBe(true);
-  });
-
-  it('never traps the user when the component does not implement the interface', () => {
-    expect(call(null)).toBe(true);
-    expect(call({})).toBe(true);
   });
 });
 

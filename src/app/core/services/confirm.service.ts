@@ -31,9 +31,9 @@ export interface ConfirmRequest extends ConfirmOptions {
  * promise rather than an observable: an observable would force each of those
  * guards to be turned inside out into a subscribe callback.
  *
- * Note the deliberate exception: `unsavedChangesGuard` still uses the native
- * `confirm()`. A `CanDeactivate` guard has to answer while the browser's
- * back/close gesture is still on the stack, and an awaited dialog is too late.
+ * `unsavedChangesGuard` awaits this too: mobile browsers suppress a native
+ * `confirm()` raised during a navigation, and a suppressed one reads as
+ * "cancel", which left the page looking frozen.
  */
 @Injectable({ providedIn: 'root' })
 export class ConfirmService {
