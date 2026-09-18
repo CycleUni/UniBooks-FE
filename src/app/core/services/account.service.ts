@@ -161,13 +161,19 @@ export class AccountService {
 
   private siteLanguageReported: string | null = null;
 
-  getMyProfile(page: number = 1, q: string = ''): Observable<any> {
+  /**
+   * `opts` narrows and orders the caller's own listings (the account's
+   * listings page). Only the plain call — first page, no search, no filter —
+   * is cached and de-duplicated: that is the one every part of the app makes
+   * for the profile itself.
+   */
+  getMyProfile(page: number = 1, q: string = '', opts: { status?: string; sort?: string } = {}): Observable<any> {
     // For backwards-compat callers that still use this directly,
     // leave the existing logic intact but always call /auth/me/
+    const plain = page === 1 && !q && !opts.status && !opts.sort;
     const cached = this.profileCache();
     const cacheValid = cached
-      && page === 1
-      && !q
+      && plain
       && (Date.now() - this.cacheTimestamp) < AccountService.PROFILE_CACHE_TTL;
     if (cacheValid) {
       return new Observable(subscriber => {
@@ -176,15 +182,15 @@ export class AccountService {
       });
     }
 
-    if (this.profileLoading() && this.profileRequest && page === 1 && !q) {
+    if (this.profileLoading() && this.profileRequest && plain) {
       return this.profileRequest;
     }
 
-    if (!q) this.profileLoading.set(true);
+    if (plain) this.profileLoading.set(true);
     let params = new HttpParams().set('page', page.toString());
-    if (q) {
-      params = params.set('q', q);
-    }
+    if (q) params = params.set('q', q);
+    if (opts.status) params = params.set('status', opts.status);
+    if (opts.sort) params = params.set('sort', opts.sort);
     // Two separate questions when a response lands, answered separately:
     //  - May it fill the cache? Only if the session that asked for it still
     //    exists. Otherwise it re-fills the cache a sign-out just cleared.
@@ -200,7 +206,7 @@ export class AccountService {
     const ownsLock = () => this.profileRequest === req;
     const req: Observable<any> = this.http.get<any>('/auth/me/', { params }).pipe(
       tap(profile => {
-        if (page !== 1 || q) return;
+        if (!plain) return;
         if (stillCurrent()) {
           this.profileCache.set(profile);
           this.cacheTimestamp = Date.now();
@@ -213,7 +219,7 @@ export class AccountService {
       catchError(err => {
         // Reset flight-lock and cache on error so the next call retries
         // instead of re-subscribing to the same failed Observable forever.
-        if (page === 1 && !q && ownsLock()) {
+        if (plain && ownsLock()) {
           this.profileLoading.set(false);
           this.profileRequest = null;
           this.cacheTimestamp = 0;
@@ -223,7 +229,7 @@ export class AccountService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    if (!q) this.profileRequest = req;
+    if (plain) this.profileRequest = req;
     return req;
   }
 

@@ -1,13 +1,14 @@
 import { Component, inject, OnInit, ChangeDetectorRef } from '@angular/core';
 import { RegionService } from '../../core/region.service';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { UiButton } from '../../shared/ui/button.component';
 import { UiEmpty } from '../../shared/ui/empty.component';
 import { UiInput } from '../../shared/ui/input.component';
+import { UiTextarea } from '../../shared/ui/textarea.component';
 import { UiListingRow } from '../../shared/ui/listing-row.component';
-import { UiDropdown } from '../../shared/ui/dropdown.component';
+import { UiDropdown, DropdownOption } from '../../shared/ui/dropdown.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
 import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
 import { TPipe, I18nService } from '../../core/i18n.service';
@@ -20,83 +21,149 @@ import { ToastService } from '../../core/services/toast.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { parseApiError } from '../../core/api-error.util';
 
+/** Tabs, in the order a seller cares about them. '' is "everything". */
+const STATUSES = ['', 'active', 'reserved', 'sold', 'removed'] as const;
+type StatusTab = typeof STATUSES[number];
+
+const SORTS = ['newest', 'oldest', 'price_desc', 'price_asc'] as const;
+type ListingSort = typeof SORTS[number];
+
+const PAGE_SIZE = 20;
 
 @Component({
   selector: 'app-account-listings',
   standalone: true,
-  imports: [CommonModule, FormsModule, UiButton, UiEmpty, UiInput, UiListingRow, UiDropdown, UiPagination, UiSearchBarComponent, TPipe],
+  imports: [
+    CommonModule, FormsModule, UiButton, UiEmpty, UiInput, UiTextarea, UiListingRow, UiDropdown,
+    UiPagination, UiSearchBarComponent, TPipe,
+  ],
   template: `
     <div class="section-head-row">
       <h2 class="section-heading">{{ 'acct.tabListings' | t }}</h2>
       <ui-button (onClick)="goToSell()">+ {{ 'acct.addListing' | t }}</ui-button>
     </div>
 
-    <ui-search-bar 
-       class="mb-5" style="display: block;"
-      [placeholder]="'acct.searchListings' | t" 
-      [value]="searchQuery" 
-      (search)="onSearchQuery($event)">
-    </ui-search-bar>
+    <!-- One tab per status, labelled with how many are in it, so "what is
+         still up for sale" is one tap rather than a scroll through sold ones. -->
+    <div class="status-tabs" role="tablist" [attr.aria-label]="'acct.filterByStatus' | t">
+      <button
+        *ngFor="let tab of statuses"
+        type="button"
+        role="tab"
+        class="status-tab"
+        [class.active]="tab === status"
+        [attr.aria-selected]="tab === status"
+        (click)="onStatusChange(tab)"
+      >{{ tabLabel(tab) | t }} <span class="tab-count">{{ counts[tab || 'all'] ?? 0 }}</span></button>
+    </div>
 
-    
-    <div class="list-container" *ngIf="myListings.length > 0">
+    <div class="list-filters">
+      <ui-search-bar
+        [placeholder]="'acct.searchListings' | t"
+        [value]="searchQuery"
+        (search)="onSearchQuery($event)">
+      </ui-search-bar>
+      <ui-dropdown
+        [label]="'acct.sortBy' | t"
+        [options]="sortOptions"
+        [searchable]="false"
+        [ngModel]="sort"
+        (ngModelChange)="onSortChange($event)"
+      ></ui-dropdown>
+    </div>
+
+    <p class="result-note" *ngIf="!loading && myListings.length > 0">
+      {{ 'acct.listingCount' | t:{ n: totalListings } }}
+    </p>
+
+    <div *ngIf="loading" class="empty-note">{{ 'common.loading' | t }}</div>
+
+    <div class="list-container" *ngIf="!loading && myListings.length > 0">
       <ui-listing-row
         *ngFor="let item of myListings"
         [id]="item.id"
         [title]="item.book_title"
+        [titleLink]="['/listing', item.id]"
         [price]="item.price"
         [condition]="item.condition"
         [status]="item.status"
         [isEditable]="true"
         (action)="onListingAction($event)"
         [metaInfo]="'ISBN: ' + (item.isbn || '')"
+        [courseInfo]="courseLine(item)"
+        [listedAt]="(item.created_at | date: 'yyyy/MM/dd') || ''"
         [coverUrl]="item.photo_url || item.book_cover_url"
       ></ui-listing-row>
     </div>
-    
-    <ui-empty *ngIf="myListings.length === 0" [message]="'acct.noListings' | t"></ui-empty>
-    
-    <ui-pagination *ngIf="totalListings > 20" [total]="totalListings" [pageSize]="20" [currentPage]="currentPage" (pageChange)="onPageChange($event)"></ui-pagination>
+
+    <ui-empty
+      *ngIf="!loading && myListings.length === 0"
+      [message]="(hasFilters ? 'acct.noListingsMatch' : 'acct.noListings') | t"
+      [actionText]="(hasFilters ? 'acct.clearFilters' : 'acct.addListing') | t"
+      (onAction)="hasFilters ? clearFilters() : goToSell()"
+    ></ui-empty>
+
+    <ui-pagination
+      *ngIf="totalListings > pageSize"
+      [total]="totalListings"
+      [pageSize]="pageSize"
+      [currentPage]="currentPage"
+      (pageChange)="onPageChange($event)"
+    ></ui-pagination>
 
     <!-- Edit Modal Overlay -->
     <div class="edit-modal" *ngIf="editingListing">
       <div class="modal-overlay" (click)="closeEdit()"></div>
       <div class="modal-content app-modal">
         <h3 class="app-modal-title">{{ 'acct.editTitle' | t }}</h3>
-        
-        <div class="modal-body app-modal-body">
-          <p  class="mb-4" style="margin-top: 0; color: var(--muted); overflow-wrap: anywhere; word-break: break-word;">{{ editingListing.book_title }}</p>
-          
-          <div *ngIf="editingListing.book_source === 'manual'" class="manual-book-edit mb-4"  style="padding: 16px; border: 1px solid var(--line); border-radius: 4px; background-color: var(--paper-warm);">
-            <p  style="margin-top: 0; margin-bottom: 12px; font-weight: 500; font-size: var(--text-base);">{{ 'acct.manualBookDesc' | t }}</p>
-            <ui-input [label]="'acct.bookTitleLabel' | t" [(ngModel)]="editForm.book_title"  style="margin-bottom: 12px;"></ui-input>
-            <ui-input [label]="'acct.bookAuthorsLabel' | t" [(ngModel)]="editForm.book_authors"  style="margin-bottom: 12px;"></ui-input>
-            <ui-input [label]="'acct.isbnLabel' | t" [(ngModel)]="editForm.isbn"></ui-input>
-          </div>
 
-          <ui-input type="number" [label]="'acct.priceLabel' | t:{currency: regionService.currency().symbol}" [(ngModel)]="editForm.price"  class="mb-4"></ui-input>
-          <ui-dropdown [label]="'common.condition' | t" [(ngModel)]="editForm.condition" [options]="conditionOptions" [searchable]="false"  class="mb-4"></ui-dropdown>
-          <ui-dropdown [label]="'sell.categoryLabel' | t" [(ngModel)]="editForm.category" [options]="categoryOptions"  class="mb-4"></ui-dropdown>
-          <ui-input [label]="'sell.courseLabel' | t" [(ngModel)]="editForm.course_name"  class="mb-4"></ui-input>
-          <ui-input [label]="'sell.professorLabel' | t" [(ngModel)]="editForm.professor_name"  class="mb-4"></ui-input>
-          <ui-input [label]="'sell.privateNoteLabel' | t" [(ngModel)]="editForm.private_note"  class="mb-4"></ui-input>
-          <ui-input [label]="'sell.descriptionLabel' | t" [(ngModel)]="editForm.description"  class="mb-4"></ui-input>
-          
-          <div class="photo-upload mb-5" >
-            <label  class="mb-2" style="display: block; font-weight: 500; font-size: var(--text-base);">{{ 'acct.photoLabel' | t }}</label>
-            <div class="photo-preview" *ngIf="editForm.photos && editForm.photos.length > 0" style="margin-bottom: 8px; position: relative; display: inline-block;">
-              <img [src]="editForm.photos[0]" loading="lazy"  style="width: 88px; height: 124px; object-fit: cover; border: 1px solid var(--line); border-radius: 4px;" />
-              <button class="delete-photo-btn" (click)="editForm.photos = []" title="{{ 'common.delete' | t }}">✕</button>
+        <div class="modal-body app-modal-body">
+          <p class="edit-book">{{ editingListing.book_title }}</p>
+
+          <!-- What a seller actually comes here to change. -->
+          <ui-input
+            type="number"
+            [label]="'acct.priceLabel' | t:{currency: regionService.currency().symbol}"
+            [(ngModel)]="editForm.price"
+            class="mb-4"
+          ></ui-input>
+          <ui-dropdown [label]="'common.condition' | t" [(ngModel)]="editForm.condition" [options]="conditionOptions" [searchable]="false" class="mb-4"></ui-dropdown>
+
+          <div class="photo-upload mb-4">
+            <label class="photo-label">{{ 'acct.photoLabel' | t }}</label>
+            <div class="photo-preview" *ngIf="editForm.photos && editForm.photos.length > 0">
+              <img [src]="editForm.photos[0]" loading="lazy" alt="" />
+              <button class="delete-photo-btn" type="button" (click)="editForm.photos = []" [title]="'common.delete' | t">✕</button>
             </div>
             <div>
-              <input type="file" accept="image/*" (change)="onFileSelected($event)" #fileInput  style="display: none;" />
+              <input type="file" accept="image/*" (change)="onFileSelected($event)" #fileInput style="display: none;" />
               <ui-button variant="ghost" (onClick)="fileInput.click()" [disabled]="isUploadingPhoto">{{ (isUploadingPhoto ? 'sell.uploading' : 'acct.uploadPhoto') | t }}</ui-button>
             </div>
           </div>
+
+          <!-- Everything else, folded away: filled in once when listing,
+               rarely touched again. -->
+          <details class="more" [open]="showAdvanced">
+            <summary (click)="showAdvanced = !showAdvanced">{{ 'acct.moreFields' | t }}</summary>
+            <div class="more-body">
+              <div *ngIf="editingListing.book_source === 'manual'" class="manual-book-edit mb-4">
+                <p class="manual-note">{{ 'acct.manualBookDesc' | t }}</p>
+                <ui-input [label]="'acct.bookTitleLabel' | t" [(ngModel)]="editForm.book_title" class="mb-3"></ui-input>
+                <ui-input [label]="'acct.bookAuthorsLabel' | t" [(ngModel)]="editForm.book_authors" class="mb-3"></ui-input>
+                <ui-input [label]="'acct.isbnLabel' | t" [(ngModel)]="editForm.isbn"></ui-input>
+              </div>
+
+              <ui-dropdown [label]="'sell.categoryLabel' | t" [(ngModel)]="editForm.category" [options]="categoryOptions" class="mb-4"></ui-dropdown>
+              <ui-input [label]="'sell.courseLabel' | t" [(ngModel)]="editForm.course_name" class="mb-4"></ui-input>
+              <ui-input [label]="'sell.professorLabel' | t" [(ngModel)]="editForm.professor_name" class="mb-4"></ui-input>
+              <ui-textarea [label]="'sell.descriptionLabel' | t" [(ngModel)]="editForm.description" [rows]="3" class="mb-4"></ui-textarea>
+              <ui-textarea [label]="'sell.privateNoteLabel' | t" [(ngModel)]="editForm.private_note" [rows]="2"></ui-textarea>
+            </div>
+          </details>
         </div>
         <div class="actions app-modal-actions">
           <ui-button variant="ghost" (onClick)="closeEdit()">{{ 'common.cancel' | t }}</ui-button>
-          <ui-button (onClick)="submitEdit()">{{ 'acct.save' | t }}</ui-button>
+          <ui-button [disabled]="saving" (onClick)="submitEdit()">{{ (saving ? 'sell.uploading' : 'acct.save') | t }}</ui-button>
         </div>
       </div>
     </div>
@@ -107,9 +174,35 @@ import { parseApiError } from '../../core/api-error.util';
       justify-content: space-between;
       align-items: center;
       gap: 16px;
-      margin-bottom: 24px;
+      margin-bottom: 16px;
     }
     .section-head-row .section-heading { margin-bottom: 0; }
+
+    .status-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .status-tab {
+      appearance: none; background: none; border: none; cursor: pointer;
+      padding: 8px 12px; margin-bottom: -1px; font: inherit; font-size: var(--text-base);
+      color: var(--muted); border-bottom: 2px solid transparent;
+    }
+    .status-tab:hover { color: var(--ink); }
+    .status-tab.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent); }
+    .status-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .tab-count { color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 400; }
+    .status-tab.active .tab-count { color: var(--accent); }
+
+    .list-filters { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 8px; }
+    .list-filters ui-search-bar { flex: 1; min-width: 220px; }
+    .list-filters ui-dropdown { min-width: 180px; }
+    .list-filters ui-dropdown .dropdown-wrapper { margin-bottom: 0; }
+    .result-note { margin: 0 0 8px; font-size: var(--text-sm); color: var(--muted); }
+    .empty-note { padding: 24px 0; text-align: center; color: var(--muted); }
+
     .edit-modal {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -126,9 +219,18 @@ import { parseApiError } from '../../core/api-error.util';
     .modal-content {
       position: relative;
       width: 100%;
-      max-width: 400px;
+      max-width: 420px;
       z-index: 1001;
     }
+    .edit-book { margin: 0 0 16px; color: var(--muted); overflow-wrap: anywhere; word-break: break-word; }
+    .photo-label { display: block; margin-bottom: 8px; font-weight: 500; font-size: var(--text-base); }
+    .photo-preview { margin-bottom: 8px; position: relative; display: inline-block; }
+    .photo-preview img { width: 88px; height: 124px; object-fit: cover; border: 1px solid var(--line); border-radius: 4px; }
+    .more { border-top: 1px solid var(--line); padding-top: 12px; }
+    .more summary { cursor: pointer; color: var(--muted); font-size: var(--text-base); width: fit-content; }
+    .more-body { padding-top: 16px; }
+    .manual-book-edit { padding: 16px; border: 1px solid var(--line); border-radius: 4px; background-color: var(--paper-warm); }
+    .manual-note { margin: 0 0 12px; font-weight: 500; font-size: var(--text-base); }
     .delete-photo-btn {
       position: absolute;
       top: -8px;
@@ -152,43 +254,73 @@ import { parseApiError } from '../../core/api-error.util';
       .section-head-row { flex-wrap: wrap; gap: 12px; }
       .edit-modal { padding: 16px; }
     }
-
   `]
 })
 export class ListingsComponent implements OnInit {
   regionService = inject(RegionService);
+  readonly statuses = STATUSES;
+  readonly pageSize = PAGE_SIZE;
+
   myListings: any[] = [];
+  counts: Record<string, number> = {};
   editingListing: any = null;
   editForm: any = {};
+  showAdvanced = false;
   isUploadingPhoto = false;
+  saving = false;
+  loading = true;
   categoryOptions: any[] = [];
   totalListings = 0;
   currentPage = 1;
   searchQuery = '';
-
-  onSearchQuery(query: string) {
-    this.searchQuery = query;
-    this.onSearch();
-  }
-
-  get conditionOptions() {
-    return ['new', 'like_new', 'noted', 'damaged'].map(value => ({
-      value,
-      label: this.i18n.t(`cond.${value}`)
-    }));
-  }
+  status: StatusTab = '';
+  sort: ListingSort = 'newest';
 
   private accountService = inject(AccountService);
   private listingService = inject(ListingService);
   private metadataService = inject(MetadataService);
   private cdr = inject(ChangeDetectorRef);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   private regionLink = inject(RegionLinkService);
   readonly i18n = inject(I18nService);
 
   private toast = inject(ToastService);
   private confirms = inject(ConfirmService);
+
+  get conditionOptions(): DropdownOption[] {
+    return ['new', 'like_new', 'noted', 'damaged'].map(value => ({
+      value,
+      label: this.i18n.t(`cond.${value}`)
+    }));
+  }
+
+  get sortOptions(): DropdownOption[] {
+    return SORTS.map(value => ({ value, label: this.i18n.t(`acct.sort.${value}`) }));
+  }
+
+  get hasFilters(): boolean {
+    return !!this.searchQuery || !!this.status;
+  }
+
+  tabLabel(tab: StatusTab): string {
+    return tab ? `row.${tab}` : 'acct.statusAll';
+  }
+
+  /** The course and school that tell two listings of the same book apart. */
+  courseLine(item: any): string | undefined {
+    return [item.course_name, item.school_name].filter(Boolean).join(' · ') || undefined;
+  }
+
   ngOnInit() {
+    const qp = this.route.snapshot.queryParamMap;
+    const status = qp.get('status') as StatusTab;
+    if (STATUSES.includes(status)) this.status = status;
+    const sort = qp.get('sort') as ListingSort;
+    if (SORTS.includes(sort)) this.sort = sort;
+    this.searchQuery = qp.get('q') ?? '';
+    this.currentPage = Math.max(1, Number(qp.get('page')) || 1);
+
     this.metadataService.getMetadata().subscribe({
       next: (data) => {
         if (data.categories) {
@@ -207,36 +339,88 @@ export class ListingsComponent implements OnInit {
     this.loadMyListings();
   }
 
-  onSearch() {
+  onSearchQuery(query: string) {
+    this.searchQuery = query;
     this.currentPage = 1;
+    this.syncUrl();
     this.loadMyListings();
   }
 
-  loadMyListings() {
-    this.accountService.getMyProfile(this.currentPage, this.searchQuery).subscribe({
-      next: (data: any) => {
-        if (data.myListings && !Array.isArray(data.myListings)) {
-          this.myListings = data.myListings.results || [];
-          this.totalListings = data.myListings.count || this.myListings.length;
-        } else {
-          this.myListings = data.myListings || [];
-          this.totalListings = this.myListings.length;
-        }
-        this.cdr.markForCheck();
-      }
-    });
+  onStatusChange(status: StatusTab) {
+    if (status === this.status) return;
+    this.status = status;
+    this.currentPage = 1;
+    this.syncUrl();
+    this.loadMyListings();
+  }
+
+  onSortChange(sort: ListingSort) {
+    this.sort = sort;
+    this.currentPage = 1;
+    this.syncUrl();
+    this.loadMyListings();
   }
 
   onPageChange(page: number) {
     this.currentPage = page;
+    this.syncUrl();
     this.loadMyListings();
   }
 
-  async onListingAction(event: {type: string, id: number | string}) {
+  clearFilters() {
+    this.searchQuery = '';
+    this.status = '';
+    this.currentPage = 1;
+    this.syncUrl();
+    this.loadMyListings();
+  }
+
+  private syncUrl() {
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {
+        status: this.status || null,
+        sort: this.sort === 'newest' ? null : this.sort,
+        q: this.searchQuery || null,
+        page: this.currentPage > 1 ? this.currentPage : null,
+      },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  }
+
+  loadMyListings() {
+    this.loading = true;
+    this.accountService
+      .getMyProfile(this.currentPage, this.searchQuery, { status: this.status, sort: this.sort })
+      .subscribe({
+        next: (data: any) => {
+          if (data.myListings && !Array.isArray(data.myListings)) {
+            this.myListings = data.myListings.results || [];
+            this.totalListings = data.myListings.count || this.myListings.length;
+          } else {
+            this.myListings = data.myListings || [];
+            this.totalListings = this.myListings.length;
+          }
+          this.counts = data.myListingCounts || {};
+          this.loading = false;
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          this.loading = false;
+          this.toast.error(parseApiError(err, this.i18n, 'acct.errLoadFailed'));
+          this.cdr.markForCheck();
+        }
+      });
+  }
+
+  async onListingAction(event: { type: string, id: number | string }) {
+    const listing = this.myListings.find(l => l.id === event.id);
+
     if (event.type === 'edit') {
-      const listing = this.myListings.find(l => l.id === event.id);
       if (listing) {
         this.editingListing = listing;
+        this.showAdvanced = false;
         this.editForm = {
           price: listing.price,
           condition: listing.condition,
@@ -251,41 +435,75 @@ export class ListingsComponent implements OnInit {
           isbn: listing.isbn
         };
       }
-    } else if (event.type === 'mark_sold') {
-      this.listingService.updateListing(event.id, { status: 'sold' }).subscribe({
-        next: () => {
-          this.accountService.clearProfileCache();
-          this.loadMyListings();
-        },
-        error: (err) => {
-          const code = err.error?.error?.code;
-          this.toast.error(this.i18n.t('acct.errUpdate', { msg: code ? this.i18n.t(code) : (err.error?.error?.message || err.message) }));
-        }
-      });
-    } else if (event.type === 'mark_active') {
-      this.listingService.updateListing(event.id, { status: 'active' }).subscribe({
-        next: () => {
-          this.accountService.clearProfileCache();
-          this.loadMyListings();
-        },
-        error: (err) => {
-          const code = err.error?.error?.code;
-          this.toast.error(this.i18n.t('acct.errUpdate', { msg: code ? this.i18n.t(code) : (err.error?.error?.message || err.message) }));
-        }
-      });
-    } else if (event.type === 'delete') {
+      return;
+    }
+
+    if (event.type === 'copy_link') {
+      await this.copyLink(event.id);
+      return;
+    }
+
+    if (event.type === 'mark_sold') {
+      this.setStatus(event.id, 'sold', 'acct.markedSold');
+      return;
+    }
+
+    if (event.type === 'mark_active') {
+      this.setStatus(event.id, 'active', 'acct.markedActive');
+      return;
+    }
+
+    if (event.type === 'unlist') {
+      // Taking a listing down is reversible, so it asks nothing; deleting is
+      // not, and says so.
+      this.setStatus(event.id, 'removed', 'acct.unlisted');
+      return;
+    }
+
+    if (event.type === 'delete') {
       const confirmed = await this.confirms.askDanger(this.i18n.t('acct.confirmDelete'), {
         confirmLabel: this.i18n.t('common.delete'),
       });
-      if (confirmed) {
-        this.listingService.deleteListing(event.id).subscribe({
-          next: () => {
-            this.accountService.clearProfileCache();
-            this.loadMyListings();
-          }
-        });
-      }
+      if (!confirmed) return;
+      this.listingService.deleteListing(event.id).subscribe({
+        next: () => {
+          this.toast.success(this.i18n.t('acct.listingDeleted'));
+          this.afterChange();
+        },
+        error: (err) => this.toast.error(parseApiError(err, this.i18n, 'acct.updateFailed')),
+      });
     }
+  }
+
+  /** The public link a seller sends to a classmate. */
+  private async copyLink(id: number | string) {
+    const path = this.regionLink.path(['/listing', id]).join('/').replace('//', '/');
+    const url = `${location.origin}${path.startsWith('/') ? '' : '/'}${path}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      this.toast.success(this.i18n.t('acct.linkCopied'));
+    } catch {
+      // Clipboard access can be refused (permissions, insecure context).
+      this.toast.info(url);
+    }
+  }
+
+  private setStatus(id: number | string, status: string, successKey: string) {
+    this.listingService.updateListing(id, { status }).subscribe({
+      next: () => {
+        this.toast.success(this.i18n.t(successKey));
+        this.afterChange();
+      },
+      error: (err) => {
+        const code = err.error?.error?.code;
+        this.toast.error(this.i18n.t('acct.errUpdate', { msg: code ? this.i18n.t(code) : (err.error?.error?.message || err.message) }));
+      }
+    });
+  }
+
+  private afterChange() {
+    this.accountService.clearProfileCache();
+    this.loadMyListings();
   }
 
   closeEdit() {
@@ -311,7 +529,7 @@ export class ListingsComponent implements OnInit {
   }
 
   submitEdit() {
-    if (!this.editingListing) return;
+    if (!this.editingListing || this.saving) return;
 
     const payload: any = {
       price: this.editForm.price,
@@ -323,7 +541,7 @@ export class ListingsComponent implements OnInit {
       description: this.editForm.description,
       photos: this.editForm.photos
     };
-    
+
     if (this.editingListing.book_source === 'manual') {
       // Only the fields the seller actually touched. A Book row is shared by
       // every listing of that title, so the backend refuses book-field edits
@@ -342,17 +560,21 @@ export class ListingsComponent implements OnInit {
         payload.isbn = this.editForm.isbn;
       }
     }
-    
+
+    this.saving = true;
     this.listingService.updateListing(this.editingListing.id, payload).subscribe({
       next: () => {
-        this.accountService.clearProfileCache();
+        this.saving = false;
+        this.toast.success(this.i18n.t('acct.saved'));
         this.closeEdit();
-        this.loadMyListings();
+        this.afterChange();
       },
       error: (err) => {
         // The backend has real reasons to refuse this edit now (shared book,
         // malformed ISBN, ISBN already on another book) and each carries an
         // i18n code; the blanket "update failed" left the seller guessing.
+        this.saving = false;
+        this.cdr.markForCheck();
         this.toast.error(parseApiError(err, this.i18n, 'acct.updateFailed'));
       }
     });

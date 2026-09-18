@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { UiBadge } from './badge.component';
 import { UiButton } from './button.component';
 import { UiBookCover } from './book-cover.component';
+import { RegionLinkDirective } from '../../core/region-link.directive';
 import { I18nService, TPipe } from '../../core/i18n.service';
 import { CountCapPipe } from '../pipes/count-cap.pipe';
 import { PricePipe } from '../pipes/price.pipe';
@@ -10,7 +11,7 @@ import { PricePipe } from '../pipes/price.pipe';
 @Component({
   selector: 'ui-listing-row',
   standalone: true,
-  imports: [CommonModule, UiBadge, UiButton, UiBookCover, TPipe, CountCapPipe, PricePipe],
+  imports: [CommonModule, UiBadge, UiButton, UiBookCover, TPipe, CountCapPipe, PricePipe, RegionLinkDirective],
   template: `
     <div class="listing-row">
       <div class="cover">
@@ -22,7 +23,10 @@ import { PricePipe } from '../pipes/price.pipe';
         ></ui-book-cover>
       </div>
       <div class="info">
-        <h3 class="title book-title-serif">{{ title }}</h3>
+        <h3 class="title book-title-serif">
+          <a *ngIf="titleLink; else plainTitle" class="title-link" [regionLink]="titleLink">{{ title }}</a>
+          <ng-template #plainTitle>{{ title }}</ng-template>
+        </h3>
         <ng-container *ngIf="authorLine && isbnLine; else metaFallback">
           <p class="meta">
             <span class="meta-author">{{ authorLine }}</span><span class="meta-isbn">{{ isbnLine }}</span>
@@ -33,6 +37,7 @@ import { PricePipe } from '../pipes/price.pipe';
         </ng-template>
         <p class="course" *ngIf="courseInfo">{{ courseInfo }}</p>
         <p class="note" *ngIf="noteInfo">{{ noteInfo }}</p>
+        <p class="stamp" *ngIf="listedAt">{{ 'row.listedOn' | t:{ date: listedAt } }}</p>
       </div>
       <div class="actions">
         <div class="price" [class.aggregate]="variant === 'aggregate'" *ngIf="price !== undefined && price !== null">{{ price | price }}</div>
@@ -50,11 +55,15 @@ import { PricePipe } from '../pipes/price.pipe';
         <div class="condition-summary" *ngIf="conditionSummary">{{ conditionSummary }}</div>
         <ui-badge *ngIf="waitlistCount" type="waitlist">{{ 'home.waitingCount' | t:{n: waitlistCount | countCap} }}</ui-badge>
 
-        <!-- management buttons -->
+        <!-- management buttons. Which ones make sense depends on the status:
+             a removed listing cannot be "marked sold", and only a listing
+             nobody has reserved is safe to take down or delete. -->
         <div class="manage-actions" *ngIf="isEditable">
-          <ui-button variant="ghost" *ngIf="status === 'active'" (onClick)="action.emit({type: 'edit', id: id})">{{ 'common.edit' | t }}</ui-button>
+          <ui-button variant="ghost" *ngIf="status !== 'removed'" (onClick)="action.emit({type: 'copy_link', id: id})">{{ 'row.copyLink' | t }}</ui-button>
+          <ui-button variant="ghost" *ngIf="status === 'active' || status === 'reserved'" (onClick)="action.emit({type: 'edit', id: id})">{{ 'common.edit' | t }}</ui-button>
           <ui-button variant="ghost" *ngIf="status === 'active'" (onClick)="action.emit({type: 'mark_sold', id: id})">{{ 'row.markSold' | t }}</ui-button>
-          <ui-button variant="ghost" *ngIf="status === 'sold' || status === 'reserved'" (onClick)="action.emit({type: 'mark_active', id: id})">{{ 'row.markUnsold' | t }}</ui-button>
+          <ui-button variant="ghost" *ngIf="status === 'sold' || status === 'reserved' || status === 'removed'" (onClick)="action.emit({type: 'mark_active', id: id})">{{ (status === 'removed' ? 'row.relist' : 'row.markUnsold') | t }}</ui-button>
+          <ui-button variant="ghost" *ngIf="status === 'active' || status === 'sold'" (onClick)="action.emit({type: 'unlist', id: id})">{{ 'row.unlist' | t }}</ui-button>
           <ui-button variant="ghost" class="text-danger" (onClick)="action.emit({type: 'delete', id: id})">{{ 'common.delete' | t }}</ui-button>
         </div>
       </div>
@@ -94,6 +103,14 @@ import { PricePipe } from '../pipes/price.pipe';
       font-size: var(--text-lg);
       overflow-wrap: anywhere;
       word-break: break-word;
+    }
+    .title-link { color: inherit; text-decoration: none; }
+    .title-link:hover { color: var(--accent); text-decoration: underline; }
+    .stamp {
+      margin: 2px 0 0;
+      font-size: var(--text-sm);
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
     }
     .meta, .course, .note {
       margin: 0;
@@ -138,6 +155,8 @@ import { PricePipe } from '../pipes/price.pipe';
     }
     .manage-actions {
       display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
       gap: 8px;
       margin-top: 8px;
     }
@@ -204,6 +223,10 @@ export class UiListingRow implements OnChanges {
   @Input() condition?: 'new' | 'like_new' | 'noted' | 'damaged';
   @Input() conditionSummary?: string;
   @Input() status?: string;
+  /** Router commands for the public listing page; without them the title is plain text. */
+  @Input() titleLink?: any[];
+  /** Already-formatted listing date, shown under the meta lines. */
+  @Input() listedAt?: string;
   @Input() waitlistCount?: number;
   @Input() isEditable = false;
   @Input() variant: 'listing' | 'aggregate' = 'listing';
