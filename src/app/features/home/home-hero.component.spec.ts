@@ -148,4 +148,38 @@ describe('HomeHero', () => {
 
     expect(spy).toHaveBeenCalledWith(heroAd);
   });
+
+  it('keeps single cover centered with 0 offset and 0 hover-dir', () => {
+    component.covers = [{ id: 1, title: 'Single Book' }];
+    expect(component.heroCoverOffsets(0)).toBe('0px');
+    expect(component.heroCoverRotations(0)).toBe('0deg');
+    expect(component.heroCoverHoverDir(0)).toBe(0);
+  });
+
+  it('distributes 2 covers symmetrically without crossing', () => {
+    component.covers = [{ id: 1, title: 'Book 1' }, { id: 2, title: 'Book 2' }];
+    expect(component.heroCoverOffsets(0)).toBe('-18px');
+    expect(component.heroCoverOffsets(1)).toBe('24px');
+    expect(component.heroCoverHoverDir(0)).toBe(-0.6);
+    expect(component.heroCoverHoverDir(1)).toBe(0.6);
+  });
+
+  it('keeps front cover centered and fans side covers left and right for 3 covers', () => {
+    component.covers = [
+      { id: 1, title: 'Front Book' },
+      { id: 2, title: 'Right Book' },
+      { id: 3, title: 'Left Book' }
+    ];
+    // Front book stays at center
+    expect(component.heroCoverOffsets(0)).toBe('0px');
+    expect(component.heroCoverHoverDir(0)).toBe(0);
+
+    // Right book fans right
+    expect(component.heroCoverOffsets(1)).toBe('42px');
+    expect(component.heroCoverHoverDir(1)).toBe(1);
+
+    // Left book fans left
+    expect(component.heroCoverOffsets(2)).toBe('-32px');
+    expect(component.heroCoverHoverDir(2)).toBe(-1);
+  });
 });

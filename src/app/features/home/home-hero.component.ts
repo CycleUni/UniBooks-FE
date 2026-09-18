@@ -313,6 +313,26 @@ export interface HeroCover {
       cursor: pointer;
       transition: transform var(--motion-base) ease, box-shadow var(--motion-base) ease;
       transform: translateX(var(--x)) rotate(var(--r));
+      /* A resting card must not start the fan-out by itself. On narrower
+         desktops its tilted corners poke outside .hero-stack, and hovering
+         one fanned the cards out from under the pointer, which dropped the
+         hover, which brought them back: a loop that shook the stack and ate
+         clicks. Only the stack's own box, which never moves, starts the
+         fan-out; the cards take the pointer once they are fanned. */
+      pointer-events: none;
+    }
+    .hero-stack:is(:hover, :focus-within) .cover-card { pointer-events: auto; }
+    /* The lift below moves the card's hit box up; this strip keeps its old
+       bottom edge under the pointer, or the last few pixels of the card
+       flicker between lifted and resting the same way. It exists only while
+       the card is lifted, so it cannot start the lift itself. */
+    .cover-card:is(:hover, :focus-visible)::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 100%;
+      height: 12px;
     }
     /* shape comes from the global .stamp-tag */
     .demand-tag, .sponsor-tag {
@@ -335,11 +355,13 @@ export interface HeroCover {
     }
     .hero-stack:is(:hover, :focus-within) .cover-card:is(:hover, :focus-visible) {
       transform: translateX(calc(var(--hover-dir) * var(--card-shift))) scale(var(--card-scale)) translateY(-6px) !important;
+      z-index: 10 !important;
     }
 
     @media (hover: none) {
       .cover-card {
         transform: translateX(calc(var(--hover-dir) * var(--card-shift))) scale(var(--card-scale));
+        pointer-events: auto;
       }
       .cover-card:not(:first-child) :is(.demand-tag, .sponsor-tag) {
         opacity: 1;
@@ -441,17 +463,35 @@ export class HomeHero {
   }
 
   heroCoverRotations(i: number): string {
+    const total = this.covers.length;
+    if (total <= 1) return '0deg';
+    if (total === 2) {
+      const rotations = [-5, 4];
+      return `${rotations[i % rotations.length]}deg`;
+    }
     const rotations = [-6, 4, -10];
     return `${rotations[i % rotations.length]}deg`;
   }
 
   heroCoverOffsets(i: number): string {
+    const total = this.covers.length;
+    if (total <= 1) return '0px';
+    if (total === 2) {
+      const offsets = [-18, 24];
+      return `${offsets[i % offsets.length]}px`;
+    }
     const offsets = [0, 42, -32];
     return `${offsets[i % offsets.length]}px`;
   }
 
   heroCoverHoverDir(i: number): number {
-    const dirs = [1, 0, -1];
+    const total = this.covers.length;
+    if (total <= 1) return 0;
+    if (total === 2) {
+      const dirs = [-0.6, 0.6];
+      return dirs[i % dirs.length];
+    }
+    const dirs = [0, 1, -1];
     return dirs[i % dirs.length];
   }
 
