@@ -142,10 +142,12 @@ export const SELL_DRAFT_STORAGE_KEY = 'unibooks.sell.draft';
 export const SELL_DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * Photos a listing may carry from this form. The backend accepts up to 6
- * (MAX_LISTING_PHOTOS); the form has always offered 3 and says so in its label.
+ * Photos a listing may carry, both from this form and from the edit dialog in
+ * account/listings.ts, so a listing made here is never over the cap there. The
+ * backend accepts up to 6 (MAX_LISTING_PHOTOS); 5 keeps one in hand below that
+ * and is what the sell.photoLabel copy promises.
  */
-export const SELL_MAX_PHOTOS = 3;
+export const SELL_MAX_PHOTOS = 5;
 
 /** Active copies of the book already listed in the region, for the price step. */
 export interface OtherCopies {

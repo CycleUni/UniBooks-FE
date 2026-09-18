@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Sell, SELL_DRAFT_STORAGE_KEY, SELL_DRAFT_MAX_AGE_MS, cleanAndValidateIsbn, clean_and_validate_isbn, isValidIsbnChecksum, selectBestRearCamera, otherCopiesFromBook, isPriceFarAboveOtherCopies } from './sell';
+import { Sell, SELL_DRAFT_STORAGE_KEY, SELL_MAX_PHOTOS, SELL_DRAFT_MAX_AGE_MS, cleanAndValidateIsbn, clean_and_validate_isbn, isValidIsbnChecksum, selectBestRearCamera, otherCopiesFromBook, isPriceFarAboveOtherCopies } from './sell';
 import { provideRouter } from '@angular/router';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { I18nService } from '../../core/i18n.service';
@@ -666,18 +666,44 @@ describe('Sell listing form guarding, drafts and field validation', () => {
       expect(component.isUploading).toBe(false);
     });
 
+    it('caps a listing at five photos', () => {
+      // The label copy (sell.photoLabel) promises five, and the edit dialog in
+      // account/listings.ts shares this constant.
+      expect(SELL_MAX_PHOTOS).toBe(5);
+      create();
+      expect(component.maxPhotos).toBe(5);
+    });
+
     it('uploads only as many as fit under the cap and says the rest were left out', () => {
       create();
       component.uploadedPhotos = ['https://cdn.example/existing.jpg'];
       listings().uploadPhoto.mockImplementation((f: File) => of({ url: `https://cdn.example/${f.name}` }));
 
-      component.onFileSelected({ target: { files: [file('a.jpg'), file('b.jpg'), file('c.jpg'), file('d.jpg')], value: 'x' } });
+      // One already there leaves room for four of these six.
+      const names = ['a.jpg', 'b.jpg', 'c.jpg', 'd.jpg', 'e.jpg', 'f.jpg'];
+      component.onFileSelected({ target: { files: names.map(file), value: 'x' } });
 
-      expect(listings().uploadPhoto).toHaveBeenCalledTimes(2);
+      expect(listings().uploadPhoto).toHaveBeenCalledTimes(SELL_MAX_PHOTOS - 1);
       expect(component.uploadedPhotos).toEqual([
-        'https://cdn.example/existing.jpg', 'https://cdn.example/a.jpg', 'https://cdn.example/b.jpg',
+        'https://cdn.example/existing.jpg',
+        ...names.slice(0, SELL_MAX_PHOTOS - 1).map(n => `https://cdn.example/${n}`),
       ]);
       expect(component.uploadError).toBe('sell.photoLimitReached');
+    });
+
+    it('shows the drop zone until the cap is reached, then hides it', () => {
+      create();
+      component.step = 2;
+      component.uploadedPhotos = Array.from({ length: SELL_MAX_PHOTOS - 1 }, (_, i) => `https://cdn.example/${i}.jpg`);
+      (component as any).cdr.markForCheck();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.dropzone')).not.toBeNull();
+
+      component.uploadedPhotos = [...component.uploadedPhotos, 'https://cdn.example/last.jpg'];
+      (component as any).cdr.markForCheck();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelectorAll('.preview-box').length).toBe(SELL_MAX_PHOTOS);
+      expect(fixture.nativeElement.querySelector('.dropzone')).toBeNull();
     });
 
     it('counts photos still uploading against the cap', () => {
@@ -693,18 +719,16 @@ describe('Sell listing form guarding, drafts and field validation', () => {
         uploads.get(name)!.complete();
       };
 
-      component.handleFiles([file('a.jpg'), file('b.jpg')]);
+      component.handleFiles([file('a.jpg'), file('b.jpg'), file('c.jpg'), file('d.jpg')]);
       expect(component.isUploading).toBe(true);
 
-      // A drop while those two are on their way has room for one more only.
-      component.handleFiles([file('c.jpg'), file('d.jpg')]);
+      // A drop while those four are on their way has room for one more only.
+      component.handleFiles([file('e.jpg'), file('f.jpg')]);
       expect(component.uploadError).toBe('sell.photoLimitReached');
 
-      finish('a.jpg');
-      finish('c.jpg');
-      finish('b.jpg');
-      expect(uploads.has('d.jpg')).toBe(false);
-      expect(component.uploadedPhotos.length).toBe(3);
+      ['a.jpg', 'e.jpg', 'b.jpg', 'c.jpg', 'd.jpg'].forEach(finish);
+      expect(uploads.has('f.jpg')).toBe(false);
+      expect(component.uploadedPhotos.length).toBe(SELL_MAX_PHOTOS);
       expect(component.isUploading).toBe(false);
     });
 

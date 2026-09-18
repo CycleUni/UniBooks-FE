@@ -427,7 +427,7 @@ export const zhHK: Record<string, string> = {
   'sell.privateNotePlaceholder': '可以記低本書放喺邊、買入價或者其他備忘…',
   'sell.descriptionLabel': '書況補充說明（買家可見）',
   'sell.descriptionPlaceholder': '例如：入面大約三頁有熒光筆劃線、書皮有少少爛、可以喺校門口面交…',
-  'sell.photoLabel': '書籍相片（最多三張）',
+  'sell.photoLabel': '書籍相片（最多五張）',
   'sell.uploadBox': '撳或拖入嚟上載',
   'sell.uploading': '上載中…',
   'sell.uploadFailed': '圖片上載失敗，請再試一次。',

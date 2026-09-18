@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { RouterTestingModule } from '@angular/router/testing';
-import { ListingsComponent } from './listings';
+import { ListingsComponent, editablePhotos } from './listings';
+import { SELL_MAX_PHOTOS } from '../sell/sell';
+import { Subject } from 'rxjs';
 import { en } from '../../core/i18n/en';
 
 describe('ListingsComponent.submitEdit', () => {
@@ -201,5 +203,136 @@ describe('ListingsComponent listing management', () => {
     component.clearFilters();
     expect(component.status).toBe('');
     expect(component.searchQuery).toBe('');
+  });
+});
+
+describe('editablePhotos', () => {
+  it('starts from every photo the listing carries, in order', () => {
+    expect(editablePhotos({ photos: ['a.jpg', 'b.jpg', 'c.jpg'], photo_url: 'a.jpg' })).toEqual(['a.jpg', 'b.jpg', 'c.jpg']);
+  });
+
+  it('falls back to the cover photo only when there is no list', () => {
+    expect(editablePhotos({ photo_url: 'a.jpg' })).toEqual(['a.jpg']);
+    expect(editablePhotos({ photo_url: '' })).toEqual([]);
+    expect(editablePhotos({ photos: [], photo_url: '' })).toEqual([]);
+  });
+
+  it('keeps photos beyond the form cap rather than dropping them on save', () => {
+    const six = ['1', '2', '3', '4', '5', '6'].map(n => `${n}.jpg`);
+    expect(editablePhotos({ photos: six })).toEqual(six);
+  });
+});
+
+describe('ListingsComponent edit dialog photos', () => {
+  let fixture: ComponentFixture<ListingsComponent>;
+  let component: ListingsComponent;
+  let updateListing: ReturnType<typeof vi.fn>;
+  let uploadPhoto: ReturnType<typeof vi.fn>;
+  let toast: { success: any; error: any; info: any };
+
+  const file = (name: string) => new File(['x'], name, { type: 'image/jpeg' });
+  const photos = (n: number) => Array.from({ length: n }, (_, i) => `https://cdn.example/${i}.jpg`);
+  const openEdit = (over: Record<string, any> = {}) => {
+    const listing = { id: 'l1', book_title: 'Calculus', price: 300, condition: 'new', status: 'active', ...over };
+    component.myListings = [listing];
+    component.onListingAction({ type: 'edit', id: 'l1' });
+  };
+  const render = () => {
+    (component as any).cdr.markForCheck();
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  };
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [ListingsComponent, HttpClientTestingModule, RouterTestingModule],
+    });
+    fixture = TestBed.createComponent(ListingsComponent);
+    component = fixture.componentInstance;
+
+    updateListing = vi.fn().mockReturnValue(of({}));
+    uploadPhoto = vi.fn((f: File) => of({ url: `https://cdn.example/${f.name}` }));
+    toast = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
+    (component as any).listingService = { updateListing, uploadPhoto };
+    (component as any).accountService = { getMyProfile: vi.fn().mockReturnValue(of({ myListings: [] })), clearProfileCache: vi.fn() };
+    (component as any).metadataService = { getMetadata: vi.fn().mockReturnValue(of({})) };
+    (component as any).toast = toast;
+    (component as any).syncUrl = vi.fn();
+  });
+
+  it('shares the cap with the sell form', () => {
+    expect(component.maxPhotos).toBe(SELL_MAX_PHOTOS);
+  });
+
+  it('opens with every photo the listing has, not just the first', () => {
+    openEdit({ photos: photos(3), photo_url: photos(1)[0] });
+    expect(component.editForm.photos).toEqual(photos(3));
+    expect(render().querySelectorAll('.photo-grid .photo-preview img').length).toBe(3);
+  });
+
+  it('removes only the photo whose delete button was pressed', () => {
+    openEdit({ photos: photos(3) });
+    const buttons = render().querySelectorAll<HTMLButtonElement>('.photo-preview .delete-photo-btn');
+    buttons[1].click();
+    expect(component.editForm.photos).toEqual([photos(3)[0], photos(3)[2]]);
+  });
+
+  it('saves the whole photo list back, so an edit keeps them all', () => {
+    openEdit({ photos: photos(4) });
+    component.editForm.price = 250;
+    component.submitEdit();
+    expect(updateListing.mock.calls[0][1].photos).toEqual(photos(4));
+  });
+
+  it('adds uploaded photos after the existing ones, in the order picked', async () => {
+    openEdit({ photos: photos(1) });
+    await component.onFileSelected({ target: { files: [file('a.jpg'), file('b.jpg')], value: 'x' } });
+    expect(component.editForm.photos).toEqual([photos(1)[0], 'https://cdn.example/a.jpg', 'https://cdn.example/b.jpg']);
+    expect(component.photoError).toBe('');
+    expect(component.isUploadingPhoto).toBe(false);
+  });
+
+  it('uploads only as many as fit under the cap and says the rest were left out', async () => {
+    openEdit({ photos: photos(SELL_MAX_PHOTOS - 1) });
+    await component.onFileSelected({ target: { files: [file('a.jpg'), file('b.jpg')], value: 'x' } });
+    expect(uploadPhoto).toHaveBeenCalledTimes(1);
+    expect(component.editForm.photos.length).toBe(SELL_MAX_PHOTOS);
+    expect(component.photoError).toContain(String(SELL_MAX_PHOTOS));
+  });
+
+  it('counts photos still uploading against the cap', async () => {
+    const pending = new Subject<{ url: string }>();
+    uploadPhoto.mockReturnValueOnce(pending);
+    openEdit({ photos: photos(SELL_MAX_PHOTOS - 1) });
+
+    const first = component.onFileSelected({ target: { files: [file('a.jpg')], value: 'x' } });
+    expect(component.isUploadingPhoto).toBe(true);
+    // A second pick while the first is on its way has no room left.
+    await component.onFileSelected({ target: { files: [file('b.jpg')], value: 'x' } });
+    expect(uploadPhoto).toHaveBeenCalledTimes(1);
+
+    pending.next({ url: 'https://cdn.example/a.jpg' });
+    pending.complete();
+    await first;
+    expect(component.editForm.photos.length).toBe(SELL_MAX_PHOTOS);
+    expect(component.isUploadingPhoto).toBe(false);
+  });
+
+  it('keeps the rest of a batch when one upload fails', async () => {
+    uploadPhoto.mockImplementation((f: File) =>
+      f.name === 'bad.jpg' ? throwError(() => new Error('boom')) : of({ url: `https://cdn.example/${f.name}` }));
+    openEdit({ photos: [] });
+    await component.onFileSelected({ target: { files: [file('bad.jpg'), file('good.jpg')], value: 'x' } });
+    expect(component.editForm.photos).toEqual(['https://cdn.example/good.jpg']);
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('hides the add button once the listing is at the cap', () => {
+    openEdit({ photos: photos(SELL_MAX_PHOTOS - 1) });
+    expect(render().querySelector('.photo-upload input[type="file"]')).not.toBeNull();
+
+    component.editForm.photos = photos(SELL_MAX_PHOTOS);
+    expect(render().querySelector('.photo-upload input[type="file"]')).toBeNull();
+    expect(render().querySelector('.photo-count')?.textContent?.trim()).toBe(`${SELL_MAX_PHOTOS}/${SELL_MAX_PHOTOS}`);
   });
 });

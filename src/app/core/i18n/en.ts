@@ -431,7 +431,7 @@ export const en: Record<string, string> = {
   'sell.privateNotePlaceholder': 'e.g., Stored in shelf B, bought new for 50...',
   'sell.descriptionLabel': 'Item Description (Visible to buyers)',
   'sell.descriptionPlaceholder': 'e.g., Clean pages, minor highlighting in chapter 1, includes notes...',
-  'sell.photoLabel': 'Book Photos (Max 3)',
+  'sell.photoLabel': 'Book Photos (Max 5)',
   'sell.uploadBox': 'Click or drag to upload',
   'sell.uploading': 'Uploading...',
   'sell.uploadFailed': 'Failed to upload the photo. Please try again.',

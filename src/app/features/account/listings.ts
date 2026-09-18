@@ -20,6 +20,22 @@ import { RegionLinkService } from '../../core/region-link.service';
 import { ToastService } from '../../core/services/toast.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { parseApiError } from '../../core/api-error.util';
+import { SELL_MAX_PHOTOS } from '../sell/sell';
+import { firstValueFrom } from 'rxjs';
+
+/**
+ * The photos an edit starts from: the listing's whole `photos` list, since
+ * saving sends the list back as-is. Not trimmed to SELL_MAX_PHOTOS — a listing
+ * that already has more (the backend allows 6) keeps them unless the seller
+ * removes some; the cap only stops new ones being added. `photo_url` (the
+ * cover alone) is just a fallback for a payload without the list.
+ */
+export function editablePhotos(listing: { photos?: unknown; photo_url?: string | null }): string[] {
+  if (Array.isArray(listing.photos)) {
+    return listing.photos.filter((url): url is string => typeof url === 'string' && url.length > 0);
+  }
+  return listing.photo_url ? [listing.photo_url] : [];
+}
 
 /** Tabs, in the order a seller cares about them. '' is "everything". */
 const STATUSES = ['', 'active', 'reserved', 'sold', 'removed'] as const;
@@ -130,16 +146,25 @@ const PAGE_SIZE = 20;
           <ui-dropdown [label]="'common.condition' | t" [(ngModel)]="editForm.condition" [options]="conditionOptions" [searchable]="false" class="mb-4"></ui-dropdown>
           <ui-dropdown [label]="'acct.statusLabel' | t" [(ngModel)]="editForm.status" [options]="statusOptions" [searchable]="false" class="mb-4"></ui-dropdown>
 
+          <!-- Every photo the listing carries, not just the cover: saving sends
+               this whole list back, so showing only the first one meant an
+               edit quietly dropped the rest. -->
           <div class="photo-upload mb-4">
-            <label class="photo-label">{{ 'acct.photoLabel' | t }}</label>
-            <div class="photo-preview" *ngIf="editForm.photos && editForm.photos.length > 0">
-              <img [src]="editForm.photos[0]" loading="lazy" alt="" />
-              <button class="delete-photo-btn" type="button" (click)="editForm.photos = []" [title]="'common.delete' | t">✕</button>
+            <label class="photo-label">
+              {{ 'acct.photoLabel' | t }}
+              <span class="photo-count">{{ editForm.photos?.length ?? 0 }}/{{ maxPhotos }}</span>
+            </label>
+            <div class="photo-grid" *ngIf="editForm.photos?.length">
+              <div class="photo-preview" *ngFor="let url of editForm.photos; let i = index">
+                <img [src]="url" loading="lazy" alt="" />
+                <button class="delete-photo-btn" type="button" (click)="removePhoto(i)" [title]="'common.delete' | t" [attr.aria-label]="'common.delete' | t">✕</button>
+              </div>
             </div>
-            <div>
-              <input type="file" accept="image/*" (change)="onFileSelected($event)" #fileInput style="display: none;" />
+            <div *ngIf="editForm.photos.length < maxPhotos || isUploadingPhoto">
+              <input type="file" accept="image/*" multiple (change)="onFileSelected($event)" #fileInput style="display: none;" />
               <ui-button variant="ghost" (onClick)="fileInput.click()" [disabled]="isUploadingPhoto">{{ (isUploadingPhoto ? 'sell.uploading' : 'acct.uploadPhoto') | t }}</ui-button>
             </div>
+            <div *ngIf="photoError" class="photo-error" role="alert">{{ photoError }}</div>
           </div>
 
           <!-- Everything else, folded away: filled in once when listing,
@@ -166,7 +191,7 @@ const PAGE_SIZE = 20;
           <ui-button variant="ghost" class="text-danger" (onClick)="onDelete(editingListing.id)">{{ 'common.delete' | t }}</ui-button>
           <div class="modal-footer-right">
             <ui-button variant="ghost" (onClick)="closeEdit()">{{ 'common.cancel' | t }}</ui-button>
-            <ui-button [disabled]="saving" (onClick)="submitEdit()">{{ (saving ? 'sell.uploading' : 'acct.save') | t }}</ui-button>
+            <ui-button [disabled]="saving" (onClick)="submitEdit()">{{ (saving ? 'acct.saving' : 'acct.save') | t }}</ui-button>
           </div>
         </div>
       </div>
@@ -228,8 +253,14 @@ const PAGE_SIZE = 20;
     }
     .edit-book { margin: 0 0 16px; color: var(--muted); overflow-wrap: anywhere; word-break: break-word; }
     .photo-label { display: block; margin-bottom: 8px; font-weight: 500; font-size: var(--text-base); }
-    .photo-preview { margin-bottom: 8px; position: relative; display: inline-block; }
-    .photo-preview img { width: 88px; height: 124px; object-fit: cover; border: 1px solid var(--line); border-radius: 4px; }
+    .photo-count { margin-left: 6px; font-weight: 400; font-size: var(--text-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+    /* Fixed-width tracks that wrap: five fit on one row in the 420px dialog
+       and fall to two rows on a phone rather than shrinking the thumbnails.
+       The gap leaves room for each corner delete button. */
+    .photo-grid { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 12px; }
+    .photo-preview { position: relative; width: 60px; height: 84px; flex: none; }
+    .photo-preview img { display: block; width: 100%; height: 100%; object-fit: cover; border: 1px solid var(--line); border-radius: 4px; }
+    .photo-error { margin-top: 8px; font-size: var(--text-sm); color: var(--danger); }
     .more { border-top: 1px solid var(--line); padding-top: 12px; }
     .more summary { cursor: pointer; color: var(--muted); font-size: var(--text-base); width: fit-content; }
     .more-body { padding-top: 16px; }
@@ -272,6 +303,10 @@ export class ListingsComponent implements OnInit {
   editingListing: any = null;
   editForm: any = {};
   showAdvanced = false;
+  readonly maxPhotos = SELL_MAX_PHOTOS;
+  /** Picked files not uploaded yet, counted against the cap like in sell.ts. */
+  private pendingUploads = 0;
+  photoError = '';
   isUploadingPhoto = false;
   saving = false;
   loading = true;
@@ -427,6 +462,7 @@ export class ListingsComponent implements OnInit {
       if (listing) {
         this.editingListing = listing;
         this.showAdvanced = false;
+        this.photoError = '';
         this.editForm = {
           price: listing.price,
           condition: listing.condition,
@@ -436,7 +472,7 @@ export class ListingsComponent implements OnInit {
           professor_name: listing.professor_name || '',
           private_note: listing.private_note,
           description: listing.description,
-          photos: listing.photo_url ? [listing.photo_url] : [],
+          photos: editablePhotos(listing),
           book_title: listing.book_title,
           book_authors: listing.book_authors,
           isbn: listing.isbn
@@ -503,19 +539,54 @@ export class ListingsComponent implements OnInit {
     this.editingListing = null;
   }
 
+  /**
+   * Only drops the photo from the form. Unlike the sell page this does not
+   * delete the file on the server: the listing still points at it until the
+   * seller saves, and Cancel has to leave the listing exactly as it was.
+   */
+  removePhoto(index: number) {
+    this.editForm.photos = this.editForm.photos.filter((_: string, i: number) => i !== index);
+    this.photoError = '';
+  }
+
+  /**
+   * Uploads the picked files one after another, so they keep the order they
+   * were picked in, and only as many as still fit under the cap — photos in
+   * flight count too, or a second pick made mid-upload could overshoot it.
+   */
   async onFileSelected(event: any) {
-    const file = event.target.files[0];
-    if (file) {
-      this.isUploadingPhoto = true;
+    const files: File[] = Array.from(event.target.files ?? []);
+    event.target.value = ''; // so picking the same file again still fires
+    if (!files.length) return;
+
+    const room = Math.max(this.maxPhotos - this.editForm.photos.length - this.pendingUploads, 0);
+    const accepted = files.slice(0, room);
+    this.photoError = files.length > accepted.length
+      ? this.i18n.t('sell.photoLimitReached', { max: this.maxPhotos })
+      : '';
+    if (!accepted.length) {
       this.cdr.markForCheck();
+      return;
+    }
+
+    // The dialog this upload started in; a different listing opened
+    // meanwhile must not receive its photos.
+    const form = this.editForm;
+    this.pendingUploads += accepted.length;
+    this.isUploadingPhoto = true;
+    this.cdr.markForCheck();
+    for (const file of accepted) {
       try {
-        const url = await this.listingService.uploadPhoto(file);
-        this.editForm.photos = [url];
+        // uploadPhoto is an Observable; awaiting it directly (as this used
+        // to) resolves to the Observable itself, not the uploaded URL.
+        const { url } = await firstValueFrom(this.listingService.uploadPhoto(file));
+        form.photos = [...form.photos, url];
       } catch (err) {
         console.error('Upload failed', err);
         this.toast.error(this.i18n.t('acct.uploadFailed'));
       } finally {
-        this.isUploadingPhoto = false;
+        this.pendingUploads--;
+        this.isUploadingPhoto = this.pendingUploads > 0;
         this.cdr.markForCheck();
       }
     }
