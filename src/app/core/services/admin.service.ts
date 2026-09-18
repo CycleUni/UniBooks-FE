@@ -169,6 +169,21 @@ export interface AdminChatReport {
   region?: string;
 }
 
+export type SchoolRequestStatus = 'pending' | 'added' | 'rejected';
+
+export interface AdminSchoolRequest {
+  id: number;
+  user: { id: number; email: string };
+  region: string;
+  school_name: string;
+  school_website: string;
+  edu_email: string;
+  status: SchoolRequestStatus;
+  admin_note: string;
+  created_at: string;
+  updated_at: string;
+}
+
 function buildParams(query: Record<string, string | number | undefined | null>): HttpParams {
   let params = new HttpParams();
   for (const [key, value] of Object.entries(query)) {
@@ -318,6 +333,14 @@ export class AdminService {
 
   getChatReportToken(id: string): Observable<{ token: string; edge_chat_url: string; room_id: string }> {
     return this.http.get<{ token: string; edge_chat_url: string; room_id: string }>(`/admin/chat-reports/${id}/chat-token/`);
+  }
+
+  getSchoolRequests(opts: { page?: number; q?: string; status?: string; region?: string } = {}): Observable<Paginated<AdminSchoolRequest>> {
+    return this.http.get<Paginated<AdminSchoolRequest>>('/admin/school-requests/', { params: buildParams(opts) });
+  }
+
+  updateSchoolRequest(id: number, changes: { status?: SchoolRequestStatus; admin_note?: string }): Observable<AdminSchoolRequest> {
+    return this.http.patch<AdminSchoolRequest>(`/admin/school-requests/${id}/`, changes);
   }
 
   // API endpoints below renamed from 'advertisers' and 'ads' to 'sponsors' and 'promotions' to evade adblockers

@@ -101,6 +101,7 @@ const featureRoutes: Routes = [
       { path: 'schools', loadComponent: () => import('./features/admin/schools-list.component').then(m => m.AdminSchoolsListComponent) },
       { path: 'categories', loadComponent: () => import('./features/admin/categories-list.component').then(m => m.AdminCategoriesListComponent) },
       { path: 'schools/:id', loadComponent: () => import('./features/admin/school-detail.component').then(m => m.AdminSchoolDetailComponent) },
+      { path: 'school-requests', loadComponent: () => import('./features/admin/school-requests-list.component').then(m => m.AdminSchoolRequestsListComponent) },
       { path: 'listings', loadComponent: () => import('./features/admin/listings-list.component').then(m => m.AdminListingsListComponent) },
       { path: 'listings/:id', loadComponent: () => import('./features/admin/listing-detail-admin.component').then(m => m.AdminListingDetailComponent) },
       { path: 'orders', loadComponent: () => import('./features/admin/orders-list.component').then(m => m.AdminOrdersListComponent) },

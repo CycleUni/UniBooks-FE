@@ -30,6 +30,7 @@
           <div *ngIf="autoVerifyMessage" class="inline-msg" [class.error]="autoVerifyIsError">
             {{ autoVerifyMessage }}
           </div>
+          <app-school-request-form *ngIf="autoVerifySchoolNotSupported" [eduEmail]="email"></app-school-request-form>
         </div>
 
         <ng-container *ngIf="!showPendingVerification; else pendingVerificationBlock">
@@ -48,6 +49,9 @@
             <div *ngIf="verifyMessage" class="inline-msg" [class.error]="verifyIsError">
               {{ verifyMessage }}
             </div>
+            <!-- The address resolved to no School: offer to tell staff about
+                 it, carrying the address along so they can see its domain. -->
+            <app-school-request-form *ngIf="schoolNotSupported" [eduEmail]="eduEmail"></app-school-request-form>
           </div>
         </ng-container>
 

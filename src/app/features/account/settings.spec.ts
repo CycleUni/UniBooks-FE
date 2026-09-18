@@ -73,6 +73,26 @@ describe('SettingsComponent', () => {
     });
   });
 
+  describe('schoolNotSupported', () => {
+    // Gates the "report my school" form: only an address that resolved to no
+    // School should offer it, not every verification failure.
+    it('is true only for acct.errSchoolNotSupported', () => {
+      expect(component.schoolNotSupported).toBe(false);
+
+      component.lastVerifyError = { error: { error: { code: 'acct.errSchoolNotSupported' } } };
+      expect(component.schoolNotSupported).toBe(true);
+
+      component.lastVerifyError = { error: { error: { code: 'acct.errEduEmail' } } };
+      expect(component.schoolNotSupported).toBe(false);
+    });
+
+    it('gives way to a newer client-side message', () => {
+      component.lastVerifyError = { error: { error: { code: 'acct.errSchoolNotSupported' } } };
+      component.clientVerifyMsg = 'acct.emailRequired';
+      expect(component.schoolNotSupported).toBe(false);
+    });
+  });
+
   describe('pwdMessage', () => {
     it('spells out why the validators rejected the new password', () => {
       // Change-password runs AUTH_PASSWORD_VALIDATORS now, and answers in the

@@ -12,11 +12,15 @@ import { ToastService } from '../../core/services/toast.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { ActivatedRoute } from '@angular/router';
 import { parseApiError } from '../../core/api-error.util';
+import { SchoolRequestFormComponent } from './school-request-form.component';
+
+/** The verification answer that means "valid campus address, unknown campus". */
+const SCHOOL_NOT_SUPPORTED = 'acct.errSchoolNotSupported';
 
 @Component({
   selector: 'app-account-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule, UiButton, UiInput, TPipe],
+  imports: [CommonModule, FormsModule, UiButton, UiInput, TPipe, SchoolRequestFormComponent],
   templateUrl: './settings.html',
   styleUrls: ['./settings.css']
 })
@@ -68,6 +72,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
       });
     }
     return err.error?.detail || err.error?.edu_email?.[0] || this.i18n.t('acct.verifyFailed');
+  }
+
+  /** Whether the last manual verification attempt failed because the
+   *  address's school is not in the registry — the case the "report my
+   *  school" form is offered for. */
+  get schoolNotSupported(): boolean {
+    return !this.clientVerifyMsg && this.lastVerifyError?.error?.error?.code === SCHOOL_NOT_SUPPORTED;
   }
 
   clientSettingsMsg = '';
@@ -330,11 +341,15 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   autoVerifyMessage = '';
   autoVerifyIsError = false;
+  /** Same as schoolNotSupported, for the one-click path that verifies the
+   *  login address itself. */
+  autoVerifySchoolNotSupported = false;
 
   onAutoVerify() {
     this.isLoading = true;
     this.autoVerifyMessage = '';
     this.autoVerifyIsError = false;
+    this.autoVerifySchoolNotSupported = false;
     this.cdr.markForCheck();
 
     this.accountService.autoVerifyEduEmail().subscribe({
@@ -354,6 +369,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.autoVerifyIsError = true;
         const code = err.error?.error?.code;
         this.autoVerifyMessage = code ? this.i18n.t(code) : this.i18n.t('acct.verifyFailed');
+        this.autoVerifySchoolNotSupported = code === SCHOOL_NOT_SUPPORTED;
         this.cdr.markForCheck();
       }
     });

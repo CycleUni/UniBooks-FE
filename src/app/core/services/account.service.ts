@@ -50,6 +50,19 @@ export interface PaginatedResponse<T> {
   results: T[];
 }
 
+export interface SchoolRequestInput {
+  school_name: string;
+  school_website: string;
+  /** What the user had typed into the campus-email field, if anything. */
+  edu_email?: string;
+}
+
+export interface SchoolRequest extends SchoolRequestInput {
+  id: number;
+  status: 'pending' | 'added' | 'rejected';
+  created_at: string;
+}
+
 /** 'auto' follows the language the site was last used in. */
 export type EmailLanguage = 'auto' | Lang;
 
@@ -293,6 +306,13 @@ export class AccountService {
     return this.http.post<any>('/auth/verify/auto/', {}).pipe(
       tap(() => this.profileCache.set(null))
     );
+  }
+
+  /** "My school isn't supported": files a request for staff to add it.
+   *  Resolves with 201 for a new request, 200 when an identical one is
+   *  already pending — both mean the report is on file. */
+  createSchoolRequest(data: SchoolRequestInput): Observable<SchoolRequest> {
+    return this.http.post<SchoolRequest>('/auth/school-requests/', data);
   }
 
   getPublicUserProfile(userId: string): Observable<any> {
