@@ -30,7 +30,8 @@
       "updateMode": "lazy",
       "resources": {
         "files": [
-          "/*.js"
+          "/*.js",
+          "!/sw.js"
         ]
       }
     },

@@ -35,7 +35,8 @@ export const appConfig: ApplicationConfig = {
       deps: [I18nService],
       multi: true
     },
-    provideServiceWorker('ngsw-worker.js', {
+    // sw.js wraps ngsw-worker.js, leaving other origins to the browser.
+    provideServiceWorker('sw.js', {
       enabled: !isDevMode(),
       registrationStrategy: 'registerWhenStable:30000'
     })

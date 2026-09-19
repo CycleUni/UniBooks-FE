@@ -90,6 +90,9 @@
 /ngsw-worker.js
   Cache-Control: no-cache
 
+/sw.js
+  Cache-Control: no-cache
+
 /theme-init.js
   Cache-Control: no-cache
 
