@@ -36,7 +36,15 @@ export class RetryInterceptor implements HttpInterceptor {
       !request.url.startsWith('http') ||
       request.url.startsWith(environment.backendUrl);
 
-    if (isOwnBackendRequest) {
+    // Reads only. A 5xx or a dropped connection says the response was lost,
+    // not that the request was: on a cold Lambda the backend often finishes
+    // the work and the gateway times out (504) or the socket closes anyway.
+    // Replaying a POST, PATCH or DELETE then does it a second or third time —
+    // a second order, a duplicate listing, a report sent twice. Those surface
+    // their error to the caller, which can offer to try again.
+    const isSafeToRepeat = request.method === 'GET' || request.method === 'HEAD';
+
+    if (isOwnBackendRequest && isSafeToRepeat) {
       // The initial attempt and the retry are within the `retry` pattern, so
       // they share the same chain through the interceptor.
       return next.handle(request).pipe(
@@ -71,7 +79,7 @@ export class RetryInterceptor implements HttpInterceptor {
       );
     }
 
-    // Cross-origin (CFEdgeChat etc.) — no retry
+    // Cross-origin (CFEdgeChat etc.) and non-idempotent writes — no retry
     return next.handle(request);
   }
 

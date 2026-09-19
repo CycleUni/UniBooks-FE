@@ -204,6 +204,12 @@ export class UiLayout implements OnDestroy {
           this.cdr.markForCheck();
         }
       }
+      // A signed-in visitor's opening school can come from their profile, so
+      // the school list alone does not settle it (see loadMetadata). Settled
+      // here once both are in.
+      if (profile && this.schoolStateService.hasInitialized) {
+        untracked(() => this.schoolStateService.markReady());
+      }
     });
   }
 
@@ -322,7 +328,13 @@ export class UiLayout implements OnDestroy {
           const userSchool = userSchoolId ? this.rawSchools.find(s => s.id === userSchoolId) : undefined;
           this.selectedSchool = userSchool ? userSchool.code : '';
           this.schoolStateService.setSchool(this.selectedSchool);
-          this.schoolStateService.markReady();
+          // Signed in but the profile not back yet: it may name a verified
+          // school, and settling on '' now made the pages load for "all
+          // schools" and again for that school a moment later. The profile
+          // effect above settles it instead (or the timeout, if it never comes).
+          if (!this.authStore.isAuthenticated() || profile) {
+            this.schoolStateService.markReady();
+          }
           this.cdr.markForCheck();
         } else {
           // A region with no schools has nothing to select.

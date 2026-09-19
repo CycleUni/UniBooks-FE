@@ -41,10 +41,26 @@ describe('OrderService.checkUnreadOrders', () => {
     expect(orders()).toHaveLength(1);
   });
 
-  it('still fetches fresh for the orders page itself', () => {
+  it('lets the orders page join the unread check\'s request instead of sending its own', () => {
+    service.checkUnreadOrders('1', null, null);
+    let pageOrders: unknown[] | null = null;
+    service.getOrders().subscribe(o => (pageOrders = o));
+    const pending = orders();
+    expect(pending).toHaveLength(1);
+    pending[0].flush([{ id: 'a', buyer: '1', seller: '2' }]);
+    expect(pageOrders).toHaveLength(1);
+  });
+
+  it('reuses a list fetched seconds ago for the orders page, but fetches again after that', () => {
+    vi.useFakeTimers();
     service.checkUnreadOrders('1', null, null);
     orders()[0].flush([]);
     service.getOrders().subscribe();
+    expect(orders()).toHaveLength(0);
+
+    vi.advanceTimersByTime(6000);
+    service.getOrders().subscribe();
     expect(orders()).toHaveLength(1);
+    vi.useRealTimers();
   });
 });

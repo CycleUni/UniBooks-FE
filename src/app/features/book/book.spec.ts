@@ -80,7 +80,7 @@ describe('Book page data source footer', () => {
         { provide: RegionService, useValue: { region: () => 'tw', currency: () => ({ code: 'TWD', decimal_places: 0, symbol: 'NT$' }) } },
         {
           provide: SchoolStateService,
-          useValue: { selectedSchool$: of(''), schools$: of([]), getSchoolLabel: (s: string) => s, getSchoolId: () => null },
+          useValue: { selectedSchool$: of(''), resolvedSchool$: of(''), ready: true, schools$: of([]), getSchoolLabel: (s: string) => s, getSchoolId: () => null },
         },
         { provide: GoogleAnalyticsService, useValue: { trackViewBook: vi.fn() } },
       ],

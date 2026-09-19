@@ -44,6 +44,8 @@ export class OrderService {
    * the account shell and the orders page do not each download it.
    */
   private static readonly RECENT_ORDERS_MS = 30_000;
+  /** How fresh a list must be for the orders page itself to reuse it. */
+  private static readonly JUST_FETCHED_MS = 5_000;
   private ordersInFlight: Observable<Order[]> | null = null;
   private recentOrders: { at: number; orders: Order[] } | null = null;
 
@@ -70,8 +72,19 @@ export class OrderService {
     });
   }
 
-  /** Always a fresh request; see ordersForUnreadCheck for the shared one. */
+  /**
+   * A fresh list: a request already out is joined, and one completed in the
+   * last few seconds is reused — the account shell's unread check and the
+   * orders page ask at nearly the same moment when the orders page opens.
+   */
   getOrders(): Observable<Order[]> {
+    if (this.ordersInFlight) return this.ordersInFlight;
+    // Opening the orders page from the account shell: the shell's unread
+    // check fetched this list a moment ago. Anything an order change could
+    // have made stale is dropped by createOrder/updateOrderStatus.
+    if (this.recentOrders && Date.now() - this.recentOrders.at < OrderService.JUST_FETCHED_MS) {
+      return of(this.recentOrders.orders);
+    }
     const request = this.http.get<any>(this.url).pipe(
       map(res => (res.results ? res.results : res) as Order[]),
       tap(orders => { this.recentOrders = { at: Date.now(), orders }; }),

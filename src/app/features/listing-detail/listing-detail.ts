@@ -1,3 +1,4 @@
+import { onLanguageChange } from '../../core/on-language-change';
 import { RegionLinkDirective } from '../../core/region-link.directive';
 import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, effect, ViewChild, ElementRef, PLATFORM_ID, NgZone, untracked } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
@@ -107,14 +108,11 @@ export class ListingDetail implements OnInit, OnDestroy {
   private currentId: string | null = null;
 
   constructor() {
-    effect(() => {
-      // Re-fetch listing when language changes so that backend translated fields (e.g. school_name, course_name) update.
-      this.i18n.lang();
-      untracked(() => {
-        if (this.currentId) {
-          this.loadListing(this.currentId);
-        }
-      });
+    // Re-fetch listing when language changes so that backend translated fields (e.g. school_name, course_name) update.
+    onLanguageChange(this.i18n, () => {
+      if (this.currentId) {
+        this.loadListing(this.currentId);
+      }
     });
 
     // Fetch the current user's profile (browser-side only) to determine

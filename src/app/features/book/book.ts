@@ -10,6 +10,7 @@ import { MessageService } from '../../core/services/message.service';
 import { AccountService } from '../../core/services/account.service';
 import { AuthStore } from '../../core/auth.store';
 import { ChangeDetectorRef } from '@angular/core';
+import { onLanguageChange } from '../../core/on-language-change';
 import { I18nService, TPipe } from '../../core/i18n.service';
 import { SchoolStateService } from '../../core/services/school-state.service';
 import { UiListingCard } from '../../shared/ui/listing-card.component';
@@ -285,6 +286,23 @@ export class Book implements OnInit {
   totalListings = 0;
   localListingsCount = -1;
   currentSchool = '';
+
+  /** A route-triggered fetch held until the opening school is known. */
+  private fetchAwaitingSchool: (() => void) | null = null;
+
+  /**
+   * Runs `fetch` now if the opening school is settled, otherwise when it is —
+   * so the first request already carries the school, instead of going out
+   * for "all schools" and being repeated once the school arrives. Only the
+   * latest held fetch runs.
+   */
+  private fetchOnceSchoolKnown(fetch: () => void): void {
+    if (this.schoolStateService.ready) {
+      fetch();
+    } else {
+      this.fetchAwaitingSchool = fetch;
+    }
+  }
   currentPage = 1;
   isLoadingListings = true;
   isVerified = false;
@@ -332,25 +350,29 @@ export class Book implements OnInit {
   private seo = inject(SeoService);
 
   constructor(private route: ActivatedRoute, private router: Router) {
-    effect(() => {
-      this.i18n.lang();
-      untracked(() => {
-        if (this.bookId && !this.isLocalCache) {
-          this.fetchBook();
-        }
-      });
+    onLanguageChange(this.i18n, () => {
+      if (this.bookId && !this.isLocalCache) {
+        this.fetchBook();
+      }
     });
   }
 
   ngOnInit() {
-    this.schoolStateService.selectedSchool$.subscribe(school => {
+    // resolvedSchool$, not selectedSchool$: the latter starts as a provisional
+    // '' and the page used to fetch the book for "all schools", then again
+    // moments later for the school the layout settled on.
+    this.schoolStateService.resolvedSchool$.subscribe(school => {
       const prev = this.currentSchool;
       this.currentSchool = school;
-      
+
       const wasFirstEmission = this.isFirstSchoolEmission;
       this.isFirstSchoolEmission = false;
-      
-      if (!wasFirstEmission && prev !== school && this.bookId && !this.isLocalCache) {
+
+      const pending = this.fetchAwaitingSchool;
+      this.fetchAwaitingSchool = null;
+      if (pending) {
+        pending();
+      } else if (!wasFirstEmission && prev !== school && this.bookId && !this.isLocalCache) {
         this.fetchBook(true);
       } else {
         this.sortListings();
@@ -397,14 +419,14 @@ export class Book implements OnInit {
                 this.cdr.markForCheck();
                 // The cached search result carries everything except the
                 // actual listings, so hit the backend to get the real status
-                this.fetchBook(true);
+                this.fetchOnceSchoolKnown(() => this.fetchBook(true));
               } catch (e) {
                 this.isLocalCache = false;
-                this.fetchBook();
+                this.fetchOnceSchoolKnown(() => this.fetchBook());
               }
             } else {
               this.isLocalCache = false;
-              this.fetchBook();
+              this.fetchOnceSchoolKnown(() => this.fetchBook());
             }
           } else {
             // Not in a browser environment (sessionStorage unavailable) — skip fetch.
@@ -415,7 +437,7 @@ export class Book implements OnInit {
           }
         } else {
           this.isLocalCache = false;
-          this.fetchBook();
+          this.fetchOnceSchoolKnown(() => this.fetchBook());
         }
       }
     });

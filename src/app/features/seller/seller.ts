@@ -1,3 +1,4 @@
+import { onLanguageChange } from '../../core/on-language-change';
 import { Component, OnInit, inject, ChangeDetectorRef, effect, untracked } from '@angular/core';
 import { SeoService } from '../../core/services/seo.service';
 import { CommonModule } from '@angular/common';
@@ -223,13 +224,10 @@ export class SellerPageComponent implements OnInit {
   }
 
   constructor() {
-    effect(() => {
-      this.i18n.lang();
-      untracked(() => {
-        if (this.currentId) {
-          this.loadSeller(this.currentId);
-        }
-      });
+    onLanguageChange(this.i18n, () => {
+      if (this.currentId) {
+        this.loadSeller(this.currentId);
+      }
     });
   }
 

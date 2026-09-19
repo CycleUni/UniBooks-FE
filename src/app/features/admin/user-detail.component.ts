@@ -1,4 +1,5 @@
 
+import { onLanguageChange } from '../../core/on-language-change';
 import { parseAdminError } from '../../core/admin-error.util';
 import { forkJoin, Observable } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
@@ -201,15 +202,12 @@ export class AdminUserDetailComponent implements OnInit {
   }
 
   constructor() {
-    effect(() => {
-      this.i18n.lang();
-      untracked(() => {
-        if (this.user?.verifications) {
-          this.user.verifications.forEach(v => {
-            this.loadSchoolsForRegion(v.region, true);
-          });
-        }
-      });
+    onLanguageChange(this.i18n, () => {
+      if (this.user?.verifications) {
+        this.user.verifications.forEach(v => {
+          this.loadSchoolsForRegion(v.region, true);
+        });
+      }
     });
   }
 

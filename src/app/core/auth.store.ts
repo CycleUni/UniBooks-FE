@@ -1,7 +1,7 @@
 import { DestroyRef, Injectable, Injector, signal, inject, untracked, runInInjectionContext } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { tap, catchError, filter, take, finalize } from 'rxjs/operators';
-import { Observable, of } from 'rxjs';
+import { tap, catchError, filter, take, finalize, shareReplay } from 'rxjs/operators';
+import { Observable, of, throwError } from 'rxjs';
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationSkipped, Router } from '@angular/router';
 import { GoogleAnalyticsService } from './services/google-analytics.service';
 import { RegionLinkService } from './region-link.service';
@@ -139,7 +139,7 @@ export class AuthStore {
 
     const generation = this._sessionGeneration;
     this.profileRequestGeneration = generation;
-    this.http.get<AuthUser>('/auth/me/').pipe(
+    const request = this.http.get<AuthUser>('/auth/me/').pipe(
       tap(profile => {
         // Signed out while this was in the air (e.g. logout with an expired
         // access token: the refresh fires this fetch, then the retried logout
@@ -150,6 +150,7 @@ export class AuthStore {
         }
         this.cancelProfileRetry();
         this._user.set(profile);
+        this.profileFetchedAt = Date.now();
         // Identify user in GA4 for User Explorer & cross-device reports
         this.ga.setUserId(profile.id);
         this.ga.setUserProperties({
@@ -180,8 +181,47 @@ export class AuthStore {
         if (this.profileRequestGeneration === generation) {
           this.profileRequestGeneration = null;
         }
-      })
-    ).subscribe();
+        if (this.profileInFlight === request) this.profileInFlight = null;
+      }),
+      shareReplay({ bufferSize: 1, refCount: false }),
+    );
+    this.profileInFlight = request;
+    request.subscribe();
+  }
+
+  /** The /auth/me/ request out now, shared; null once it has settled. */
+  private profileInFlight: Observable<AuthUser | null> | null = null;
+  /** When the current user was last fetched from /auth/me/. */
+  private profileFetchedAt = 0;
+
+  /**
+   * The profile this store fetched, for AccountService to reuse rather than
+   * ask for again: the /auth/me/ request already out, or the answer to one
+   * that completed after `notBefore` and within `maxAgeMs`. Null when there
+   * is neither — the caller fetches its own. The request out may still end
+   * in null (a failure); callers treat that as "fetch your own" too.
+   *
+   * Both used to fetch /auth/me/ as a page started — this store without
+   * parameters, AccountService with ?page=1, the same answer — so every
+   * signed-in page that read the profile loaded it twice.
+   */
+  /**
+   * Start this store's /auth/me/ request if none is out and none is needed
+   * (see fetchUserProfile), so a caller that reached for the profile first —
+   * the admin guard runs during the first navigation, before this store has
+   * asked — can share that request instead of sending its own.
+   */
+  requestProfile(): void {
+    untracked(() => this.fetchUserProfile());
+  }
+
+  sharedProfile(notBefore: number, maxAgeMs: number): Observable<AuthUser | null> | null {
+    if (this.profileInFlight) return this.profileInFlight;
+    const user = this._user();
+    if (user && this.profileFetchedAt > notBefore && Date.now() - this.profileFetchedAt < maxAgeMs) {
+      return of(user);
+    }
+    return null;
   }
 
   /** The session generation a /auth/me/ request is out for, or null. */
@@ -416,8 +456,26 @@ export class AuthStore {
     );
   }
 
+  /**
+   * The sign-in configuration (Google client id), fetched once per page and
+   * shared. It does not change while the page is open, and three callers ask
+   * for it as a sign-in page starts — One Tap, the form's effect and the
+   * Google button — which sent /auth/config/ three times before the first
+   * answer arrived. A failed request is dropped so the next caller retries.
+   */
+  private authConfig$: Observable<any> | null = null;
+
   getAuthConfig(): Observable<any> {
-    return this.http.get<any>('/auth/config/');
+    if (!this.authConfig$) {
+      this.authConfig$ = this.http.get<any>('/auth/config/').pipe(
+        catchError(err => {
+          this.authConfig$ = null;
+          return throwError(() => err);
+        }),
+        shareReplay({ bufferSize: 1, refCount: false }),
+      );
+    }
+    return this.authConfig$;
   }
 
   loginWithGoogle(credential: string): Observable<any> {

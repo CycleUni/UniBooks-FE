@@ -1,6 +1,6 @@
 import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import { HttpClient, HttpParams, HttpContext } from '@angular/common/http';
-import { Observable, shareReplay, tap, catchError, throwError } from 'rxjs';
+import { Observable, of, shareReplay, switchMap, take, tap, catchError, throwError } from 'rxjs';
 import { I18nService } from '../i18n.service';
 import { Lang } from '../i18n';
 import { AuthStore } from '../auth.store';
@@ -199,6 +199,41 @@ export class AccountService {
       return this.profileRequest;
     }
 
+    // The plain profile is also what AuthStore fetches as the session
+    // starts; join that request, or take its fresh answer, instead of
+    // sending /auth/me/ a second time. Only an answer newer than the last
+    // clearProfileCache() counts, so a page that just changed something and
+    // cleared the cache still gets a fresh read. A shared request that
+    // failed (null) falls back to this service's own fetch.
+    if (plain) {
+      let shared = this.authStore.sharedProfile(this.clearedAt, AccountService.PROFILE_CACHE_TTL);
+      if (!shared && this.authStore.isAuthenticated()) {
+        // Nothing to share yet: have AuthStore send the one request both need.
+        this.authStore.requestProfile();
+        shared = this.authStore.sharedProfile(this.clearedAt, AccountService.PROFILE_CACHE_TTL);
+      }
+      if (shared) {
+        return shared.pipe(
+          take(1),
+          switchMap(profile => profile ? of(profile) : this.fetchOwnProfile()),
+          tap(profile => {
+            if (!this.profileCache()) {
+              this.profileCache.set(profile);
+              this.cacheTimestamp = Date.now();
+            }
+          }),
+        );
+      }
+    }
+    return this.fetchOwnProfile(page, q, opts);
+  }
+
+  /** When clearProfileCache() last ran; see getMyProfile. */
+  private clearedAt = 0;
+
+  private fetchOwnProfile(page: number = 1, q: string = '', opts: { status?: string; sort?: string } = {}): Observable<any> {
+    const plain = page === 1 && !q && !opts.status && !opts.sort;
+
     if (plain) this.profileLoading.set(true);
     let params = new HttpParams().set('page', page.toString());
     if (q) params = params.set('q', q);
@@ -255,6 +290,7 @@ export class AccountService {
   }
 
   clearProfileCache() {
+    this.clearedAt = Date.now();
     this.profileCache.set(null);
     this.profileLoading.set(false);
     this.profileRequest = null;

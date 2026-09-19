@@ -150,8 +150,11 @@ const CONDITION_NONE = 'none';
             <ng-container *ngIf="!currentSchool">{{ 'search.foundCountAll' | t:{n: filteredResults.length} }}</ng-container>
           </p>
 
-          <!-- No active query/category → recent listings -->
-          <ng-container *ngIf="!activeQuery && !category">
+          <!-- No active query/category → recent listings. Only once the URL's
+               parameters and the school are in: before that activeQuery is
+               still empty, and the grid used to fetch "all schools" for a
+               page that turned out to be a search. -->
+          <ng-container *ngIf="paramsReady && !activeQuery && !category">
             <ui-recent-listings [school]="currentSchool"></ui-recent-listings>
           </ng-container>
 
@@ -310,6 +313,8 @@ export class Search implements OnInit {
   loading = true; fetchError = false;
   filtersOpen = false;
   results: any[] = []; categories: any[] = []; courses: CourseFacet[] = []; currentSchool = ''; currentPage = 1; totalCount = 0;
+  /** Set once the query parameters and the opening school have both arrived. */
+  paramsReady = false;
   private searchSub?: Subscription;
   /** 上一次真的送進 API 的那組欄位。書況／價格／庫存純前端過濾，現在也會寫進
    *  網址，若不比對這個 key，每勾一個書況都會多打一次回傳完全相同的請求。 */
@@ -460,7 +465,9 @@ export class Search implements OnInit {
     });
 
     combineLatest([
-      this.schoolStateService.selectedSchool$.pipe(distinctUntilChanged()),
+      // resolvedSchool$: waits for the opening school rather than asking for
+      // "all schools" first and then again for the settled one.
+      this.schoolStateService.resolvedSchool$.pipe(distinctUntilChanged()),
       this.route.queryParams.pipe(
         map(params => params['category'] || ''),
         distinctUntilChanged()
@@ -476,9 +483,10 @@ export class Search implements OnInit {
     // queryParams and selectedSchool$ both outlive this routed component, so
     // without this every visit to /search left another live subscription
     // calling markForCheck() on a destroyed view.
-    combineLatest([this.route.queryParams, this.schoolStateService.selectedSchool$]).pipe(
+    combineLatest([this.route.queryParams, this.schoolStateService.resolvedSchool$]).pipe(
       takeUntilDestroyed(this.destroyRef)
     ).subscribe(([params, school]) => {
+      this.paramsReady = true;
       this.currentSchool = school;
       this.restoreStateFromParams(params);
       this.describePage();

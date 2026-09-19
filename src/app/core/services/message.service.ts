@@ -19,6 +19,16 @@ function devError(...args: unknown[]): void {
   }
 }
 
+/** Seconds until a JWT's `exp`, or 0 when it cannot be read. */
+function tokenSecondsLeft(token: string): number {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload.exp === 'number' ? payload.exp - Date.now() / 1000 : 0;
+  } catch {
+    return 0;
+  }
+}
+
 /** The visitor can see the page and the device has a network. */
 function isActive(): boolean {
   const visible = typeof document === 'undefined' || !document.hidden;
@@ -79,6 +89,8 @@ export class MessageService {
    * against a broken server otherwise kept dialing every 30s all night.
    */
   private static readonly MAX_RECONNECT_ATTEMPTS = 8;
+  /** A hub token with more left than this is reused for a reconnect. */
+  private static readonly TOKEN_REUSE_MIN_SECONDS = 60;
   /** Mark-reads for a burst of live messages collapse into one. */
   private static readonly READ_DEBOUNCE_MS = 1_500;
 
@@ -723,6 +735,14 @@ export class MessageService {
       // backing off. That is not only a dead badge: with nothing connected
       // to the hub, CFEdgeChat counts the user as away and starts emailing
       // them about messages arriving in a page they are looking at.
+      //
+      // But only when it is close to expiring. Minting on every attempt
+      // meant a chat outage cost a backend request per retry, on top of the
+      // retry itself.
+      if (tokenSecondsLeft(staleToken) > MessageService.TOKEN_REUSE_MIN_SECONDS) {
+        this.reconnectHub(staleToken, userId, edgeChatUrl);
+        return;
+      }
       this.getHubToken().subscribe({
         next: (res) => this.reconnectHub(res.token, userId, res.edge_chat_url || edgeChatUrl),
         error: (err: unknown) => {
