@@ -165,6 +165,22 @@ describe('HomeComponent', () => {
     expect(wcounts[0].textContent).toContain('n=50');
     expect(wcounts[1].textContent).toContain('n=9999+');
   });
+  it('loads waitlist thumbnails through /api/cover at the same URL as the hero cover', () => {
+    // The thumbnails used the raw catalogue URL, so a book in both the hero
+    // and the waitlist was fetched twice — once bypassing the proxy.
+    const cover = 'https://books.google.com/books/content?id=VXeyEAAAQBAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api';
+    mockMetadataService.getMetadata.mockReturnValue(of({ categories: [], waitlist: [
+      { book_id: 1, title: 'Book 1', cover_url: cover, count: 9 },
+    ] }));
+    component.loadMetadata();
+    fixture.detectChanges();
+
+    const thumb = fixture.nativeElement.querySelector('.wcover img') as HTMLImageElement;
+    const hero = fixture.nativeElement.querySelector('app-home-hero ui-book-cover img') as HTMLImageElement;
+    expect(thumb.getAttribute('src')).toMatch(/^\/api\/cover\?src=/);
+    expect(thumb.getAttribute('src')).toBe(hero.getAttribute('src'));
+  });
+
   it('marks exactly the waitlist rows the hero stack is already showing', () => {
     const waitlist = [
       { book_id: 1, title: 'Book 1', cover_url: '', count: 9 },

@@ -1,3 +1,4 @@
+import { BookCoverPipe } from '../../shared/pipes/book-cover.pipe';
 import { RegionLinkDirective } from '../../core/region-link.directive';
 import { Component, ChangeDetectorRef, DestroyRef, effect, inject, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -17,7 +18,7 @@ import { AdminStatsPeriodComponent, AdminStatusBarComponent, STATS_PAGE_STYLES, 
   standalone: true,
   imports: [
     RegionLinkDirective, CommonModule, RouterModule, TPipe, PricePipe,
-    AdminTrendChartComponent, AdminStatsPeriodComponent, AdminStatusBarComponent,
+    AdminTrendChartComponent, AdminStatsPeriodComponent, AdminStatusBarComponent, BookCoverPipe,
   ],
   template: `
     <a regionLink=".." [queryParams]="{ days: days }" class="back-link">&larr; {{ 'admin.stats.backToBooks' | t }}</a>
@@ -31,7 +32,7 @@ import { AdminStatsPeriodComponent, AdminStatusBarComponent, STATS_PAGE_STYLES, 
         <admin-stats-period [days]="days" (daysChange)="onDaysChange($event)"></admin-stats-period>
       </div>
       <div class="book-head">
-        <img *ngIf="d.book.cover_url; else noCover" class="cover" [src]="d.book.cover_url" alt="" />
+        <img *ngIf="d.book.cover_url; else noCover" class="cover" [src]="d.book.cover_url | bookCover: 3" alt="" />
         <ng-template #noCover><span class="cover cover-empty"></span></ng-template>
         <div class="book-info">
           <p *ngIf="d.book.authors">{{ d.book.authors }}</p>

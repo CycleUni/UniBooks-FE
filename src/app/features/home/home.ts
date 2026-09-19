@@ -17,11 +17,13 @@ import { CountCapPipe } from '../../shared/pipes/count-cap.pipe';
 import { MetadataService, PublicAd } from '../../core/services/metadata.service';
 import { SchoolStateService } from '../../core/services/school-state.service';
 import { bookQueryParams } from '../../core/book-preview';
+import { BookCoverPipe } from '../../shared/pipes/book-cover.pipe';
+import { hasCoverFailed, markCoverFailed } from '../../shared/ui/book-cover.component';
 
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, HomeHero, UiButton, UiRecentListings, UiCategoryRail, UiSkeleton, UiErrorState, TPipe, CountCapPipe],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, HomeHero, UiButton, UiRecentListings, UiCategoryRail, UiSkeleton, UiErrorState, TPipe, CountCapPipe, BookCoverPipe],
   template: `
       <app-home-hero [covers]="heroCovers" (adClick)="onAdClick($event)"></app-home-hero>
 
@@ -59,9 +61,15 @@ import { bookQueryParams } from '../../core/book-preview';
                 <!-- alt="" on purpose: the thumbnail sits in the same link as the
                      visible title right beside it, so naming it would make a
                      screen reader read every waitlisted title twice. -->
+                <!-- Through /api/cover like every other cover, at the hero's
+                     zoom: the rows beside the hero are the same books, and the
+                     same URL means one download the browser reuses. This used
+                     to load the raw catalogue URL, so each of those books was
+                     fetched twice — once directly from Google or Open Library,
+                     unvalidated, and once through the proxy. -->
                 <span class="wcover" aria-hidden="true">
-                  <img *ngIf="wait.cover_url" [src]="wait.cover_url" alt="" />
-                  <span class="wcover-mark" *ngIf="!wait.cover_url">{{ (wait.title || '').slice(0, 1) }}</span>
+                  <img *ngIf="wait.cover_url && !waitCoverFailed(wait)" [src]="wait.cover_url | bookCover: 3" alt="" (error)="onWaitCoverError(wait)" />
+                  <span class="wcover-mark" *ngIf="!wait.cover_url || waitCoverFailed(wait)">{{ (wait.title || '').slice(0, 1) }}</span>
                 </span>
                 <span class="wtitle">{{ wait.title }}</span>
                 <span class="wcount">{{ 'home.waitingCount' | t:{n: wait.count | countCap} }}</span>
@@ -496,6 +504,10 @@ export class Home implements OnInit, OnDestroy {
 
   trackById(idx: number, item: any): any { return item.id || idx; }
   trackByTitle(idx: number, wait: any): string { return wait.title; }
+
+  /** Shared with ui-book-cover: a cover that failed anywhere is not asked for again. */
+  waitCoverFailed(wait: any): boolean { return hasCoverFailed(wait.cover_url, 3); }
+  onWaitCoverError(wait: any): void { markCoverFailed(wait.cover_url, 3); }
 
   ngOnDestroy() {
     this.destroy$.next();

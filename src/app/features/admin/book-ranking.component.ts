@@ -1,3 +1,4 @@
+import { BookCoverPipe } from '../../shared/pipes/book-cover.pipe';
 import { RegionLinkDirective } from '../../core/region-link.directive';
 import { Component, ChangeDetectorRef, DestroyRef, Input, OnChanges, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -35,7 +36,7 @@ const SORT_LABELS: Record<BookRankingSort, string> = {
   standalone: true,
   imports: [
     RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, UiSearchBarComponent, UiPagination,
-    PricePipe, AdminRankingChartComponent, UiDropdown,
+    PricePipe, AdminRankingChartComponent, UiDropdown, BookCoverPipe,
   ],
   template: `
     <section class="card">
@@ -83,7 +84,7 @@ const SORT_LABELS: Record<BookRankingSort, string> = {
               <td class="num rank" [class.top]="row.rank !== null && row.rank <= 3">{{ row.rank === null ? '—' : fmt.int(row.rank) }}</td>
               <td>
                 <div class="book">
-                  <img *ngIf="row.book.cover_url; else noCover" class="thumb" [src]="row.book.cover_url" alt="" loading="lazy" />
+                  <img *ngIf="row.book.cover_url; else noCover" class="thumb" [src]="row.book.cover_url | bookCover: 3" alt="" loading="lazy" />
                   <ng-template #noCover><span class="thumb"></span></ng-template>
                   <div class="book-text">
                     <span class="book-title">{{ row.book.title }}</span>

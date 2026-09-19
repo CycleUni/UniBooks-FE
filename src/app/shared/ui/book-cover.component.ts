@@ -24,6 +24,20 @@ import { TPipe } from '../../core/i18n.service';
  */
 const failedCovers = new Set<string>();
 
+function coverKey(coverUrl: string | null | undefined, zoom: number): string {
+  return `${zoom}|${coverUrl ?? ''}`;
+}
+
+/** Whether this cover already failed to load in this page session. */
+export function hasCoverFailed(coverUrl: string | null | undefined, zoom: 1 | 2 | 3 = 3): boolean {
+  return failedCovers.has(coverKey(coverUrl, zoom));
+}
+
+/** Record a cover that failed, for every other place that shows it. */
+export function markCoverFailed(coverUrl: string | null | undefined, zoom: 1 | 2 | 3 = 3): void {
+  failedCovers.add(coverKey(coverUrl, zoom));
+}
+
 @Component({
   selector: 'ui-book-cover',
   standalone: true,
@@ -72,16 +86,12 @@ export class UiBookCover implements OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['coverUrl'] || changes['zoom']) {
-      this.imageBroken = failedCovers.has(this.coverKey);
+      this.imageBroken = hasCoverFailed(this.coverUrl, this.zoom);
     }
   }
 
   onImageError(): void {
-    failedCovers.add(this.coverKey);
+    markCoverFailed(this.coverUrl, this.zoom);
     this.imageBroken = true;
-  }
-
-  private get coverKey(): string {
-    return `${this.zoom}|${this.coverUrl ?? ''}`;
   }
 }
