@@ -4,7 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { Subject, of } from 'rxjs';
-import { switchMap, catchError } from 'rxjs/operators';
+import { switchMap, catchError, debounceTime } from 'rxjs/operators';
 import { UiBookTile } from './book-tile.component';
 import { UiPromoBanner } from './promo-banner.component';
 import { UiSkeleton } from './skeleton.component';
@@ -219,7 +219,12 @@ export class UiRecentListings {
   private fetchTrigger$ = new Subject<void>();
 
   constructor() {
+    // debounceTime(0): the school and limit inputs and the language effect
+    // each ask for a fetch as the component starts, all in the same turn.
+    // switchMap cancelled all but the last in the browser, but each had
+    // already reached the backend; now they are one request.
     this.fetchTrigger$.pipe(
+      debounceTime(0),
       switchMap(() => {
         this.loading = true;
         this.cdr.markForCheck();

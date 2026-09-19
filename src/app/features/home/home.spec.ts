@@ -50,7 +50,9 @@ describe('HomeComponent', () => {
     };
 
     mockSchoolStateService = {
-      selectedSchool$: of('NTU')
+      selectedSchool$: of('NTU'),
+      resolvedSchool$: of('NTU'),
+      ready: true,
     };
 
     await TestBed.configureTestingModule({

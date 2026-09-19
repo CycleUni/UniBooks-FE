@@ -248,7 +248,18 @@ export class UiLayout implements OnDestroy {
   private metadataRegion: string | null = null;
   private metadataSubscription: Subscription | null = null;
 
+  /**
+   * How long the page waits for the opening school before loading with
+   * whatever is selected. The metadata call retries for most of a minute on
+   * a cold backend; the home page should not stay empty that long.
+   */
+  private static readonly SCHOOL_READY_TIMEOUT_MS = 2500;
+  private schoolReadyTimer: ReturnType<typeof setTimeout> | null = null;
+
   private loadMetadata() {
+    if (!this.schoolReadyTimer && !this.schoolStateService.ready) {
+      this.schoolReadyTimer = setTimeout(() => this.schoolStateService.markReady(), UiLayout.SCHOOL_READY_TIMEOUT_MS);
+    }
     this.metadataSubscription?.unsubscribe();
     this.metadataSubscription = this.metadataService.getMetadataWithRetry().subscribe({
       error: (err) => {
@@ -256,6 +267,7 @@ export class UiLayout implements OnDestroy {
         // uncaught, and try again the next time the visitor navigates.
         console.error('Failed to load metadata for the school selector', err);
         this.metadataOwed = true;
+        this.schoolStateService.markReady();
       },
       next: (data) => {
         this.metadataOwed = false;
@@ -291,6 +303,7 @@ export class UiLayout implements OnDestroy {
           if (manualSchool !== null && this.schools.some(s => s.value === manualSchool)) {
             this.selectedSchool = manualSchool;
             this.schoolStateService.setSchool(this.selectedSchool);
+            this.schoolStateService.markReady();
             this.cdr.markForCheck();
             return;
           }
@@ -309,7 +322,11 @@ export class UiLayout implements OnDestroy {
           const userSchool = userSchoolId ? this.rawSchools.find(s => s.id === userSchoolId) : undefined;
           this.selectedSchool = userSchool ? userSchool.code : '';
           this.schoolStateService.setSchool(this.selectedSchool);
+          this.schoolStateService.markReady();
           this.cdr.markForCheck();
+        } else {
+          // A region with no schools has nothing to select.
+          this.schoolStateService.markReady();
         }
       }
     });

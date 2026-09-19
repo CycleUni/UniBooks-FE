@@ -11,7 +11,7 @@ import { UiCategoryRail } from '../../shared/ui/category-rail.component';
 import { ListingService } from '../../core/services/listing.service';
 import { Subject } from 'rxjs';
 import { takeUntil, distinctUntilChanged } from 'rxjs/operators';
-import { ChangeDetectorRef, effect } from '@angular/core';
+import { ChangeDetectorRef, effect, untracked } from '@angular/core';
 import { I18nService, TPipe } from '../../core/i18n.service';
 import { CountCapPipe } from '../../shared/pipes/count-cap.pipe';
 import { MetadataService, PublicAd } from '../../core/services/metadata.service';
@@ -30,7 +30,7 @@ import { hasCoverFailed, markCoverFailed } from '../../shared/ui/book-cover.comp
       <!-- Categories: show skeleton during load, then the real content, never blank -->
       <div class="two-cols container" [class.hero-has-covers]="heroCovers.length > 0">
         <section class="col-main" aria-labelledby="recent-listings-heading">
-          <ui-recent-listings [school]="currentSchool" [ads]="activeAds" (adClick)="onAdClick($event)"></ui-recent-listings>
+          <ui-recent-listings *ngIf="schoolReady" [school]="currentSchool" [ads]="activeAds" (adClick)="onAdClick($event)"></ui-recent-listings>
         </section>
 
         <section
@@ -313,6 +313,8 @@ export class Home implements OnInit, OnDestroy {
   waitlist: any[] = [];
   activeAds: PublicAd[] = [];
   currentSchool: string = '';
+  /** Set once the opening school is known; the recent listings wait for it. */
+  schoolReady = false;
   heroCovers: HeroCover[] = [];
 
   /**
@@ -372,9 +374,13 @@ export class Home implements OnInit, OnDestroy {
   private i18n = inject(I18nService);
 
   constructor() {
+    // Language changes reload the metadata. The first load waits for the
+    // school (see ngOnInit), so this skips until the school is settled.
     effect(() => {
       this.i18n.lang();
-      this.loadMetadata();
+      untracked(() => {
+        if (this.schoolStateService.ready) this.loadMetadata();
+      });
     });
   }
 
@@ -419,10 +425,14 @@ export class Home implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
-    this.schoolStateService.selectedSchool$.pipe(
+    // resolvedSchool$, not selectedSchool$: the latter starts as a provisional
+    // '' and every load here then ran twice, once for all schools and again
+    // for the school the layout settled on.
+    this.schoolStateService.resolvedSchool$.pipe(
       takeUntil(this.destroy$),
       distinctUntilChanged()
     ).subscribe(school => {
+      this.schoolReady = true;
       this.currentSchool = school || '';
       this.loadAds();
       this.loadMetadata();

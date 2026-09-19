@@ -38,17 +38,27 @@ describe('ApiUrlInterceptor', () => {
     const req = httpMock.expectOne(request => request.url.includes('/api/test'));
     expect(req.request.params.get('region')).toBe('tw');
     expect(req.request.params.get('lang')).toBe('zh-TW');
-    expect(req.request.headers.get('X-Region')).toBe('tw');
     expect(req.request.headers.get('Accept-Language')).toBe('zh-TW');
     req.flush({});
   });
 
-  it('should respect caller provided region parameter and X-Region header', () => {
+  it('sends no custom header that would make a public GET need a CORS preflight', () => {
+    // X-Region and an ngsw-bypass *header* made every call "non-simple";
+    // the region and the worker bypass now travel as query parameters.
+    httpClient.get('/api/test').subscribe();
+
+    const req = httpMock.expectOne(request => request.url.includes('/api/test'));
+    expect(req.request.headers.keys().filter(k => !['accept-language'].includes(k.toLowerCase()))).toEqual([]);
+    expect(req.request.params.has('ngsw-bypass')).toBe(true);
+    expect(/[?&]ngsw-bypass(?:[=&]|$)/.test(req.request.urlWithParams)).toBe(true);
+    req.flush({});
+  });
+
+  it('should respect caller provided region parameter', () => {
     httpClient.get('/api/test', { params: { region: 'hk' } }).subscribe();
     
     const req = httpMock.expectOne(request => request.url.includes('/api/test'));
     expect(req.request.params.get('region')).toBe('hk'); // Should NOT be overwritten to 'tw'
-    expect(req.request.headers.get('X-Region')).toBe('hk'); 
     req.flush({});
   });
 

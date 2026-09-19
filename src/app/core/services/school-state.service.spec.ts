@@ -149,4 +149,22 @@ describe('SchoolStateService', () => {
     expect(sessionStorage.getItem(`${MANUAL_SCHOOL_KEY}_hk`)).toBeNull();
     expect(sessionStorage.getItem('unrelated')).toBe('kept');
   });
+  describe('resolvedSchool$', () => {
+    it('holds back the provisional school until the opening school is settled', () => {
+      // Consumers used to load for the provisional '' and then again for the
+      // real school a moment later.
+      const seen: string[] = [];
+      const sub = service.resolvedSchool$.subscribe(school => seen.push(school));
+      service.setSchool('NTU');
+      expect(seen).toEqual([]);
+
+      service.markReady();
+      expect(seen).toEqual(['NTU']);
+
+      service.setSchool('NCCU');
+      service.markReady();
+      expect(seen).toEqual(['NTU', 'NCCU']);
+      sub.unsubscribe();
+    });
+  });
 });

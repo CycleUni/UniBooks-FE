@@ -35,14 +35,17 @@ describe('UiRecentListings', () => {
     });
   });
 
-  function render() {
+  /** Renders, then lets the coalesced (debounceTime(0)) fetch land. */
+  async function render() {
     const fixture = TestBed.createComponent(UiRecentListings);
+    fixture.detectChanges();
+    await new Promise(resolve => setTimeout(resolve));
     fixture.detectChanges();
     return fixture;
   }
 
-  it('asks the backend for one page of the size it paginates by', () => {
-    render();
+  it('asks the backend for one page of the size it paginates by', async () => {
+    await render();
     expect(RECENT_BOOKS_PAGE_SIZE).toBe(20);
     for (const call of listingService.getRecentBooks.mock.calls) {
       expect(call[2]).toBe(20);
@@ -50,8 +53,8 @@ describe('UiRecentListings', () => {
     expect(listingService.getRecentBooks).toHaveBeenCalled();
   });
 
-  it('links each book by isbn or id, with no internal flag in the href', () => {
-    const fixture = render();
+  it('links each book by isbn or id, with no internal flag in the href', async () => {
+    const fixture = await render();
     const hrefs = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLAnchorElement>('a.tile-body'),
       a => a.getAttribute('href'),
@@ -60,7 +63,7 @@ describe('UiRecentListings', () => {
   });
 
   it('still lets the book page use the preview it primes, through router state', async () => {
-    const fixture = render();
+    const fixture = await render();
     const router = TestBed.inject(Router);
     const anchor = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('a.tile-body')!;
 
@@ -72,7 +75,7 @@ describe('UiRecentListings', () => {
     expect(hasBookPreviewState(router.lastSuccessfulNavigation()?.extras.state)).toBe(true);
     sessionStorage.removeItem('cachedBook_9781449319793');
   });
-  it('keeps the same tiles across change detection, so a failed cover is not re-requested', () => {
+  it('keeps the same tiles across change detection, so a failed cover is not re-requested', async () => {
     // gridItems used to build new wrapper objects on every read; *ngFor then
     // re-created every tile on each change detection, and a cover's (error)
     // event — itself a change detection — started the next request.
@@ -81,7 +84,7 @@ describe('UiRecentListings', () => {
       results: [{ id: 9, isbn: '9786263241893', title: 'No cover', authors: '', conditions: { good: 1 }, min_price: 200,
         cover_url: 'https://covers.openlibrary.org/b/isbn/9786263241893-L.jpg' }],
     }));
-    const fixture = render();
+    const fixture = await render();
     const component = fixture.componentInstance;
     expect(component.gridItems).toBe(component.gridItems);
 
@@ -94,5 +97,17 @@ describe('UiRecentListings', () => {
     // The placeholder stays, and no new <img> (no new request) appears.
     expect(fixture.nativeElement.querySelector('ui-book-cover img')).toBeNull();
     expect(fixture.nativeElement.querySelector('ui-book-cover .book-placeholder')).not.toBeNull();
+  });
+  it('makes one request when the school arrives in the same turn it starts', async () => {
+    // The school input, the limit input and the language effect each asked
+    // for a fetch as the component started; switchMap only cancelled the
+    // earlier ones in the browser, after they had reached the backend.
+    const fixture = TestBed.createComponent(UiRecentListings);
+    fixture.componentRef.setInput('school', 'NTU');
+    fixture.detectChanges();
+    await new Promise(resolve => setTimeout(resolve));
+
+    expect(listingService.getRecentBooks).toHaveBeenCalledTimes(1);
+    expect(listingService.getRecentBooks.mock.calls[0][0]).toBe('NTU');
   });
 });

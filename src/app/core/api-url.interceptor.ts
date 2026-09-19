@@ -31,7 +31,15 @@ export class ApiUrlInterceptor implements HttpInterceptor {
       const currentLang = this.i18n.lang();
       const currentRegion = this.regionService.region();
 
-      const setParams: { [key: string]: string } = {};
+      // Region, language and the service-worker bypass all travel as query
+      // parameters rather than custom headers. An X-Region or ngsw-bypass
+      // header made even a public GET a "non-simple" cross-origin request, so
+      // the browser sent a CORS preflight ahead of it — and the preflight
+      // cache is per URL, so nearly every call with new parameters paid for
+      // a second round trip to the backend. ?region= and ?lang= already
+      // outrank the headers there (core.region.get_region, resolve_language);
+      // Accept-Language is a CORS-safelisted header and stays.
+      const setParams: { [key: string]: string } = { 'ngsw-bypass': '' };
       if (!request.params.has('region')) {
         setParams['region'] = currentRegion;
       }
@@ -39,18 +47,15 @@ export class ApiUrlInterceptor implements HttpInterceptor {
         setParams['lang'] = currentLang;
       }
 
-      let headers = request.headers.set('ngsw-bypass', 'true');
+      let headers = request.headers;
       if (!headers.has('Accept-Language')) {
         headers = headers.set('Accept-Language', request.params.get('lang') || currentLang);
-      }
-      if (!headers.has('X-Region')) {
-        headers = headers.set('X-Region', request.params.get('region') || currentRegion);
       }
 
       request = request.clone({
         url: `${environment.backendUrl}${request.url}`,
         headers,
-        ...(Object.keys(setParams).length > 0 ? { setParams } : {})
+        setParams,
       });
     }
     return next.handle(request);
