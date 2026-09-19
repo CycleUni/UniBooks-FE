@@ -1,5 +1,5 @@
 import { RegionLinkDirective } from '../../core/region-link.directive';
-import { Component, inject, effect, ChangeDetectorRef, ElementRef, NgZone, AfterViewInit, OnDestroy } from '@angular/core';
+import { Component, inject, effect, ChangeDetectorRef, ElementRef, NgZone, AfterViewInit, OnDestroy, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { UiButton } from '../../shared/ui/button.component';
 
@@ -108,9 +108,12 @@ export class Account implements AfterViewInit, OnDestroy {
   constructor(public auth: AuthStore) {
     // Reload the profile when the language changes so localized fields
     // (e.g. the school name) come back in the new language
+    // untracked: loadProfile reads AccountService's profile signals, and a
+    // tracked read made every loading/cached change re-run this effect — each
+    // run fetching the whole order list again for the unread dot.
     effect(() => {
       this.i18n.lang();
-      this.loadProfile();
+      untracked(() => this.loadProfile());
     });
 
     this.orderService.unreadOrders$.subscribe(unread => {

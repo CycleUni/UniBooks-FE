@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { map } from 'rxjs/operators';
-import { Observable, BehaviorSubject } from 'rxjs';
+import { finalize, map, shareReplay, tap } from 'rxjs/operators';
+import { Observable, BehaviorSubject, of } from 'rxjs';
 
 export interface Order {
   id?: string;
@@ -37,8 +37,26 @@ export class OrderService {
 
   public unreadOrders$ = new BehaviorSubject<boolean>(false);
 
+  /**
+   * The unread dot needs the whole order list, which the orders page is often
+   * fetching at the same moment. Shared with getOrders(): a request already
+   * out is joined, and a list fetched in the last 30 seconds is reused, so
+   * the account shell and the orders page do not each download it.
+   */
+  private static readonly RECENT_ORDERS_MS = 30_000;
+  private ordersInFlight: Observable<Order[]> | null = null;
+  private recentOrders: { at: number; orders: Order[] } | null = null;
+
+  private ordersForUnreadCheck(): Observable<Order[]> {
+    if (this.ordersInFlight) return this.ordersInFlight;
+    if (this.recentOrders && Date.now() - this.recentOrders.at < OrderService.RECENT_ORDERS_MS) {
+      return of(this.recentOrders.orders);
+    }
+    return this.getOrders();
+  }
+
   checkUnreadOrders(userId: string, lastSeenBoughtAt: string | null | undefined, lastSeenSoldAt: string | null | undefined) {
-    this.getOrders().subscribe(orders => {
+    this.ordersForUnreadCheck().subscribe(orders => {
       const boughtOrders = orders.filter(o => String(o.buyer) === String(userId));
       const soldOrders = orders.filter(o => String(o.seller) === String(userId));
       
@@ -52,10 +70,16 @@ export class OrderService {
     });
   }
 
+  /** Always a fresh request; see ordersForUnreadCheck for the shared one. */
   getOrders(): Observable<Order[]> {
-    return this.http.get<any>(this.url).pipe(
-      map(res => res.results ? res.results : res)
+    const request = this.http.get<any>(this.url).pipe(
+      map(res => (res.results ? res.results : res) as Order[]),
+      tap(orders => { this.recentOrders = { at: Date.now(), orders }; }),
+      finalize(() => { if (this.ordersInFlight === request) this.ordersInFlight = null; }),
+      shareReplay({ bufferSize: 1, refCount: false }),
     );
+    this.ordersInFlight = request;
+    return request;
   }
 
   getOrder(id: string) {
@@ -63,7 +87,7 @@ export class OrderService {
   }
 
   createOrder(order: Order) {
-    return this.http.post<Order>(this.url, order);
+    return this.http.post<Order>(this.url, order).pipe(tap(() => { this.recentOrders = null; }));
   }
 
   updateOrderStatus(id: string, status: string, cancelReason?: string, meetupTime?: string, meetupLocation?: string) {
@@ -71,7 +95,7 @@ export class OrderService {
     if (cancelReason) body.cancel_reason = cancelReason;
     if (meetupTime) body.meetup_time = meetupTime;
     if (meetupLocation) body.meetup_location = meetupLocation;
-    return this.http.patch<Order>(this.url + id + '/', body);
+    return this.http.patch<Order>(this.url + id + '/', body).pipe(tap(() => { this.recentOrders = null; }));
   }
 
   submitReview(orderId: string, rating: number | null, comment: string, isNoShow: boolean = false) {

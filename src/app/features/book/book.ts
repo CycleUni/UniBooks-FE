@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, effect } from '@angular/core';
+import { Component, OnInit, inject, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule, Router } from '@angular/router';
 import { UiButton } from '../../shared/ui/button.component';
@@ -334,9 +334,11 @@ export class Book implements OnInit {
   constructor(private route: ActivatedRoute, private router: Router) {
     effect(() => {
       this.i18n.lang();
-      if (this.bookId && !this.isLocalCache) {
-        this.fetchBook();
-      }
+      untracked(() => {
+        if (this.bookId && !this.isLocalCache) {
+          this.fetchBook();
+        }
+      });
     });
   }
 

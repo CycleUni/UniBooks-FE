@@ -3,7 +3,7 @@ import { parseAdminError } from '../../core/admin-error.util';
 import { forkJoin, Observable } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { RegionLinkDirective } from '../../core/region-link.directive';
-import { Component, OnInit, inject, ChangeDetectorRef, effect } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -203,11 +203,13 @@ export class AdminUserDetailComponent implements OnInit {
   constructor() {
     effect(() => {
       this.i18n.lang();
-      if (this.user?.verifications) {
-        this.user.verifications.forEach(v => {
-          this.loadSchoolsForRegion(v.region, true);
-        });
-      }
+      untracked(() => {
+        if (this.user?.verifications) {
+          this.user.verifications.forEach(v => {
+            this.loadSchoolsForRegion(v.region, true);
+          });
+        }
+      });
     });
   }
 

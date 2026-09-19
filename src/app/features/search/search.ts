@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, effect, DestroyRef } from '@angular/core';
+import { Component, OnInit, inject, effect, DestroyRef, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
@@ -444,7 +444,7 @@ export class Search implements OnInit {
   private seo = inject(SeoService);
 
   constructor(private route: ActivatedRoute, private router: Router) {
-    effect(() => { this.i18n.lang(); this.loadMetadata(); });
+    effect(() => { this.i18n.lang(); untracked(() => this.loadMetadata()); });
   }
 
   loadMetadata() {

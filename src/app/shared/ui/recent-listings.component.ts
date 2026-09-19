@@ -1,5 +1,5 @@
 import { RegionLinkDirective } from '../../core/region-link.directive';
-import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef, effect, DestroyRef, TemplateRef } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef, effect, DestroyRef, TemplateRef, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
@@ -249,7 +249,7 @@ export class UiRecentListings {
     effect(() => {
       // Re-fetch when language changes so localized error/titles update if needed
       this.i18n.lang();
-      this.fetchRecentBooks();
+      untracked(() => this.fetchRecentBooks());
     });
   }
 

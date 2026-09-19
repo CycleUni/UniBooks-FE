@@ -135,7 +135,9 @@ describe('ListingsComponent listing management', () => {
 
   it('asks the server for the chosen status and order', () => {
     component.onStatusChange('sold');
-    expect(getMyProfile).toHaveBeenLastCalledWith(1, '', { status: 'sold', sort: 'newest' });
+    // The default order is not sent: the backend defaults to it, and leaving
+    // it out lets the unfiltered first page share the shell's cached request.
+    expect(getMyProfile).toHaveBeenLastCalledWith(1, '', { status: 'sold', sort: undefined });
 
     component.onSortChange('price_desc');
     expect(getMyProfile).toHaveBeenLastCalledWith(1, '', { status: 'sold', sort: 'price_desc' });

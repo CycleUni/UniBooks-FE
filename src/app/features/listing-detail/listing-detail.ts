@@ -1,5 +1,5 @@
 import { RegionLinkDirective } from '../../core/region-link.directive';
-import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, effect, ViewChild, ElementRef, PLATFORM_ID, NgZone } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, effect, ViewChild, ElementRef, PLATFORM_ID, NgZone, untracked } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { ListingService } from '../../core/services/listing.service';
@@ -110,9 +110,11 @@ export class ListingDetail implements OnInit, OnDestroy {
     effect(() => {
       // Re-fetch listing when language changes so that backend translated fields (e.g. school_name, course_name) update.
       this.i18n.lang();
-      if (this.currentId) {
-        this.loadListing(this.currentId);
-      }
+      untracked(() => {
+        if (this.currentId) {
+          this.loadListing(this.currentId);
+        }
+      });
     });
 
     // Fetch the current user's profile (browser-side only) to determine

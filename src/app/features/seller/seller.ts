@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, ChangeDetectorRef, effect } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef, effect, untracked } from '@angular/core';
 import { SeoService } from '../../core/services/seo.service';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -225,9 +225,11 @@ export class SellerPageComponent implements OnInit {
   constructor() {
     effect(() => {
       this.i18n.lang();
-      if (this.currentId) {
-        this.loadSeller(this.currentId);
-      }
+      untracked(() => {
+        if (this.currentId) {
+          this.loadSeller(this.currentId);
+        }
+      });
     });
   }
 

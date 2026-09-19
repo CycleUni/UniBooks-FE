@@ -1,5 +1,5 @@
 import { RegionLinkDirective } from '../../core/region-link.directive';
-import { Component, inject, ChangeDetectorRef, effect } from '@angular/core';
+import { Component, inject, ChangeDetectorRef, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -129,7 +129,7 @@ export class AdminUsersListComponent {
     // detail page's school dropdown).
     effect(() => {
       this.i18n.lang();
-      this.reload();
+      untracked(() => this.reload());
     });
   }
 

@@ -433,7 +433,12 @@ export class ListingsComponent implements OnInit {
   loadMyListings() {
     this.loading = true;
     this.accountService
-      .getMyProfile(this.currentPage, this.searchQuery, { status: this.status, sort: this.sort })
+      // The default sort is left out rather than sent: the backend's default is
+      // the same, and first page, no search, no filter, no sort is the plain
+      // /auth/me/ request the account shell already made — so it is served
+      // from AccountService's cache instead of fetched again. Changes clear
+      // that cache first (afterChange).
+      .getMyProfile(this.currentPage, this.searchQuery, { status: this.status, sort: this.sort === 'newest' ? undefined : this.sort })
       .subscribe({
         next: (data: any) => {
           if (data.myListings && !Array.isArray(data.myListings)) {
