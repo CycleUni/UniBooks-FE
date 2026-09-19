@@ -40,7 +40,7 @@ describe('UiLayout', () => {
         { provide: MetadataService, useValue: { getMetadata: () => of({ schools: [] }), getMetadataWithRetry: vi.fn(() => of({ schools: [] })) } },
         { provide: AuthStore, useValue: { isAuthenticated: signal(false), user: signal(null) } },
         { provide: AccountService, useValue: {} },
-        { provide: SchoolStateService, useValue: { currentSchool: '', hasInitialized: false, getManualSchool: () => null, setSchools: vi.fn(), setSchool: vi.fn(), clearManualSchool: vi.fn() } },
+        { provide: SchoolStateService, useValue: { currentSchool: '', hasInitialized: false, ready: false, markReady: vi.fn(), getManualSchool: () => null, setSchools: vi.fn(), setSchool: vi.fn(), clearManualSchool: vi.fn() } },
         { provide: MessageService, useValue: { unreadCount$: of(0), openHub: vi.fn(), closeHub: vi.fn(), retryHubIfOwed: vi.fn() } },
         { provide: I18nService, useValue: { t: (k: string) => k, lang: signal('zh-TW') } },
         { provide: ThemeService, useValue: { mode: signal('system'), resolved: signal('light'), setMode: vi.fn() } },
