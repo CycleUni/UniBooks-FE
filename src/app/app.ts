@@ -1,6 +1,6 @@
 import { Component, inject, signal, PLATFORM_ID, DestroyRef } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { RouterOutlet, Router, NavigationEnd } from '@angular/router';
+import { RouterOutlet, Router, NavigationEnd, NavigationError } from '@angular/router';
 import { TPipe } from './core/i18n.service';
 import { UiLayout } from './shared/ui/layout.component';
 import { UiToastHost } from './shared/ui/toast-host.component';
@@ -16,6 +16,16 @@ import { interval, fromEvent } from 'rxjs';
 
 export const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 export const VISIBILITY_CHECK_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Whether a navigation failed because a lazy route's code could not be
+ * loaded: a missing chunk, or index.html served in its place. Chrome, Firefox
+ * and Safari each word it differently.
+ */
+export function isChunkLoadError(error: unknown): boolean {
+  const message = String((error as { message?: unknown })?.message ?? error ?? '');
+  return /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Expected a JavaScript(-or-Wasm)? module script|Loading chunk [\w-]+ failed/i.test(message);
+}
 
 /** App shell: the persistent layout (header/footer) wraps the router outlet,
  * so route changes swap only the page content instead of re-rendering the
@@ -95,6 +105,8 @@ export class App {
   private unregisterBeforeReload = false;
 
   constructor() {
+    this.recoverFromMissingChunks();
+
     // Without this, a tab left open across a deploy keeps running the old
     // build indefinitely — and since each build's JS/CSS chunk filenames are
     // content-hashed, the stale service worker's asset manifest ends up
@@ -187,6 +199,39 @@ export class App {
           }
         });
     }
+  }
+
+  /**
+   * A route whose code no longer exists: a tab still running the build before
+   * a deploy asks for one of that build's lazy chunks, which the deploy
+   * removed. The SPA fallback answers it with index.html, the import fails,
+   * and the router reports a NavigationError — which the reload-on-update
+   * above, listening for NavigationEnd, never saw, so the link just did
+   * nothing. The service worker only fetches lazy chunks when they are first
+   * needed, so this is the path an old tab takes. Load the target URL as a
+   * full page instead, which runs the current build. Once per URL within ten
+   * seconds, so a chunk that is genuinely broken cannot reload in a loop.
+   */
+  private recoverFromMissingChunks(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    this.router.events
+      .pipe(
+        filter((event): event is NavigationError => event instanceof NavigationError),
+        filter(event => isChunkLoadError(event.error)),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(event => {
+        const key = 'unibooks.chunkReload';
+        try {
+          const last = JSON.parse(sessionStorage.getItem(key) || 'null');
+          if (last && last.url === event.url && Date.now() - last.at < 10_000) return;
+          sessionStorage.setItem(key, JSON.stringify({ url: event.url, at: Date.now() }));
+        } catch {
+          // No sessionStorage: reload anyway; the browser's own history
+          // stops a loop from being more than a nuisance.
+        }
+        location.assign(event.url);
+      });
   }
 
   private checkForUpdate(): void {

@@ -1,1 +1,6 @@
+# The Angular service worker fetches /index.html (with ?ngsw-cache-bust=…) on
+# every update check, and Pages answers /index.html with a 308 to / — a second
+# round trip each time. Rewriting it to / serves the same bytes, so the
+# worker's hash check still passes, and must come before the SPA fallback.
+/index.html  /  200
 /*  /index.html  200

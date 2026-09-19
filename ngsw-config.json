@@ -17,7 +17,19 @@
           "/favicon.ico",
           "/index.html",
           "/manifest.webmanifest",
-          "/*.css",
+          "/main-*.js",
+          "/polyfills-*.js",
+          "/styles-*.css",
+          "/theme-init.js"
+        ]
+      }
+    },
+    {
+      "name": "chunks",
+      "installMode": "lazy",
+      "updateMode": "lazy",
+      "resources": {
+        "files": [
           "/*.js"
         ]
       }
