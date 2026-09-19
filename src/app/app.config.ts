@@ -1,5 +1,6 @@
 import { ApplicationConfig, provideZoneChangeDetection, isDevMode, APP_INITIALIZER } from '@angular/core';
-import { provideRouter, withInMemoryScrolling, withRouterConfig } from '@angular/router';
+import { provideRouter, withInMemoryScrolling, withRouterConfig, withPreloading } from '@angular/router';
+import { IdlePreloadingStrategy } from './core/idle-preloading.strategy';
 import { provideHttpClient, withInterceptorsFromDi, HTTP_INTERCEPTORS } from '@angular/common/http';
 
 import { routes } from './app.routes';
@@ -21,6 +22,8 @@ export const appConfig: ApplicationConfig = {
       routes,
       withInMemoryScrolling({ scrollPositionRestoration: 'enabled' }),
       withRouterConfig({ canceledNavigationResolution: 'computed' }),
+      // The pages a visitor opens next, fetched in idle time; see the strategy.
+      withPreloading(IdlePreloadingStrategy),
     ),
     provideHttpClient(withInterceptorsFromDi()),
     { provide: HTTP_INTERCEPTORS, useClass: ApiUrlInterceptor, multi: true },

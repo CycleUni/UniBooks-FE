@@ -5,6 +5,9 @@ import { adminGuard } from './features/admin/admin.guard';
 import { regionGuard, rootRedirectGuard } from './core/region.guard';
 import { unsavedChangesGuard } from './core/unsaved-changes.guard';
 
+// `data: { preload: true }` marks the pages fetched in idle time after the
+// first one loads (core/idle-preloading.strategy.ts): the ones a visitor
+// usually opens next. The admin console is left out on purpose.
 const featureRoutes: Routes = [
   {
     path: '',
@@ -12,46 +15,47 @@ const featureRoutes: Routes = [
   },
   {
     path: 'search',
-    data: { seo: { titleKey: 'nav.search' } },
+    data: { seo: { titleKey: 'nav.search' }, preload: true },
     loadComponent: () => import('./features/search/search').then((m) => m.Search),
   },
   {
     path: 'book',
+    data: { preload: true },
     loadComponent: () => import('./features/book/book').then((m) => m.Book),
   },
   {
     path: 'sell',
-    data: { seo: { titleKey: 'nav.sell' } },
+    data: { seo: { titleKey: 'nav.sell' }, preload: true },
     canDeactivate: [unsavedChangesGuard],
     loadComponent: () => import('./features/sell/sell').then((m) => m.Sell),
   },
   {
     path: 'login',
-    data: { seo: { titleKey: 'auth.login' } },
+    data: { seo: { titleKey: 'auth.login' }, preload: true },
     canActivate: [guestGuard],
     loadComponent: () => import('./features/auth/login').then((m) => m.LoginPage),
   },
   {
     path: 'register',
-    data: { seo: { titleKey: 'auth.registerTitle' } },
+    data: { seo: { titleKey: 'auth.registerTitle' }, preload: true },
     canActivate: [guestGuard],
     loadComponent: () => import('./features/auth/register').then((m) => m.RegisterPage),
   },
   {
     path: 'account',
-    data: { seo: { titleKey: 'nav.account' } },
+    data: { seo: { titleKey: 'nav.account' }, preload: true },
     // Guarded at the parent now that /account is the dashboard only — the
     // login wall it used to render on the same URL moved to /login.
     canActivate: [authGuard],
     loadComponent: () => import('./features/account/account').then((m) => m.Account),
     children: [
-      { path: '', canActivate: [accountIndexGuard], loadComponent: () => import('./features/account/account-index.component').then(m => m.AccountIndexComponent) },
-      { path: 'listings', canActivate: [authGuard], loadComponent: () => import('./features/account/listings').then(m => m.ListingsComponent) },
+      { path: '', canActivate: [accountIndexGuard], data: { preload: true }, loadComponent: () => import('./features/account/account-index.component').then(m => m.AccountIndexComponent) },
+      { path: 'listings', canActivate: [authGuard], data: { preload: true }, loadComponent: () => import('./features/account/listings').then(m => m.ListingsComponent) },
       { path: 'subscriptions', canActivate: [authGuard], loadComponent: () => import('./features/account/subscriptions').then(m => m.SubscriptionsComponent) },
       { path: 'orders', canActivate: [authGuard], loadComponent: () => import('./features/account/orders').then(m => m.OrdersComponent) },
       { path: 'reports', canActivate: [authGuard], loadComponent: () => import('./features/account/reports').then(m => m.ReportsComponent) },
       { path: 'notifications', canActivate: [authGuard], loadComponent: () => import('./features/account/notifications').then(m => m.NotificationsComponent) },
-      { path: 'settings', canActivate: [authGuard], loadComponent: () => import('./features/account/settings').then(m => m.SettingsComponent) }
+      { path: 'settings', canActivate: [authGuard], data: { preload: true }, loadComponent: () => import('./features/account/settings').then(m => m.SettingsComponent) }
     ]
   },
   { path: 'checkout/success', data: { seo: { titleKey: 'checkout.successTitle' } }, loadComponent: () => import('./features/checkout/success').then(m => m.OrderSuccessComponent) },
@@ -62,11 +66,11 @@ const featureRoutes: Routes = [
   // the route means a session that dies *while* the visitor is on checkout gets
   // the same answer, instead of leaving them on a page whose only button fails.
   { path: 'checkout/:id', data: { seo: { titleKey: 'checkout.title' } }, canActivate: [authGuard], loadComponent: () => import('./features/checkout/checkout').then(m => m.CheckoutComponent) },
-  { path: 'listing/:id', loadComponent: () => import('./features/listing-detail/listing-detail').then(m => m.ListingDetail) },
-  { path: 'seller/:id', loadComponent: () => import('./features/seller/seller').then(m => m.SellerPageComponent) },
+  { path: 'listing/:id', data: { preload: true }, loadComponent: () => import('./features/listing-detail/listing-detail').then(m => m.ListingDetail) },
+  { path: 'seller/:id', data: { preload: true }, loadComponent: () => import('./features/seller/seller').then(m => m.SellerPageComponent) },
   {
     path: 'messages',
-    data: { seo: { titleKey: 'nav.messages' } },
+    data: { seo: { titleKey: 'nav.messages' }, preload: true },
     canActivate: [authGuard],
     loadComponent: () => import('./features/messages/messages').then((m) => m.Messages),
   },
