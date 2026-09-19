@@ -1,6 +1,17 @@
 import { Pipe, PipeTransform } from '@angular/core';
 
 /**
+ * The /api/cover URL for a catalogue cover. `ngsw-bypass` makes the Angular
+ * service worker let the image request through untouched: it never caches
+ * these (no asset group matches /api/cover), so intercepting them only added
+ * a hop, and showed every cover twice in DevTools — once from the page, once
+ * from the worker's own fetch. The API calls skip it the same way, by header.
+ */
+function proxied(src: string): string {
+  return `/api/cover?src=${encodeURIComponent(src)}&ngsw-bypass=`;
+}
+
+/**
  * Transforms a Google Books API cover URL to a higher resolution by
  * replacing (or adding) the `zoom` query parameter.
  *
@@ -19,7 +30,7 @@ export class BookCoverPipe implements PipeTransform {
     if (!url) return '';
     // Proxy Open Library / ISBNnet covers as-is (no zoom rewriting)
     if (url.includes('covers.openlibrary.org') || url.includes('pdsapp.ncl.edu.tw')) {
-      return `/api/cover?src=${encodeURIComponent(url)}`;
+      return proxied(url);
     }
     // Only modify Google Books URLs
     if (!url.includes('books.google.com')) return url;
@@ -30,7 +41,7 @@ export class BookCoverPipe implements PipeTransform {
       if (zoom >= 2) {
         u.searchParams.delete('edge');
       }
-      return `/api/cover?src=${encodeURIComponent(u.toString())}`;
+      return proxied(u.toString());
     } catch {
       return url;
     }

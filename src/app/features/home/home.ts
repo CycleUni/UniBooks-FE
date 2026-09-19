@@ -66,9 +66,10 @@ import { hasCoverFailed, markCoverFailed } from '../../shared/ui/book-cover.comp
                      same URL means one download the browser reuses. This used
                      to load the raw catalogue URL, so each of those books was
                      fetched twice — once directly from Google or Open Library,
-                     unvalidated, and once through the proxy. -->
+                     unvalidated, and once through the proxy. Lazy, so the rows
+                     hidden behind the hero (display: none) load nothing. -->
                 <span class="wcover" aria-hidden="true">
-                  <img *ngIf="wait.cover_url && !waitCoverFailed(wait)" [src]="wait.cover_url | bookCover: 3" alt="" (error)="onWaitCoverError(wait)" />
+                  <img *ngIf="wait.cover_url && !waitCoverFailed(wait)" [src]="wait.cover_url | bookCover: 3" alt="" loading="lazy" (error)="onWaitCoverError(wait)" />
                   <span class="wcover-mark" *ngIf="!wait.cover_url || waitCoverFailed(wait)">{{ (wait.title || '').slice(0, 1) }}</span>
                 </span>
                 <span class="wtitle">{{ wait.title }}</span>
