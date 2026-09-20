@@ -118,8 +118,11 @@ export async function handleCover(request: Request, deps: CoverDeps): Promise<Re
 
   if (!src) {
     return new Response('Missing required "src" query parameter', {
-      status: 400,
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      status: 404,
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'public, max-age=86400'
+      },
     });
   }
 
@@ -133,14 +136,20 @@ export async function handleCover(request: Request, deps: CoverDeps): Promise<Re
     srcUrl = new URL(src);
     if (srcUrl.protocol !== 'http:' && srcUrl.protocol !== 'https:') {
       return new Response('Invalid "src" query parameter: protocol must be http or https', {
-        status: 400,
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        status: 404,
+        headers: { 
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'public, max-age=86400'
+        },
       });
     }
   } catch {
     return new Response('Invalid "src" query parameter: malformed URL', {
-      status: 400,
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      status: 404,
+      headers: { 
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'public, max-age=86400'
+      },
     });
   }
 
@@ -150,8 +159,11 @@ export async function handleCover(request: Request, deps: CoverDeps): Promise<Re
     srcUrl.hostname !== 'pdsapp.ncl.edu.tw'
   ) {
     return new Response('Invalid "src" query parameter: unsupported host', {
-      status: 400,
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      status: 404,
+      headers: { 
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'public, max-age=86400'
+      },
     });
   }
 

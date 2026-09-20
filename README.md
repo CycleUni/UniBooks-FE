@@ -29,6 +29,16 @@ npm run build    # 正式 production 建置
 這支 Cloudflare Pages Function 代理（負責過濾兩邊 API 都會回 200 的假封面、
 zoom 逐級降級、以及長效 CDN 快取）。
 
+#### Cloudflare 快取規則設定 (必做)
+為了避免 Cloudflare Pages Functions 被無意義地反覆喚醒（即使是快取命中也會扣抵額度），**必須**在 Cloudflare 後台設定 Cache Rules，讓外層 CDN 接管帶有 `Cache-Control` 的回應，達成 0 額度消耗：
+
+1. 登入 Cloudflare 後台，進入網域設定
+2. 左側選單：**Caching (快取)** → **Cache Rules (快取規則)**
+3. 建立新規則：`Cache Cover Images`
+4. 條件 (If)：`URI Path` `starts with` `/api/cover`
+5. 快取資格 (Cache eligibility)：`Eligible for cache`
+6. 邊緣 TTL (Edge TTL)：`Use cache-control header if present`
+
 `ng serve` **不會**執行 `functions/`，所以開發時封面需要另外起一個 wrangler：
 
 ```bash
