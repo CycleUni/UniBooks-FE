@@ -1,3 +1,11 @@
 name = "unibooks-fe"
 pages_build_output_dir = "dist/unibooks-fe/browser"
 compatibility_date = "2024-04-05"
+
+[vars]
+NG_APP_BACKEND_URL = "https://api.unibooks.app/api/v1"
+EDGE_CHAT_URL = "https://chat.unibooks.app"
+R2_PUBLIC_URL = "https://assets.unibooks.app"
+NG_APP_CSP_ENFORCE = "1"
+NG_APP_GA_MEASUREMENT_ID = "G-QXSV9KL0G2"
+NG_APP_ALLOWED_HOSTS = "unibooks.app, unibooksfe.pages.dev, *.unibooksfe.pages.dev"
