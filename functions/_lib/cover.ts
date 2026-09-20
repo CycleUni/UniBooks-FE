@@ -113,11 +113,6 @@ function cached(request: Request, deps: CoverDeps, response: Response): Response
 // single time, instead of being served instantly from Cloudflare's edge
 // after the first successful lookup.
 export async function handleCover(request: Request, deps: CoverDeps): Promise<Response> {
-  const hit = await deps.cache.match(request);
-  if (hit) {
-    return hit;
-  }
-
   const requestUrl = new URL(request.url);
   const src = requestUrl.searchParams.get('src');
 
@@ -126,6 +121,11 @@ export async function handleCover(request: Request, deps: CoverDeps): Promise<Re
       status: 400,
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     });
+  }
+
+  const hit = await deps.cache.match(request);
+  if (hit) {
+    return hit;
   }
 
   let srcUrl: URL;
