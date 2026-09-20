@@ -100,7 +100,7 @@ const ALWAYS_ENFORCED = [
 ].join('; ');
 
 function buildCsp({ backendOrigin, chatOrigin, mediaOrigin }) {
-  const connect = ["'self'", backendOrigin, chatOrigin, chatOrigin && chatOrigin.replace(/^https:/, 'wss:')];
+  const connect = ["'self'", backendOrigin, chatOrigin, chatOrigin && chatOrigin.replace(/^https:/, 'wss:'), 'https://*.r2.cloudflarestorage.com'];
   const img = ["'self'", 'data:', 'blob:', mediaOrigin, 'https://lh3.googleusercontent.com'];
   return [
     "default-src 'self'",
