@@ -192,7 +192,9 @@ describe('book link-preview Function', () => {
         const response = await t.run();
         expect(response.status).toBe(200);
         expect(await response.text()).toBe(SHELL);
-        expect(t.cache.store.size).toBe(0);
+        expect(t.cache.store.size).toBe(1);
+        const stored = [...t.cache.store.values()][0];
+        expect(JSON.parse(stored)).toEqual({ status: 'error' } satisfies LookupResult);
       }
 
       // Never answers; rejects only when lookup() aborts, as fetch does.
@@ -203,6 +205,7 @@ describe('book link-preview Function', () => {
       });
       const response = await slow.run();
       expect(await response.text()).toBe(SHELL);
+      expect(slow.cache.store.size).toBe(1);
     });
 
     it('leaves requests it has nothing to add to exactly as Pages serves them', async () => {

@@ -24,6 +24,7 @@ export const API_TIMEOUT_MS = 2500;
  *  API also answers 404 when an external catalogue lookup failed. */
 export const FOUND_TTL_SECONDS = 3600;
 export const MISSING_TTL_SECONDS = 300;
+export const ERROR_TTL_SECONDS = 10;
 
 export type BookIdentity = { kind: 'isbn' | 'id'; value: string };
 
@@ -37,7 +38,7 @@ export interface BookFacts {
   cover_url: string;
 }
 
-export type LookupResult = { status: 'found'; book: BookFacts } | { status: 'missing' };
+export type LookupResult = { status: 'found'; book: BookFacts } | { status: 'missing' } | { status: 'error' };
 
 export interface BookMeta {
   title: string;
@@ -212,7 +213,7 @@ export interface BookPageDeps {
   timeoutMs?: number;
 }
 
-async function lookup(url: string, deps: BookPageDeps): Promise<LookupResult | null> {
+async function lookup(url: string, deps: BookPageDeps): Promise<LookupResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), deps.timeoutMs ?? API_TIMEOUT_MS);
   try {
@@ -221,11 +222,11 @@ async function lookup(url: string, deps: BookPageDeps): Promise<LookupResult | n
       headers: { Accept: 'application/json' },
     });
     if (response.status === 404) return { status: 'missing' };
-    if (!response.ok) return null;
+    if (!response.ok) return { status: 'error' };
     const book = pickBookFacts(await response.json());
-    return book ? { status: 'found', book } : null;
+    return book ? { status: 'found', book } : { status: 'error' };
   } catch {
-    return null;
+    return { status: 'error' };
   } finally {
     clearTimeout(timer);
   }
@@ -241,7 +242,7 @@ async function readCache(cache: CacheLike, key: string): Promise<LookupResult | 
 }
 
 async function writeCache(cache: CacheLike, key: string, result: LookupResult): Promise<void> {
-  const ttl = result.status === 'found' ? FOUND_TTL_SECONDS : MISSING_TTL_SECONDS;
+  const ttl = result.status === 'found' ? FOUND_TTL_SECONDS : result.status === 'missing' ? MISSING_TTL_SECONDS : ERROR_TTL_SECONDS;
   try {
     await cache.put(key, new Response(JSON.stringify(result), {
       headers: { 'Content-Type': 'application/json', 'Cache-Control': `public, max-age=${ttl}` },
@@ -279,7 +280,7 @@ export async function handleBookPage(ctx: BookPageContext, deps: BookPageDeps): 
     if (!result) {
       const apiUrl = bookApiUrl(ctx.backendUrl, region, identity);
       const fetchAndStore = lookup(apiUrl, deps).then(async fresh => {
-        if (fresh) await writeCache(deps.cache, key, fresh);
+        await writeCache(deps.cache, key, fresh);
         return fresh;
       });
       if (!isLinkPreviewAgent(ctx.request.headers.get('user-agent'))) {
@@ -287,9 +288,11 @@ export async function handleBookPage(ctx: BookPageContext, deps: BookPageDeps): 
         return page;
       }
       result = await fetchAndStore;
-      if (!result) return page;
     }
 
+    if (result.status === 'error') {
+      return page;
+    }
     if (result.status === 'missing') {
       // The SPA would show its not-found state; say so in the status too.
       return new Response(page.body, { status: 404, headers: page.headers });
