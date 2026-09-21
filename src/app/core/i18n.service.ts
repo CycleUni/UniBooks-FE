@@ -1,5 +1,5 @@
 import { Injectable, Pipe, PipeTransform, inject, signal, effect } from '@angular/core';
-import { Lang, TRANSLATIONS } from './i18n/index';
+import { Lang, TRANSLATIONS, SUPPORTED_LANGS } from './i18n/index';
 
 const STORAGE_KEY = 'lang';
 
@@ -23,7 +23,7 @@ export class I18nService {
   private initialLang(): Lang {
     if (typeof localStorage !== 'undefined') {
       const stored = localStorage.getItem(STORAGE_KEY) as Lang;
-      if (stored === 'en' || stored === 'zh-TW' || stored === 'zh-HK') {
+      if (SUPPORTED_LANGS.includes(stored)) {
         return stored;
       }
     }

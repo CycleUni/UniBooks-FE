@@ -54,6 +54,44 @@ Cloudflare Pages 時 Function 由平台自動執行，不需要這一步。
 
 ---
 
+## 🌍 地區首頁社群預覽標籤（Region Meta Tags）
+
+社群軟體（LINE、Facebook、Discord 等）分享連結時，爬蟲**不會執行 JavaScript**，
+因此 Angular 在瀏覽器端動態寫入的 `<title>` 與 `og:*` 標籤爬蟲看不見。
+
+解法：`npm run build` 在 `ng build` 完成後，會執行
+`scripts/build-region-html.ts` 為每個地區產出一份靜態的 `index.html`，
+並自動在部署包（`dist/`）的 `_redirects` 裡注入對應的路由規則：
+
+```
+/tw/*  /tw/index.html  200
+/hk/*  /hk/index.html  200
+```
+
+這樣 `/tw` 的爬蟲拿到的就是已寫好中文 `<title>` 與 `og:*` 的 HTML，
+完全不需要 Cloudflare Pages Functions，零額度消耗。
+
+> **注意**：`public/_redirects`（原始檔）不含地區規則。地區規則由腳本在
+> Build 時動態注入到 `dist/` 的 `_redirects`，**不要手動編輯原始檔的地區路由**。
+
+### 新增地區
+
+新增地區只需在 `src/app/core/i18n/index.ts` 的 `REGION_TO_LANG` 加入一行；
+靜態 HTML、`lang`、`og:locale` 與 `_redirects` 規則會**全部自動處理**：
+
+```ts
+// src/app/core/i18n/index.ts
+export const REGION_TO_LANG: Record<string, Lang> = {
+  tw: 'zh-TW',
+  hk: 'zh-HK',
+  sg: 'en', // ← 新增地區只需一行
+};
+```
+
+若是全新語言，才需要另外新增語言型別、翻譯檔與 lazy-load 設定。
+
+---
+
 ## Google Analytics 4
 
 站上的行為分析（搜尋、瀏覽、流量來源、活躍使用者）走 GA4；交易結果與金額則以

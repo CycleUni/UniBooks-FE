@@ -4,10 +4,10 @@
   "scripts": {
     "ng": "ng",
     "start": "nodemon",
-    "build": "node --env-file-if-exists=.env scripts/set-env.js && ng build",
+    "build": "node --env-file-if-exists=.env scripts/set-env.js && ng build && ts-node --project scripts/tsconfig.scripts.json scripts/build-region-html.ts",
     "watch": "node --env-file-if-exists=.env scripts/set-env.js && ng build --watch --configuration development",
     "test": "node --env-file-if-exists=.env scripts/set-env.js && ng test",
-    "smoke": "node --env-file-if-exists=.env scripts/set-env.js && ng build --configuration smoke && wrangler pages dev dist/unibooks-fe/browser --port 8788"
+    "smoke": "node --env-file-if-exists=.env scripts/set-env.js && ng build --configuration smoke && ts-node --project scripts/tsconfig.scripts.json scripts/build-region-html.ts && wrangler pages dev dist/unibooks-fe/browser --port 8788"
   },
   "private": true,
   "packageManager": "npm@11.16.0",
