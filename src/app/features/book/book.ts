@@ -273,8 +273,11 @@ export function bookSourceLabelKey(source: unknown): string | null {
         gap: 12px;
         padding: 16px;
       }
+      /* Two cards a row on a phone, more as the width allows; the card
+         compacts itself when its own column gets narrow. */
       .listings-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 12px;
       }
     }
   `]

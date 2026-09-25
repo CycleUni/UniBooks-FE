@@ -94,8 +94,11 @@ import { UiSellerReputation } from './seller-reputation.component';
     </div>
   `,
   styles: [`
+    /* A container, so the card can compact itself by its own width — the
+       phone grid puts two of these side by side. */
     :host {
       display: block;
+      container-type: inline-size;
     }
     /* --line-strong, not --line: the whole card is a click target, and
        --line is 1.48:1 — below WCAG 1.4.11's 3:1 for non-text UI. */
@@ -231,6 +234,45 @@ import { UiSellerReputation } from './seller-reputation.component';
       border-left: 3px solid var(--line);
       overflow-wrap: anywhere;
       word-break: break-word;
+    }
+    /* Narrow column (two a row on a phone): tighter chrome, a price that
+       fits beside its badge, and the two actions stacked instead of
+       squeezed side by side. */
+    @container (max-width: 240px) {
+      .listing-card {
+        padding: 10px;
+      }
+      .listing-photo-container {
+        margin-bottom: 10px;
+      }
+      .listing-header {
+        flex-wrap: wrap;
+        gap: 2px 8px;
+        margin-bottom: 8px;
+      }
+      .price {
+        font-size: var(--text-xl);
+      }
+      .course-info,
+      .seller-info,
+      .listing-note {
+        font-size: var(--text-sm);
+      }
+      .listing-note {
+        margin-top: 8px;
+        padding: 8px;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .seller-info {
+        padding-top: 8px;
+      }
+      .button-group {
+        flex-direction: column;
+        padding-top: 10px;
+      }
     }
   `]
 })
