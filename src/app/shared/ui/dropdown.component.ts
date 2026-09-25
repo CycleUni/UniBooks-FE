@@ -133,6 +133,10 @@ export interface DropdownOption {
       .dropdown-trigger.icon-only {
         padding: 13px;
         margin: -9px;
+        /* The negative margins widen the hit area past the wrapper by 18px;
+           a plain 100% cap would take that back out of the content and
+           squeeze a visible label (the header school name) to a sliver. */
+        max-width: calc(100% + 18px);
       }
     }
     .dropdown-trigger.icon-only:hover,

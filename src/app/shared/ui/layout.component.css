@@ -312,30 +312,26 @@
       .header-content {
         padding-block: 12px;
       }
+      /* The logo and theme switcher keep their size; the school selector
+         takes what is left and ellipsizes its name within it, so it never
+         wraps onto a second row. */
+      .brand-area {
+        flex-shrink: 0;
+      }
+      .header-right {
+        flex: 1 1 auto;
+        min-width: 0;
+        justify-content: flex-end;
+      }
       .school-selector {
-        /* Shrinks to its content (icon + caret) instead of a fixed field width,
-           so it can never wrap onto a second row with the theme switcher. */
-        width: auto;
+        flex: 0 1 auto;
+        min-width: 0;
       }
-      .school-trigger {
-        min-width: auto;
-      }
-      .school-icon {
-        display: inline-flex;
+      .school-selector ::ng-deep .dropdown-trigger {
+        min-width: 0;
       }
       .school-trigger-label {
-        /* Kept in the DOM (not display:none) so the button's accessible name
-           still reads the selected school name to screen readers; visually
-           hidden since the icon carries the affordance on narrow screens. */
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        white-space: nowrap;
-        border: 0;
+        min-width: 0;
       }
       /* Primary nav moves to the bottom tab bar on mobile; only the theme
          switcher stays in the header. */
@@ -454,8 +450,28 @@
         font-size: var(--text-lg);
       }
       .header-right {
-        flex-wrap: wrap;
         gap: 8px;
+      }
+    }
+
+    /* Too narrow for even a shortened name to be legible: the icon alone
+       carries the selector. */
+    @media (max-width: 360px) {
+      .school-icon {
+        display: inline-flex;
+      }
+      .school-trigger-label {
+        /* Kept in the DOM (not display:none) so the button's accessible name
+           still reads the selected school name to screen readers. */
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
       }
     }
     .standalone-prefs-container {
