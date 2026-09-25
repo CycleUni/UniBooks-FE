@@ -28,6 +28,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet">
+  <!-- Repairs a cached copy of a hashed bundle that is really HTML, which
+       would otherwise leave the page blank; see the file's header. Must load
+       before the bundles below it, synchronously, to hear their errors. -->
+  <script src="/asset-recovery.js"></script>
   <!-- Applies the saved theme before first paint. An external file, not an
        inline script block: the CSP allows script only from 'self', so inline code
        would need 'unsafe-inline' or a hash kept in step with every edit.

@@ -27,6 +27,15 @@ export function isChunkLoadError(error: unknown): boolean {
   return /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Expected a JavaScript(-or-Wasm)? module script|Loading chunk [\w-]+ failed/i.test(message);
 }
 
+/**
+ * The chunk a failed dynamic import named, where the browser says (Chrome and
+ * Firefox put the URL in the message; Safari does not).
+ */
+export function chunkUrlFromError(error: unknown): string | null {
+  const message = String((error as { message?: unknown })?.message ?? error ?? '');
+  return message.match(/https?:\/\/\S+?\.js\b/)?.[0] ?? null;
+}
+
 /** App shell: the persistent layout (header/footer) wraps the router outlet,
  * so route changes swap only the page content instead of re-rendering the
  * whole chrome. */
@@ -211,6 +220,11 @@ export class App {
    * needed, so this is the path an old tab takes. Load the target URL as a
    * full page instead, which runs the current build. Once per URL within ten
    * seconds, so a chunk that is genuinely broken cannot reload in a loop.
+   *
+   * The failed chunk is refetched with cache: 'reload' first. A browser may
+   * hold index.html under that chunk's URL with a year-long immutable cache
+   * (see public/asset-recovery.js, which does the same for the initial
+   * bundles); a plain reload would read that copy again and fail again.
    */
   private recoverFromMissingChunks(): void {
     if (!isPlatformBrowser(this.platformId)) return;
@@ -230,7 +244,11 @@ export class App {
           // No sessionStorage: reload anyway; the browser's own history
           // stops a loop from being more than a nuisance.
         }
-        location.assign(event.url);
+        const chunkUrl = chunkUrlFromError(event.error);
+        const refreshed = chunkUrl
+          ? fetch(chunkUrl, { cache: 'reload' }).then(() => undefined, () => undefined)
+          : Promise.resolve();
+        refreshed.then(() => location.assign(event.url));
       });
   }
 

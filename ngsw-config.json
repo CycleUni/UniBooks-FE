@@ -20,7 +20,8 @@
           "/main-*.js",
           "/polyfills-*.js",
           "/styles-*.css",
-          "/theme-init.js"
+          "/theme-init.js",
+          "/asset-recovery.js"
         ]
       }
     },

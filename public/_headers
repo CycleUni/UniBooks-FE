@@ -66,6 +66,13 @@
 # the /* rewrite, and failed with "Expected a JavaScript module script but the
 # server responded with text/html". Routes now get Pages' default
 # revalidating cache; / and /index.html below say so explicitly.
+#
+# The same still holds for a hashed name a deployment does not have (yet, at
+# that edge, or any more): the /* rewrite answers it with index.html, and
+# these rules, which match on the URL alone, stamp that HTML with the
+# year-long cache. Pages cannot tell the two apart without a Function, which
+# would bill every asset request, so the browser repairs it instead:
+# public/asset-recovery.js refetches a bundle that failed this way and reloads.
 /main-*.js
   Cache-Control: public, max-age=31536000, immutable
 
@@ -94,6 +101,9 @@
   Cache-Control: no-cache
 
 /theme-init.js
+  Cache-Control: no-cache
+
+/asset-recovery.js
   Cache-Control: no-cache
 
 /safety-worker.js
