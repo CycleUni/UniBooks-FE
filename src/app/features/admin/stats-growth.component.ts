@@ -25,7 +25,7 @@ const ROLES: RetentionRole[] = ['all', 'buyer', 'seller'];
   standalone: true,
   imports: [CommonModule, FormsModule, TPipe, AdminStatsPeriodComponent, UiDropdown],
   template: `
-    <div class="header-actions">
+    <div class="section-head-row">
       <h2>{{ 'admin.navStatsGrowth' | t }}</h2>
       <admin-stats-period [days]="days" (daysChange)="onDaysChange($event)"></admin-stats-period>
     </div>
@@ -116,7 +116,7 @@ const ROLES: RetentionRole[] = ['all', 'buyer', 'seller'];
     </ng-container>
 
     <section class="card">
-      <div class="header-actions">
+      <div class="section-head-row">
         <h3>{{ 'admin.stats.retention' | t }}</h3>
         <ui-dropdown
           class="role"
@@ -160,7 +160,7 @@ const ROLES: RetentionRole[] = ['all', 'buyer', 'seller'];
     .sub { margin: 12px 0 4px; font-size: var(--text-sm); color: var(--ink-soft); }
     .sub:first-of-type { margin-top: 0; }
     .foot { margin: 4px 0 0; font-size: var(--text-xs); }
-    .card > .header-actions { margin-bottom: 12px; }
+    .card > .section-head-row { margin-bottom: 12px; }
     .role { min-width: 150px; }
     .admin-table.cohort { min-width: 560px; }
     /* Shade by the retained share; an empty cell (a term not reached yet) stays plain. */

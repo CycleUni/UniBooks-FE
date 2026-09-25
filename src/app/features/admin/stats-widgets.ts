@@ -42,10 +42,10 @@ export class StatsPeriodMemory {
  */
 export const STATS_PAGE_STYLES = `
   :host { display: block; }
-  /* Title on the left, its controls on the right, centred on one line — the
-     layout every other admin page uses for its heading. */
-  .header-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; margin-bottom: 8px; }
-  .header-actions h2, .header-actions h3 { margin: 0; }
+  /* .section-head-row is global; statistics pages set their headings flush
+     and keep the row tight above the scope note. */
+  .section-head-row { margin-bottom: 8px; }
+  .section-head-row h2, .section-head-row h3 { margin: 0; }
   .scope-note { margin: 0 0 24px; font-size: var(--text-sm); color: var(--muted); }
   .card-note { margin: -8px 0 12px; font-size: var(--text-sm); color: var(--muted); }
   .stale { opacity: 0.55; transition: opacity 0.15s; }
@@ -62,7 +62,7 @@ export const STATS_PAGE_STYLES = `
   .card { padding: 16px; margin-bottom: 16px; min-width: 0; }
   .card h3 { margin: 0 0 12px; font-size: var(--text-base); }
   /* A card title with controls beside it: the row owns the spacing. */
-  .card .header-actions h3 { margin: 0; }
+  .card .section-head-row h3 { margin: 0; }
   .card .table-container { box-shadow: none; }
   .grid-2, .grid-3 { display: grid; gap: 16px; margin-bottom: 16px; }
   .grid-2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }

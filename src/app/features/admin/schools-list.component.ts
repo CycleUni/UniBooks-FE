@@ -19,10 +19,10 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
   standalone: true,
   imports: [CommonModule, RouterModule, FormsModule, TPipe, UiSearchBarComponent, BulkImportModalComponent, UiPagination, UiButton, UiFocusTrapDirective],
   template: `
-    <div class="header-actions">
+    <div class="section-head-row">
       <h2>{{ 'admin.navSchools' | t }}</h2>
-      <div>
-        <ui-button variant="outline"  class="mr-3" (onClick)="showImportModal = true">{{ 'admin.bulkImport' | t }}</ui-button>
+      <div class="section-head-actions">
+        <ui-button variant="outline" (onClick)="showImportModal = true">{{ 'admin.bulkImport' | t }}</ui-button>
         <ui-button variant="primary" (onClick)="openCreateModal()">{{ 'admin.addSchool' | t }}</ui-button>
       </div>
     </div>
@@ -105,7 +105,6 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
     </app-bulk-import-modal>
   `,
   styles: [`
-    .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     .form-group { margin-bottom: 16px; }
     .form-group label { display: block; margin-bottom: 8px; font-weight: 600; }
     .translation-row { display: flex; align-items: center; gap: 8px; }

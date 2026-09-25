@@ -16,7 +16,7 @@ import { TranslationEditorComponent, TranslationField } from './translation-edit
   standalone: true,
   imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, TranslationEditorComponent, UiButton],
   template: `
-    <div class="header-actions">
+    <div class="section-head-row">
       <div>
         <h2>{{ 'common.edit' | t }}: {{ school?.name }} <code *ngIf="school?.code">{{ school?.code }}</code></h2>
         <ui-button size="sm" variant="outline" regionLink="..">‹ {{ 'admin.backToList' | t }}</ui-button>
@@ -58,9 +58,8 @@ import { TranslationEditorComponent, TranslationField } from './translation-edit
     </div>
   `,
   styles: [`
-    .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    .header-actions h2 { margin-bottom: 8px; }
-    .header-actions a { text-decoration: none; }
+    .section-head-row h2 { margin-bottom: 8px; }
+    .section-head-row a { text-decoration: none; }
     .detail-grid { max-width: 600px; }
     .panel { background: var(--surface-card); padding: 24px; border-radius: 8px; border: 1px solid var(--line); box-shadow: var(--shadow-card-lg); }
     .panel h3 { margin-top: 0; margin-bottom: 24px; }

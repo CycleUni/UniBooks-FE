@@ -40,16 +40,20 @@ const SORT_LABELS: Record<BookRankingSort, string> = {
   ],
   template: `
     <section class="card">
-      <h3>{{ 'admin.stats.bookRanking' | t }}</h3>
-      <div class="admin-filters">
-        <ui-search-bar [placeholder]="'admin.stats.searchBook' | t" [value]="q" (search)="onSearch($event)"></ui-search-bar>
+      <div class="section-head-row">
+        <h3>{{ 'admin.stats.bookRanking' | t }}</h3>
         <ui-dropdown
           [label]="'admin.stats.sortBy' | t"
+          [inlineLabel]="true"
+          [compact]="true"
           [options]="sortOptions"
           [searchable]="false"
           [ngModel]="sort"
           (ngModelChange)="onSortChange($event)"
         ></ui-dropdown>
+      </div>
+      <div class="admin-filters">
+        <ui-search-bar [placeholder]="'admin.stats.searchBook' | t" [value]="q" (search)="onSearch($event)"></ui-search-bar>
       </div>
       <p class="card-note">{{ (q ? 'admin.stats.rankingSearchNote' : 'admin.stats.rankingNote') | t }}</p>
 

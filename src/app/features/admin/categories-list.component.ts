@@ -22,10 +22,10 @@ import { RegionService } from '../../core/region.service';
   imports: [CommonModule, RouterModule, FormsModule, TPipe, TranslationEditorComponent, BulkImportModalComponent, UiPagination, UiCheckbox, UiTextarea, UiButton],
   template: `
     <ng-container *ngIf="!showModal">
-      <div class="header-actions">
+      <div class="section-head-row">
         <h2>{{ 'admin.navCategories' | t }}</h2>
-        <div>
-          <ui-button variant="outline"  class="mr-3" (onClick)="showImportModal = true">{{ 'admin.bulkImport' | t }}</ui-button>
+        <div class="section-head-actions">
+          <ui-button variant="outline" (onClick)="showImportModal = true">{{ 'admin.bulkImport' | t }}</ui-button>
           <ui-button variant="primary" (onClick)="openCreateModal()">{{ 'admin.addCollege' | t }}</ui-button>
         </div>
       </div>
@@ -72,7 +72,7 @@ import { RegionService } from '../../core/region.service';
     </ng-container>
 
     <ng-container *ngIf="showModal">
-      <div class="header-actions">
+      <div class="section-head-row">
         <div>
           <h2>{{ editingId ? ('common.edit' | t) : ('common.create' | t) }}: {{ form.title || form.slug }}</h2>
           <ui-button size="sm" variant="outline" (onClick)="showModal = false">‹ {{ 'admin.backToList' | t }}</ui-button>
@@ -128,9 +128,8 @@ import { RegionService } from '../../core/region.service';
     </app-bulk-import-modal>
   `,
   styles: [`
-    .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    .header-actions h2 { margin-bottom: 8px; }
-    .header-actions a { text-decoration: none; cursor: pointer; }
+    .section-head-row h2 { margin-bottom: 8px; }
+    .section-head-row a { text-decoration: none; cursor: pointer; }
     .detail-grid { max-width: 600px; }
     .panel { background: var(--surface-card); padding: 24px; border-radius: 8px; border: 1px solid var(--line); box-shadow: var(--shadow-card-lg); }
     .panel h3 { margin-top: 0; margin-bottom: 24px; }

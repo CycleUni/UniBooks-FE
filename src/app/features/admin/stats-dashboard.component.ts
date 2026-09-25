@@ -31,7 +31,7 @@ const REPORT_REASON_KEYS: Record<string, string> = {
     AdminTrendChartComponent, AdminStatsPeriodComponent, AdminStatusBarComponent,
   ],
   template: `
-    <div class="header-actions">
+    <div class="section-head-row">
       <h2>{{ 'admin.stats.titleOverview' | t }}</h2>
       <admin-stats-period [days]="days" (daysChange)="onDaysChange($event)"></admin-stats-period>
     </div>

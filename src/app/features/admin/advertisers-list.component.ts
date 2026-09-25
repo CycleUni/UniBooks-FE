@@ -19,9 +19,9 @@ import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
   standalone: true,
   imports: [CommonModule, UiSkeleton, RouterModule, FormsModule, TPipe, UiSearchBarComponent, UiPagination, UiCheckbox, UiButton],
   template: `
-    <div class="header-actions">
+    <div class="section-head-row">
       <h2>{{ 'admin.navAdvertisers' | t }}</h2>
-      <div>
+      <div class="section-head-actions">
         <ui-button variant="primary" (onClick)="openCreateModal()">{{ 'admin.addAdvertiser' | t }}</ui-button>
       </div>
     </div>
@@ -112,7 +112,6 @@ import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
     .app-modal { 
       width: 400px; max-width: 90%; 
     }
-    .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     .form-group { margin-bottom: 16px; }
     .form-group label { display: block; margin-bottom: 8px; font-weight: 600; }
   `]

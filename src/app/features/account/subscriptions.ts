@@ -46,14 +46,6 @@ import { ConfirmService } from '../../core/services/confirm.service';
     <ui-empty *ngIf="mySubscriptions.length === 0" [message]="'acct.noSubs' | t"></ui-empty>
   `,
   styles: [`
-    .section-head-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 24px;
-    }
-    .section-head-row .section-heading { margin-bottom: 0; }
     /* .discover-grid is declared once, globally. A copy here would win on
        specificity — view encapsulation adds an attribute selector — and this
        one silently did, with a 160px track against the global 180px. */

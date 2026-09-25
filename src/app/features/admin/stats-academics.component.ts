@@ -48,23 +48,34 @@ const SORTS: { value: BreakdownSort; label: string }[] = [
     AdminStatsPeriodComponent, AdminRankingChartComponent, AdminGroupBooksComponent, UiDropdown,
   ],
   template: `
-    <div class="header-actions">
+    <div class="section-head-row">
       <h2>{{ 'admin.navStatsAcademics' | t }}</h2>
       <admin-stats-period [days]="days" (daysChange)="onDaysChange($event)"></admin-stats-period>
     </div>
     <p class="scope-note">{{ 'admin.stats.scopeNoteShort' | t: { region: regionName() } }}</p>
 
     <section class="card">
-      <div class="tabs" role="tablist" [attr.aria-label]="'admin.stats.groupBy' | t">
-        <button
-          *ngFor="let d of dimensions"
-          type="button"
-          role="tab"
-          class="tab"
-          [class.active]="d.value === by"
-          [attr.aria-selected]="d.value === by"
-          (click)="onByChange(d.value)"
-        >{{ d.label | t }}</button>
+      <div class="section-head-row tab-row">
+        <div class="tabs" role="tablist" [attr.aria-label]="'admin.stats.groupBy' | t">
+          <button
+            *ngFor="let d of dimensions"
+            type="button"
+            role="tab"
+            class="tab"
+            [class.active]="d.value === by"
+            [attr.aria-selected]="d.value === by"
+            (click)="onByChange(d.value)"
+          >{{ d.label | t }}</button>
+        </div>
+        <ui-dropdown
+          [label]="'admin.stats.sortBy' | t"
+          [inlineLabel]="true"
+          [compact]="true"
+          [options]="sortOptions"
+          [searchable]="false"
+          [ngModel]="sort"
+          (ngModelChange)="onSortChange($event)"
+        ></ui-dropdown>
       </div>
 
       <div class="admin-filters">
@@ -75,13 +86,6 @@ const SORTS: { value: BreakdownSort; label: string }[] = [
           [options]="schoolDropdown"
           [ngModel]="school === null ? '' : '' + school"
           (ngModelChange)="onSchoolChange($event ? +$event : null)"
-        ></ui-dropdown>
-        <ui-dropdown
-          [label]="'admin.stats.sortBy' | t"
-          [options]="sortOptions"
-          [searchable]="false"
-          [ngModel]="sort"
-          (ngModelChange)="onSortChange($event)"
         ></ui-dropdown>
       </div>
 
@@ -162,6 +166,11 @@ const SORTS: { value: BreakdownSort; label: string }[] = [
   `,
   styles: [STATS_PAGE_STYLES, `
     .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+    /* The sort sits at the tab row's end: the row takes over the tabs' rule,
+       and the active tab's underline still overlaps it by its -1px margin. */
+    .section-head-row.tab-row { align-items: flex-end; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+    .tab-row .tabs { margin-bottom: 0; border-bottom: none; }
+    .tab-row ui-dropdown { margin-bottom: 6px; }
     .tab {
       appearance: none; background: none; border: none; cursor: pointer;
       padding: 8px 14px; margin-bottom: -1px; font: inherit; font-size: var(--text-sm);

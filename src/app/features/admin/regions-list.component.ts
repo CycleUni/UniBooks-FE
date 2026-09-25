@@ -18,7 +18,7 @@ import { Lang } from '../../core/i18n';
   standalone: true,
   imports: [CommonModule, RouterModule, FormsModule, TPipe, UiPagination, UiDropdown, UiInput, UiButton, UiCheckbox, UiFocusTrapDirective],
   template: `
-    <div class="header-actions">
+    <div class="section-head-row">
       <h2>{{ 'admin.navRegions' | t }}</h2>
       <ui-button (onClick)="openCreateModal()">{{ 'admin.addRegion' | t }}</ui-button>
     </div>
@@ -105,7 +105,6 @@ import { Lang } from '../../core/i18n';
     </div>
   `,
   styles: [`
-    .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     .form-group { margin-bottom: 16px; }
     .form-group label { display: block; margin-bottom: 8px; font-size: var(--text-base); font-weight: 600; }
     .checkbox-group { display: flex; gap: 16px; flex-wrap: wrap; }

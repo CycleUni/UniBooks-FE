@@ -32,9 +32,7 @@ export interface UserReportItem {
   standalone: true,
   imports: [CommonModule, RouterModule, TPipe, UiSkeleton, UiPagination, UiEmpty, DateTimeFormatPipe],
   template: `
-    <div class="section-head-row">
-      <h2 class="section-heading">{{ 'acct.tabReports' | t }}</h2>
-    </div>
+    <h2 class="section-heading">{{ 'acct.tabReports' | t }}</h2>
 
     <div class="tabs">
       <button class="tab" [class.active]="activeFilter === 'all'" (click)="setFilter('all')">
@@ -95,17 +93,6 @@ export interface UserReportItem {
     </div>
   `,
   styles: [`
-    .section-head-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-    .section-heading {
-      margin: 0;
-      font-size: var(--text-xl);
-      font-weight: 600;
-    }
     .tabs {
       display: flex;
       gap: 16px;

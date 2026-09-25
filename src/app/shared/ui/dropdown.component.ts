@@ -14,13 +14,14 @@ export interface DropdownOption {
   imports: [CommonModule, FormsModule, TPipe],
   template: `
     <div class="dropdown-wrapper" [class.compact]="compact">
-      <label *ngIf="label">{{ label }}</label>
+      <label *ngIf="label && !inlineLabel">{{ label }}</label>
       <div class="ui-dropdown">
         <button
           #trigger
           type="button"
           class="dropdown-trigger"
           [class.icon-only]="iconOnly"
+          [class.inline-label]="inlineLabel"
           [disabled]="disabled"
           [attr.aria-expanded]="open"
           [attr.aria-label]="triggerAriaLabel"
@@ -28,6 +29,7 @@ export interface DropdownOption {
           (click)="toggle()"
         >
           <ng-content select="[dropdownTrigger]"></ng-content>
+          <span *ngIf="label && inlineLabel" class="dropdown-inline-label">{{ label }}</span>
           <span *ngIf="!customTrigger" class="dropdown-trigger-label">{{ selectedLabel || placeholder }}</span>
           <svg class="dropdown-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true">
             <polyline points="6 9 12 15 18 9"/>
@@ -112,6 +114,21 @@ export interface DropdownOption {
       font-family: inherit;
       cursor: pointer;
       text-align: left;
+    }
+    /* Label inside the field and the field sized to its content, so it can
+       sit in a row beside buttons (a section header's sort control) instead
+       of stacking a label above itself. */
+    .dropdown-trigger.inline-label {
+      width: auto;
+      /* Same height as the ui-button it sits beside. */
+      min-height: 40px;
+    }
+    @media (pointer: coarse) {
+      .dropdown-trigger.inline-label { min-height: var(--tap-min); }
+    }
+    .dropdown-inline-label {
+      flex-shrink: 0;
+      color: var(--muted);
     }
     .dropdown-trigger:disabled {
       background-color: var(--paper-warm);
@@ -254,6 +271,10 @@ export class UiDropdown implements ControlValueAccessor, AfterViewInit, OnDestro
   // Drops the form-field bottom margin, for inline header usage rather
   // than a stacked form field.
   @Input() compact: boolean = false;
+  // Shows `label` inside the trigger, before the value, rather than above
+  // it; the field then sizes to its content. Implies an inline, header
+  // placement, so it is usually paired with `compact`.
+  @Input() inlineLabel: boolean = false;
   @Input() align: 'left' | 'right' = 'left';
   // When true, the dropdown panel is rendered in the document body
   // and positioned via getBoundingClientRect() to avoid clipping.

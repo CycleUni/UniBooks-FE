@@ -56,7 +56,18 @@ const PAGE_SIZE = 20;
   template: `
     <div class="section-head-row">
       <h2 class="section-heading">{{ 'acct.tabListings' | t }}</h2>
-      <ui-button (onClick)="goToSell()">+ {{ 'acct.addListing' | t }}</ui-button>
+      <div class="section-head-actions">
+        <ui-dropdown
+          [label]="'acct.sortBy' | t"
+          [inlineLabel]="true"
+          [compact]="true"
+          [options]="sortOptions"
+          [searchable]="false"
+          [ngModel]="sort"
+          (ngModelChange)="onSortChange($event)"
+        ></ui-dropdown>
+        <ui-button (onClick)="goToSell()">+ {{ 'acct.addListing' | t }}</ui-button>
+      </div>
     </div>
 
     <!-- One tab per status, labelled with how many are in it, so "what is
@@ -73,20 +84,12 @@ const PAGE_SIZE = 20;
       >{{ tabLabel(tab) | t }} <span class="tab-count">{{ counts[tab || 'all'] ?? 0 }}</span></button>
     </div>
 
-    <div class="list-filters">
-      <ui-search-bar
-        [placeholder]="'acct.searchListings' | t"
-        [value]="searchQuery"
-        (search)="onSearchQuery($event)">
-      </ui-search-bar>
-      <ui-dropdown
-        [label]="'acct.sortBy' | t"
-        [options]="sortOptions"
-        [searchable]="false"
-        [ngModel]="sort"
-        (ngModelChange)="onSortChange($event)"
-      ></ui-dropdown>
-    </div>
+    <ui-search-bar
+      class="list-search"
+      [placeholder]="'acct.searchListings' | t"
+      [value]="searchQuery"
+      (search)="onSearchQuery($event)">
+    </ui-search-bar>
 
     <p class="result-note" *ngIf="!loading && myListings.length > 0">
       {{ 'acct.listingCount' | t:{ n: totalListings } }}
@@ -198,15 +201,6 @@ const PAGE_SIZE = 20;
     </div>
   `,
   styles: [`
-    .section-head-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-    .section-head-row .section-heading { margin-bottom: 0; }
-
     .status-tabs {
       display: flex;
       flex-wrap: wrap;
@@ -225,10 +219,7 @@ const PAGE_SIZE = 20;
     .tab-count { color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 400; }
     .status-tab.active .tab-count { color: var(--accent); }
 
-    .list-filters { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 8px; }
-    .list-filters ui-search-bar { flex: 1; min-width: 220px; }
-    .list-filters ui-dropdown { min-width: 180px; }
-    .list-filters ui-dropdown .dropdown-wrapper { margin-bottom: 0; }
+    .list-search { display: block; margin-bottom: 8px; }
     .result-note { margin: 0 0 8px; font-size: var(--text-sm); color: var(--muted); }
     .empty-note { padding: 24px 0; text-align: center; color: var(--muted); }
 
@@ -288,7 +279,6 @@ const PAGE_SIZE = 20;
     .modal-footer-actions { justify-content: space-between; }
     .modal-footer-right { display: flex; gap: 8px; }
     @media (max-width: 768px) {
-      .section-head-row { flex-wrap: wrap; gap: 12px; }
       .edit-modal { padding: 16px; }
     }
   `]

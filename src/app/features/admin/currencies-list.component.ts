@@ -17,7 +17,7 @@ import { parseAdminError } from '../../core/admin-error.util';
   standalone: true,
   imports: [CommonModule, RouterModule, FormsModule, TPipe, UiPagination, UiDropdown, UiInput, UiButton, UiCheckbox, UiFocusTrapDirective],
   template: `
-    <div class="header-actions">
+    <div class="section-head-row">
       <h2>{{ 'admin.navCurrencies' | t }}</h2>
       <ui-button (onClick)="openCreateModal()">{{ 'admin.addCurrency' | t }}</ui-button>
     </div>
@@ -73,7 +73,6 @@ import { parseAdminError } from '../../core/admin-error.util';
     </div>
   `,
   styles: [`
-    .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     .form-group { margin-bottom: 16px; }
     .form-group label { display: block; margin-bottom: 8px; font-size: var(--text-base); font-weight: 600; }
   `]

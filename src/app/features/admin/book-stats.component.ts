@@ -27,7 +27,7 @@ import { AdminStatsPeriodComponent, AdminStatusBarComponent, STATS_PAGE_STYLES, 
     <div *ngIf="!data && !loading" class="empty-note">{{ 'admin.errLoadFailed' | t }}</div>
 
     <div *ngIf="data as d" [class.stale]="loading">
-      <div class="header-actions">
+      <div class="section-head-row">
         <h2 class="book-title">{{ d.book.title }}</h2>
         <admin-stats-period [days]="days" (daysChange)="onDaysChange($event)"></admin-stats-period>
       </div>

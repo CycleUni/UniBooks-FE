@@ -14,7 +14,7 @@ import { AdminStatsPeriodComponent, STATS_PAGE_STYLES, StatsPeriodMemory } from 
   standalone: true,
   imports: [CommonModule, TPipe, AdminStatsPeriodComponent, AdminBookRankingComponent, AdminRequestRankingComponent],
   template: `
-    <div class="header-actions">
+    <div class="section-head-row">
       <h2>{{ 'admin.stats.titleBooks' | t }}</h2>
       <admin-stats-period [days]="days" (daysChange)="onDaysChange($event)"></admin-stats-period>
     </div>
