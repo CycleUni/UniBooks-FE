@@ -5,6 +5,7 @@ import { UiCheckbox } from '../../shared/ui/checkbox.component';
 import { UiDropdown } from '../../shared/ui/dropdown.component';
 import { UiInput } from '../../shared/ui/input.component';
 import { UiButton } from '../../shared/ui/button.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { UiFocusTrapDirective } from '../../shared/ui/focus-trap.directive';
 import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -16,7 +17,7 @@ import { Lang } from '../../core/i18n';
 @Component({
   selector: 'app-admin-regions-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiPagination, UiDropdown, UiInput, UiButton, UiCheckbox, UiFocusTrapDirective],
+  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiPagination, UiDropdown, UiInput, UiButton, UiErrorState, UiCheckbox, UiFocusTrapDirective],
   template: `
     <div class="section-head-row">
       <h2>{{ 'admin.navRegions' | t }}</h2>
@@ -24,7 +25,14 @@ import { Lang } from '../../core/i18n';
     </div>
 
     <div *ngIf="!data && loading" class="empty-note">{{ 'common.loading' | t }}</div>
-    <div class="table-container" *ngIf="data">
+    <!-- A failed load used to leave the page with its heading and nothing
+         under it, which read as an empty list rather than an error. -->
+    <ui-error-state
+      *ngIf="loadFailed"
+      [message]="'admin.errLoadFailed' | t"
+      (retry)="loadPage(currentPage)"
+    ></ui-error-state>
+    <div class="table-container" *ngIf="data && !loadFailed">
       <table class="admin-table">
         <thead>
           <tr>
@@ -122,6 +130,7 @@ export class AdminRegionsListComponent implements OnInit {
 
   data?: Paginated<AdminRegion>;
   loading = true;
+  loadFailed = false;
   currencies: AdminCurrency[] = [];
   currentPage = 1;
   total = 0;
@@ -176,6 +185,8 @@ export class AdminRegionsListComponent implements OnInit {
 
   loadPage(page: number) {
     this.currentPage = page;
+    this.loadFailed = false;
+    this.loading = true;
     this.adminService.getRegions().subscribe({
       next: (res) => {
         if (Array.isArray(res)) {
@@ -190,6 +201,7 @@ export class AdminRegionsListComponent implements OnInit {
       },
       error: () => {
         this.loading = false;
+        this.loadFailed = true;
         this.cdr.markForCheck();
       }
     });

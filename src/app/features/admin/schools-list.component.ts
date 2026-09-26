@@ -1,5 +1,6 @@
 import { UiFocusTrapDirective } from '../../shared/ui/focus-trap.directive';
 import { UiButton } from '../../shared/ui/button.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { parseAdminError } from '../../core/admin-error.util';
 import { Component, inject, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -17,7 +18,7 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
 @Component({
   selector: 'app-admin-schools-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiSearchBarComponent, BulkImportModalComponent, UiPagination, UiButton, UiFocusTrapDirective],
+  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiSearchBarComponent, BulkImportModalComponent, UiPagination, UiButton, UiErrorState, UiFocusTrapDirective],
   template: `
     <div class="section-head-row">
       <h2>{{ 'admin.navSchools' | t }}</h2>
@@ -32,7 +33,14 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
     </div>
 
     <div *ngIf="!schoolsData && loading" class="empty-note">{{ 'common.loading' | t }}</div>
-    <div class="table-container" *ngIf="schoolsData">
+    <!-- A failed load used to leave the page with its heading and nothing
+         under it, which read as an empty list rather than an error. -->
+    <ui-error-state
+      *ngIf="loadFailed"
+      [message]="'admin.errLoadFailed' | t"
+      (retry)="loadPage(currentPage)"
+    ></ui-error-state>
+    <div class="table-container" *ngIf="schoolsData && !loadFailed">
       <table class="admin-table">
         <thead>
           <tr>
@@ -126,6 +134,7 @@ export class AdminSchoolsListComponent implements OnInit {
 
   schoolsData?: Paginated<AdminSchool>;
   loading = true;
+  loadFailed = false;
   currentPage = 1;
   total = 0;
   pageSize = 20;
@@ -144,6 +153,8 @@ export class AdminSchoolsListComponent implements OnInit {
 
   loadPage(page: number) {
     this.currentPage = page;
+    this.loadFailed = false;
+    this.loading = true;
     this.adminService.getSchools({ page: this.currentPage, q: this.q }).subscribe({
       next: (data) => {
         this.schoolsData = data;
@@ -153,6 +164,7 @@ export class AdminSchoolsListComponent implements OnInit {
       },
       error: (err) => {
         this.loading = false;
+        this.loadFailed = true;
         this.cdr.markForCheck();
       }
     });
