@@ -36,14 +36,14 @@
       padding-bottom: 8px;
       border-bottom: 1px solid var(--line);
     }
+    /* Same sizing as the book page's grid; see the note there. */
     .listings-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 24px;
+      grid-template-columns: repeat(auto-fill, minmax(max(150px, 19%), 1fr));
+      gap: 16px;
     }
     @media (max-width: 768px) {
       .listings-grid {
-        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
         gap: 12px;
       }
     }

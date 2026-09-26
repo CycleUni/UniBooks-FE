@@ -217,10 +217,16 @@ export function bookSourceLabelKey(source: unknown): string | null {
       font-weight: 700;
     }
 
+    /* One rule for every width. The old pair (280px above 768, 150px below)
+       jumped at the breakpoint: four 175px cards at 768 became two 356px
+       cards at 769, and 422px ones by 900. A minimum that tracks the grid
+       width (19%) keeps four a row on a desktop, while the 150px floor
+       still gives a phone two a row; between them a card stays roughly
+       160-230px wide. */
     .listings-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 24px;
+      grid-template-columns: repeat(auto-fill, minmax(max(150px, 19%), 1fr));
+      gap: 16px;
     }
     .no-local-alert {
       padding: 12px 16px;
@@ -273,10 +279,8 @@ export function bookSourceLabelKey(source: unknown): string | null {
         gap: 12px;
         padding: 16px;
       }
-      /* Two cards a row on a phone, more as the width allows; the card
-         compacts itself when its own column gets narrow. */
+      /* The card compacts itself when its own column gets narrow. */
       .listings-grid {
-        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
         gap: 12px;
       }
     }
