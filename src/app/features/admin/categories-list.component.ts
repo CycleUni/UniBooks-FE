@@ -1,4 +1,5 @@
 import { UiButton } from '../../shared/ui/button.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { Component, inject, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { UiPagination } from '../../shared/ui/pagination.component';
@@ -8,7 +9,6 @@ import { FormsModule } from '@angular/forms';
 import { AdminService, AdminCategory, Paginated } from '../../core/services/admin.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { TPipe, I18nService } from '../../core/i18n.service';
-import { ToastService } from '../../core/services/toast.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { TranslationEditorComponent, TranslationField } from './translation-editor.component';
 import { BulkImportModalComponent } from './bulk-import-modal.component';
@@ -19,7 +19,7 @@ import { RegionService } from '../../core/region.service';
 @Component({
   selector: 'app-admin-categories-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TPipe, TranslationEditorComponent, BulkImportModalComponent, UiPagination, UiCheckbox, UiTextarea, UiButton],
+  imports: [CommonModule, RouterModule, FormsModule, TPipe, TranslationEditorComponent, BulkImportModalComponent, UiPagination, UiCheckbox, UiTextarea, UiButton, UiErrorState],
   template: `
     <ng-container *ngIf="!showModal">
       <div class="section-head-row">
@@ -34,7 +34,14 @@ import { RegionService } from '../../core/region.service';
       </div>
 
       <div *ngIf="!categoriesData && loading" class="empty-note">{{ 'common.loading' | t }}</div>
-      <div class="table-container" *ngIf="categoriesData">
+      <!-- In place of a toast: the toast vanished after a few seconds and
+           left the page looking like an empty list with no way to retry. -->
+      <ui-error-state
+        *ngIf="loadError"
+        [message]="loadError"
+        (retry)="loadPage(currentPage)"
+      ></ui-error-state>
+      <div class="table-container" *ngIf="categoriesData && !loadError">
         <table class="admin-table">
           <thead>
             <tr>
@@ -146,13 +153,14 @@ export class AdminCategoriesListComponent implements OnInit {
   private adminService = inject(AdminService);
   private cdr = inject(ChangeDetectorRef);
   private i18n = inject(I18nService);
-  private toast = inject(ToastService);
   private confirms = inject(ConfirmService);
   private authStore = inject(AuthStore);
   private regionService = inject(RegionService);
 
   categoriesData?: Paginated<AdminCategory>;
   loading = true;
+  /** Why the last load failed, or '' when it did not. */
+  loadError = '';
   currentPage = 1;
   total = 0;
   pageSize = 20;
@@ -179,6 +187,8 @@ export class AdminCategoriesListComponent implements OnInit {
 
   loadPage(page: number) {
     this.currentPage = page;
+    this.loadError = '';
+    this.loading = true;
     const opts: any = { page: this.currentPage, region: this.regionService.region().toUpperCase() };
     
     this.adminService.getCategories(opts).subscribe({
@@ -190,7 +200,7 @@ export class AdminCategoriesListComponent implements OnInit {
       },
       error: (err) => {
         this.loading = false;
-        this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
+        this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
         this.cdr.markForCheck();
       }
     });
