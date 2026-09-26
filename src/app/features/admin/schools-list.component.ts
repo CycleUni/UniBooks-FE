@@ -31,6 +31,7 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
       <ui-search-bar [placeholder]="'admin.searchSchools' | t" [value]="q" (search)="onSearch($event)"></ui-search-bar>
     </div>
 
+    <div *ngIf="!schoolsData && loading" class="empty-note">{{ 'common.loading' | t }}</div>
     <div class="table-container" *ngIf="schoolsData">
       <table class="admin-table">
         <thead>
@@ -124,6 +125,7 @@ export class AdminSchoolsListComponent implements OnInit {
   private regionService = inject(RegionService);
 
   schoolsData?: Paginated<AdminSchool>;
+  loading = true;
   currentPage = 1;
   total = 0;
   pageSize = 20;
@@ -146,9 +148,11 @@ export class AdminSchoolsListComponent implements OnInit {
       next: (data) => {
         this.schoolsData = data;
         this.total = data.count;
+        this.loading = false;
         this.cdr.markForCheck();
       },
       error: (err) => {
+        this.loading = false;
         this.cdr.markForCheck();
       }
     });

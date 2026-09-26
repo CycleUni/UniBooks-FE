@@ -33,6 +33,7 @@ import { RegionService } from '../../core/region.service';
       <div class="admin-filters">
       </div>
 
+      <div *ngIf="!categoriesData && loading" class="empty-note">{{ 'common.loading' | t }}</div>
       <div class="table-container" *ngIf="categoriesData">
         <table class="admin-table">
           <thead>
@@ -151,6 +152,7 @@ export class AdminCategoriesListComponent implements OnInit {
   private regionService = inject(RegionService);
 
   categoriesData?: Paginated<AdminCategory>;
+  loading = true;
   currentPage = 1;
   total = 0;
   pageSize = 20;
@@ -183,9 +185,11 @@ export class AdminCategoriesListComponent implements OnInit {
       next: (data) => {
         this.categoriesData = data;
         this.total = data.count;
+        this.loading = false;
         this.cdr.markForCheck();
       },
       error: (err) => {
+        this.loading = false;
         this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
         this.cdr.markForCheck();
       }

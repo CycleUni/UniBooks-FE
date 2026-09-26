@@ -100,6 +100,12 @@ export interface HeroCover {
             </ul>
           </div>
 
+          <!-- While the waitlist is still loading, hold the stack's space
+               empty. Rendering the "no books yet" call to action first and
+               then replacing it with covers told every visitor the shelf was
+               bare for a moment. -->
+          <div class="hero-stack" *ngIf="loading && !covers.length" aria-hidden="true"></div>
+
           <div class="hero-stack" *ngIf="covers.length">
             <ng-container *ngFor="let cover of covers; let i = index">
               <!-- Ad card -->
@@ -147,7 +153,7 @@ export interface HeroCover {
             </ng-container>
           </div>
 
-          <div class="hero-cta" *ngIf="!covers.length">
+          <div class="hero-cta" *ngIf="!loading && !covers.length">
             <div class="hero-cta-inner">
               <div class="hero-cta-mark" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="28" height="28">
@@ -436,6 +442,8 @@ export interface HeroCover {
 export class HomeHero {
   /** Books to show in the stack; the page decides which ones. */
   @Input() covers: HeroCover[] = [];
+  /** True until the page knows whether there are covers at all. */
+  @Input() loading = false;
   @Output() adClick = new EventEmitter<PublicAd>();
 
   searchQuery = '';

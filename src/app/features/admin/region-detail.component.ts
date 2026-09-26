@@ -18,6 +18,7 @@ import { UiButton } from '../../shared/ui/button.component';
   standalone: true,
   imports: [CommonModule, RouterModule, FormsModule, TPipe, RegionLinkDirective, UiDropdown, UiInput, UiButton, UiCheckbox],
   template: `
+    <div *ngIf="!item" class="empty-note">{{ 'common.loading' | t }}</div>
     <div class="admin-detail-header" *ngIf="item">
       <a regionLink="../.." class="back-link">&larr; {{ 'admin.backToList' | t }}</a>
       <h2>{{ 'admin.editRegion' | t }} - {{ item.code }}</h2>

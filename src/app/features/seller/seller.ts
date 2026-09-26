@@ -21,6 +21,13 @@ import { isUserVerifiedIn } from '../../core/verification';
   standalone: true,
   imports: [CommonModule, UiSkeleton, UiListingRow, UiPagination, UiBreadcrumb, TPipe],
   template: `
+    <!-- The profile request gates the whole page; hold its place instead of
+         rendering nothing and then snapping the header in. -->
+    <div class="container container--narrow seller-page" *ngIf="!seller && !error">
+      <ui-skeleton variant="row" [count]="1"></ui-skeleton>
+      <ui-skeleton [count]="5"></ui-skeleton>
+    </div>
+
     <div class="container container--narrow seller-page" *ngIf="seller">
       <ui-breadcrumb [items]="breadcrumbItems"></ui-breadcrumb>
 
@@ -203,7 +210,9 @@ export class SellerPageComponent implements OnInit {
 
   seller: any = null;
   listings: any[] = [];
-  loadingListings = false;
+  // Starts true: the profile renders first, and in that gap the listings are
+  // still on their way, not absent.
+  loadingListings = true;
   error = false;
   totalListings = 0;
   currentPage = 1;
@@ -234,6 +243,14 @@ export class SellerPageComponent implements OnInit {
   ngOnInit() {
     this.route.paramMap.subscribe(params => {
       const id = params.get('id');
+      if (id !== this.currentId) {
+        // Another seller: show the skeleton, not the previous seller's page.
+        this.seller = null;
+        this.listings = [];
+        this.loadingListings = true;
+        this.error = false;
+        this.currentPage = 1;
+      }
       this.currentId = id;
       if (id) {
         this.loadSeller(id);

@@ -25,11 +25,18 @@ import { hasCoverFailed, markCoverFailed } from '../../shared/ui/book-cover.comp
   standalone: true,
   imports: [RegionLinkDirective, CommonModule, RouterModule, HomeHero, UiButton, UiRecentListings, UiCategoryRail, UiSkeleton, UiErrorState, TPipe, CountCapPipe, BookCoverPipe],
   template: `
-      <app-home-hero [covers]="heroCovers" (adClick)="onAdClick($event)"></app-home-hero>
+      <app-home-hero [covers]="heroCovers" [loading]="metadataLoading" (adClick)="onAdClick($event)"></app-home-hero>
 
       <!-- Categories: show skeleton during load, then the real content, never blank -->
       <div class="two-cols container" [class.hero-has-covers]="heroCovers.length > 0">
         <section class="col-main" aria-labelledby="recent-listings-heading">
+          <!-- The listings wait for the school, but the section must not sit
+               blank meanwhile: same heading and skeleton the component itself
+               shows while its request is in flight, so the hand-off is seamless. -->
+          <ng-container *ngIf="!schoolReady">
+            <h2 class="section-heading" id="recent-listings-heading">{{ 'home.recentTitleAll' | t }}</h2>
+            <ui-skeleton variant="discover-grid" [count]="4"></ui-skeleton>
+          </ng-container>
           <ui-recent-listings *ngIf="schoolReady" [school]="currentSchool" [ads]="activeAds" (adClick)="onAdClick($event)"></ui-recent-listings>
         </section>
 
@@ -335,8 +342,11 @@ export class Home implements OnInit, OnDestroy {
    */
   private static readonly HERO_COVERS_MAX = 3;
 
-  categoriesLoading = false;
-  metadataLoading = false;
+  // Both start true: nothing is known until the first metadata response, and
+  // starting false rendered "no categories" / "nobody waiting" before the
+  // request had even been sent (it waits for the school to resolve).
+  categoriesLoading = true;
+  metadataLoading = true;
   categoriesError = false;
   metadataError = false;
 
@@ -388,6 +398,7 @@ export class Home implements OnInit, OnDestroy {
     this.categoriesLoading = true;
     this.metadataLoading = true;
     this.metadataError = false;
+    this.categoriesError = false;
 
     this.metadataService.getMetadata(this.currentSchool).subscribe({
       next: (data) => {
@@ -405,15 +416,12 @@ export class Home implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       },
       error: () => {
-        // Keep any previously-loaded data visible so the page doesn't
-        // go blank on a transient failure — only clear if first load fails
-        if (!this.categories) {
-          this.categoriesLoading = false;
-        }
-        if (this.waitlist.length === 0) {
-          this.metadataLoading = false;
-        }
+        this.categoriesLoading = false;
+        this.metadataLoading = false;
         this.metadataError = true;
+        // Categories already on screen stay; only a first load that failed
+        // gets the retry state instead of a misleading "no categories".
+        this.categoriesError = this.categories.length === 0;
         console.error('Failed to load metadata — will retry on next interaction');
         this.cdr.markForCheck();
       }

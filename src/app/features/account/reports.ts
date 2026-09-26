@@ -223,7 +223,9 @@ export class ReportsComponent implements OnInit {
 
   activeFilter: 'all' | 'listing' | 'chat' = 'all';
   reports: UserReportItem[] = [];
-  isLoading = false;
+  // True from the start: the first render must not show "no reports" before
+  // the request has had a chance to answer.
+  isLoading = true;
   totalReports = 0;
   pageSize = 20;
   currentPage = 1;

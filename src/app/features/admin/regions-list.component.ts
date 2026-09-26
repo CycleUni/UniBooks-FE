@@ -23,6 +23,7 @@ import { Lang } from '../../core/i18n';
       <ui-button (onClick)="openCreateModal()">{{ 'admin.addRegion' | t }}</ui-button>
     </div>
 
+    <div *ngIf="!data && loading" class="empty-note">{{ 'common.loading' | t }}</div>
     <div class="table-container" *ngIf="data">
       <table class="admin-table">
         <thead>
@@ -120,6 +121,7 @@ export class AdminRegionsListComponent implements OnInit {
   private i18n = inject(I18nService);
 
   data?: Paginated<AdminRegion>;
+  loading = true;
   currencies: AdminCurrency[] = [];
   currentPage = 1;
   total = 0;
@@ -183,6 +185,11 @@ export class AdminRegionsListComponent implements OnInit {
            this.data = res;
            this.total = res.count;
         }
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.loading = false;
         this.cdr.markForCheck();
       }
     });

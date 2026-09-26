@@ -166,7 +166,7 @@ export class NotificationsComponent implements OnInit {
   private i18n = inject(I18nService);
 
   readonly settings = signal<NotificationSettings | null>(null);
-  readonly loading = signal(false);
+  readonly loading = signal(true);
   readonly loadFailed = signal(false);
   readonly saving = signal(false);
 

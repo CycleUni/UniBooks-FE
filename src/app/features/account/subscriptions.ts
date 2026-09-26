@@ -4,6 +4,8 @@ import { Router } from '@angular/router';
 import { UiButton } from '../../shared/ui/button.component';
 import { UiEmpty } from '../../shared/ui/empty.component';
 import { UiBookTile } from '../../shared/ui/book-tile.component';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { TPipe, I18nService } from '../../core/i18n.service';
 import { AccountService } from '../../core/services/account.service';
 import { RegionLinkService } from '../../core/region-link.service';
@@ -14,14 +16,25 @@ import { ConfirmService } from '../../core/services/confirm.service';
 @Component({
   selector: 'app-account-subscriptions',
   standalone: true,
-  imports: [CommonModule, UiButton, UiEmpty, UiBookTile, TPipe],
+  imports: [CommonModule, UiButton, UiEmpty, UiBookTile, UiSkeleton, UiErrorState, TPipe],
   template: `
     <div class="section-head-row">
       <h2 class="section-heading">{{ 'acct.tabSubs' | t }}</h2>
-      <ui-button variant="ghost" *ngIf="mySubscriptions.length > 0" (onClick)="cancelAllSubscriptions()">{{ 'acct.cancelAllSubs' | t }}</ui-button>
+      <ui-button variant="ghost" *ngIf="!loading && mySubscriptions.length > 0" (onClick)="cancelAllSubscriptions()">{{ 'acct.cancelAllSubs' | t }}</ui-button>
     </div>
 
-    <div class="discover-grid" *ngIf="mySubscriptions.length > 0">
+    <!-- Until the first response lands the list is unknown, not empty:
+         showing "no subscriptions" and then swapping in the grid read as
+         the page contradicting itself. -->
+    <ui-skeleton *ngIf="loading" variant="discover-grid" [count]="4"></ui-skeleton>
+
+    <ui-error-state
+      *ngIf="!loading && loadFailed"
+      [message]="'common.error' | t"
+      (retry)="loadSubscriptions()"
+    ></ui-error-state>
+
+    <div class="discover-grid" *ngIf="!loading && !loadFailed && mySubscriptions.length > 0">
       <ui-book-tile
         *ngFor="let sub of mySubscriptions"
         [title]="sub.bookTitle"
@@ -43,7 +56,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
       </ui-book-tile>
     </div>
 
-    <ui-empty *ngIf="mySubscriptions.length === 0" [message]="'acct.noSubs' | t"></ui-empty>
+    <ui-empty *ngIf="!loading && !loadFailed && mySubscriptions.length === 0" [message]="'acct.noSubs' | t"></ui-empty>
   `,
   styles: [`
     /* .discover-grid is declared once, globally. A copy here would win on
@@ -65,6 +78,8 @@ import { ConfirmService } from '../../core/services/confirm.service';
 })
 export class SubscriptionsComponent implements OnInit {
   mySubscriptions: any[] = [];
+  loading = true;
+  loadFailed = false;
 
   private accountService = inject(AccountService);
   private cdr = inject(ChangeDetectorRef);
@@ -78,14 +93,24 @@ export class SubscriptionsComponent implements OnInit {
     this.loadSubscriptions();
   }
 
-  loadSubscriptions() {
+  /**
+   * `quiet` refreshes after an unsubscribe without swapping the grid for a
+   * skeleton: the list is already on screen and only shrinks.
+   */
+  loadSubscriptions(quiet = false) {
+    if (!quiet) this.loading = true;
+    this.loadFailed = false;
     this.accountService.getMySubscriptions().subscribe({
       next: (subs) => {
         this.mySubscriptions = subs;
+        this.loading = false;
         this.cdr.markForCheck();
       },
       error: (err) => {
         console.error('Failed to load subscriptions', err);
+        this.loading = false;
+        // Keep what is already listed; only an empty first load is a failure.
+        this.loadFailed = this.mySubscriptions.length === 0;
         this.cdr.markForCheck();
       }
     });
@@ -94,7 +119,7 @@ export class SubscriptionsComponent implements OnInit {
   async cancelSubscription(id: string) {
     if (await this.confirms.askDanger(this.i18n.t('acct.confirmCancelSub'))) {
       this.accountService.unsubscribe(id).subscribe({
-        next: () => this.loadSubscriptions(),
+        next: () => this.loadSubscriptions(true),
         error: (err) => {
           console.error('Failed to unsubscribe', err);
           this.toast.error(this.i18n.t('acct.unsubscribeFailed'));
@@ -106,7 +131,7 @@ export class SubscriptionsComponent implements OnInit {
   async cancelAllSubscriptions() {
     if (await this.confirms.askDanger(this.i18n.t('acct.confirmCancelAllSubs'))) {
       this.accountService.unsubscribeAll().subscribe({
-        next: () => this.loadSubscriptions(),
+        next: () => this.loadSubscriptions(true),
         error: (err) => {
           console.error('Failed to unsubscribe all', err);
           this.toast.error(this.i18n.t('acct.unsubscribeFailed'));

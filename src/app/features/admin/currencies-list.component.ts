@@ -22,6 +22,7 @@ import { parseAdminError } from '../../core/admin-error.util';
       <ui-button (onClick)="openCreateModal()">{{ 'admin.addCurrency' | t }}</ui-button>
     </div>
 
+    <div *ngIf="!data && loading" class="empty-note">{{ 'common.loading' | t }}</div>
     <div class="table-container" *ngIf="data">
       <table class="admin-table">
         <thead>
@@ -83,6 +84,7 @@ export class AdminCurrenciesListComponent implements OnInit {
   private i18n = inject(I18nService);
 
   data?: Paginated<AdminCurrency>;
+  loading = true;
   currentPage = 1;
   total = 0;
   pageSize = 20;
@@ -112,6 +114,11 @@ export class AdminCurrenciesListComponent implements OnInit {
            this.data = res;
            this.total = res.count;
         }
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.loading = false;
         this.cdr.markForCheck();
       }
     });

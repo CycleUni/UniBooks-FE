@@ -16,6 +16,7 @@ import { SchoolStateService } from '../../core/services/school-state.service';
 import { UiListingCard } from '../../shared/ui/listing-card.component';
 import { UiBookCover } from '../../shared/ui/book-cover.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { UiEmpty } from '../../shared/ui/empty.component';
 import { UiVerificationPrompt } from '../../shared/ui/verification-prompt.component';
 import { RegionLinkService } from '../../core/region-link.service';
@@ -50,8 +51,19 @@ export function bookSourceLabelKey(source: unknown): string | null {
 @Component({
   selector: 'app-book',
   standalone: true,
-  imports: [CommonModule, RouterModule, UiButton, UiBackButton, UiBreadcrumb, TPipe, UiListingCard, UiBookCover, UiPagination, UiEmpty, UiVerificationPrompt],
+  imports: [CommonModule, RouterModule, UiButton, UiBackButton, UiBreadcrumb, TPipe, UiListingCard, UiBookCover, UiPagination, UiEmpty, UiSkeleton, UiVerificationPrompt],
   template: `
+      <!-- Opened directly (no cached preview to paint first), the page used
+           to stay blank until the book request answered. -->
+      <div class="container container--narrow book-page" *ngIf="!book && isLoadingListings">
+        <ui-skeleton variant="row" [count]="1"></ui-skeleton>
+        <ui-skeleton variant="list" [count]="4"></ui-skeleton>
+      </div>
+
+      <div class="container container--narrow book-page" *ngIf="!book && !isLoadingListings && bookId">
+        <ui-empty [message]="'alert.bookNotFound' | t"></ui-empty>
+      </div>
+
       <div class="container container--narrow book-page" *ngIf="book">
         <ui-back-button></ui-back-button>
 
@@ -106,6 +118,8 @@ export function bookSourceLabelKey(source: unknown): string | null {
           <h3 class="section-heading" *ngIf="!isLoadingListings">{{ 'book.currentListings' | t:{n: totalListings} }}</h3>
           <h3 class="section-heading" *ngIf="isLoadingListings">{{ 'book.currentListings' | t:{n: '-'} }}</h3>
           
+          <ui-skeleton *ngIf="isLoadingListings" variant="list" [count]="3"></ui-skeleton>
+
           <div class="no-local-alert" *ngIf="!isLoadingListings && listings.length > 0 && localListingsCount === 0 && currentSchool">
             {{ 'search.noLocalListings' | t:{school: currentSchoolLabel} }}
           </div>
@@ -392,7 +406,16 @@ export class Book implements OnInit {
     });
 
     this.route.queryParamMap.subscribe(params => {
-      this.bookId = params.get('isbn') || params.get('id');
+      const nextId = params.get('isbn') || params.get('id');
+      if (nextId !== this.bookId) {
+        // A different book: drop the previous one so the skeleton shows
+        // rather than the last book's page under the new URL.
+        this.book = null;
+        this.listings = [];
+        this.totalListings = 0;
+        this.isLoadingListings = true;
+      }
+      this.bookId = nextId;
       this.engine = parseSearchEngine(params.get('engine'));
 
       if (this.bookId) {
