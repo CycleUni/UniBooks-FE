@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Sell, SELL_DRAFT_STORAGE_KEY, SELL_MAX_PHOTOS, SELL_DRAFT_MAX_AGE_MS, cleanAndValidateIsbn, clean_and_validate_isbn, isValidIsbnChecksum, selectBestRearCamera, otherCopiesFromBook, isPriceFarAboveOtherCopies } from './sell';
+import { Sell, SELL_DRAFT_STORAGE_KEY, SELL_MAX_PHOTOS, SELL_DRAFT_MAX_AGE_MS, cleanAndValidateIsbn, clean_and_validate_isbn, isValidIsbnChecksum, selectBestRearCamera, otherCopiesFromBook, isPriceFarAboveOtherCopies, createScanConfirmer } from './sell';
 import { provideRouter } from '@angular/router';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { I18nService } from '../../core/i18n.service';
@@ -53,6 +53,25 @@ describe('selectBestRearCamera', () => {
       { id: 'cam2', label: '' }
     ];
     expect(selectBestRearCamera(devices)).toBeNull();
+  });
+});
+
+describe('createScanConfirmer', () => {
+  it('passes a value only on its second consecutive read', () => {
+    const confirmed = createScanConfirmer();
+    expect(confirmed('9780134685991')).toBe(false);
+    expect(confirmed('9780134685991')).toBe(true);
+    expect(confirmed('9780134685991')).toBe(true);
+  });
+
+  it('restarts the count when a different value is read in between', () => {
+    const confirmed = createScanConfirmer();
+    expect(confirmed('9780134685991')).toBe(false);
+    // A misread with two digits wrong that still passes the EAN-13 check digit.
+    expect(isValidIsbnChecksum('9780134601991')).toBe(true);
+    expect(confirmed('9780134601991')).toBe(false);
+    expect(confirmed('9780134685991')).toBe(false);
+    expect(confirmed('9780134685991')).toBe(true);
   });
 });
 

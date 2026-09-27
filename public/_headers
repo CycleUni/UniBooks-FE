@@ -33,7 +33,10 @@
 #
 # What the policy allows and why:
 #   script-src   GSI (accounts.google.com) and GA (googletagmanager.com) are
-#                injected at runtime.
+#                injected at runtime. 'wasm-unsafe-eval' lets the barcode
+#                scanner compile /zxing/zxing_reader.wasm on browsers without a
+#                native BarcodeDetector (iOS); it allows WebAssembly only, not
+#                eval().
 #                No inline script exists to allow: the pre-paint theme snippet is
 #                /theme-init.js, and angular.json turns off inlineCritical,
 #                whose <link media="print" onload="this.media='all'"> was an
@@ -56,7 +59,7 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=()
   Content-Security-Policy: object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
-  Content-Security-Policy-Report-Only: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://accounts.google.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; frame-src https://accounts.google.com; worker-src 'self' blob:; manifest-src 'self'
+  Content-Security-Policy-Report-Only: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; frame-src https://accounts.google.com; worker-src 'self' blob:; manifest-src 'self'
 
 # A year-long cache only for the files whose names carry a content hash.
 # It used to sit on /* above, and every rule's headers apply to a matching

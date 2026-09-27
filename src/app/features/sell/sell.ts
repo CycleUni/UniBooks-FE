@@ -80,6 +80,55 @@ export function isValidIsbnChecksum(isbn: string): boolean {
 }
 
 /**
+ * Makes sure a BarcodeDetector that reads EAN-13 exists before html5-qrcode
+ * looks for one. Android Chrome ships a native detector; iOS Safari has none,
+ * so html5-qrcode fell back to its bundled ZXing-JS, which reads 1D barcodes
+ * only when they fill the frame (iPhones had to nearly touch the book). The
+ * polyfill runs ZXing-C++ as WebAssembly instead, served from our own origin
+ * (see the zxing asset in angular.json) rather than its default CDN.
+ */
+export async function ensureEan13BarcodeDetector(): Promise<void> {
+  const native = (globalThis as any).BarcodeDetector;
+  if (native) {
+    try {
+      const formats: string[] = await native.getSupportedFormats();
+      if (formats.includes('ean_13')) return;
+    } catch {
+      // Treat a detector that can't list its formats like a missing one.
+    }
+  }
+  const { BarcodeDetector, prepareZXingModule } = await import('barcode-detector/ponyfill');
+  prepareZXingModule({
+    overrides: {
+      locateFile: (path: string, prefix: string) =>
+        path.endsWith('.wasm') ? `/zxing/${path}` : prefix + path,
+    },
+  });
+  (globalThis as any).BarcodeDetector = BarcodeDetector;
+}
+
+/**
+ * Returns a filter that passes a decoded value only once it has been read
+ * `required` times in a row. A misread can change two digits so that the
+ * EAN-13 check digit still holds (seen on Android at a slight distance,
+ * where it opened a different book); the same misread repeating on the next
+ * decode is far less likely than the true value doing so.
+ */
+export function createScanConfirmer(required = 2): (decodedText: string) => boolean {
+  let last = '';
+  let count = 0;
+  return (decodedText: string) => {
+    if (decodedText === last) {
+      count++;
+    } else {
+      last = decodedText;
+      count = 1;
+    }
+    return count >= required;
+  };
+}
+
+/**
  * Selects the most appropriate rear camera from available video devices only when
  * there is high confidence from device labels (e.g. avoiding explicitly labeled
  * ultra-wide or telephoto lenses on multi-lens iOS devices).
@@ -594,6 +643,7 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
       if (this.html5QrCode && this.html5QrCode.isScanning) {
         await this.stopScanner();
       }
+      await ensureEan13BarcodeDetector();
       const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
       this.html5QrCode = new Html5Qrcode("reader", {
         formatsToSupport: [
@@ -621,6 +671,7 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
         ? { deviceId: { exact: selectedDeviceId } }
         : { facingMode: "environment" };
 
+      const confirmed = createScanConfirmer();
       await this.html5QrCode.start(
         cameraIdOrConfig,
         {
@@ -628,7 +679,7 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
           qrbox: { width: 280, height: 120 }
         },
         (decodedText) => {
-          this.handleScanResult(decodedText);
+          if (confirmed(decodedText)) this.handleScanResult(decodedText);
         },
         (errorMessage) => {
           // ignore scan errors, they happen continuously when no code is visible
