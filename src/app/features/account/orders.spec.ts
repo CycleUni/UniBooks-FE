@@ -162,3 +162,32 @@ describe('OrdersComponent order rows', () => {
     expect(component.isExpanded(component.boughtOrders[0])).toBe(true);
   });
 });
+
+describe('OrdersComponent.approveOrder', () => {
+  let component: OrdersComponent;
+  let ask: ReturnType<typeof vi.fn>;
+  const order = { id: 'o1', listing: 'l1', listing_title: 'Calculus', status: 'pending', buyer: 'u2', seller: 'u1' } as any;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [OrdersComponent, HttpClientTestingModule, RouterTestingModule],
+    });
+    component = TestBed.createComponent(OrdersComponent).componentInstance;
+    ask = vi.fn();
+    (component as any).meetupDetails = { ask };
+    component.updateStatus = vi.fn();
+  });
+
+  it('asks for the meetup time and place, then accepts with them', async () => {
+    ask.mockResolvedValue({ time: '2026-10-01 15:00', location: 'Library' });
+    await component.approveOrder(order);
+    expect(ask).toHaveBeenCalledWith('Calculus');
+    expect(component.updateStatus).toHaveBeenCalledWith(order, 'accepted', undefined, '2026-10-01 15:00', 'Library');
+  });
+
+  it('does not accept when the form is closed', async () => {
+    ask.mockResolvedValue(null);
+    await component.approveOrder(order);
+    expect(component.updateStatus).not.toHaveBeenCalled();
+  });
+});

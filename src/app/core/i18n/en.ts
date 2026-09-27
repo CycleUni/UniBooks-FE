@@ -592,6 +592,7 @@ export const en: Record<string, string> = {
   'order.meetupLocationPlaceholder': 'e.g., Library entrance',
   'order.meetupTimeError': 'Please select a future date and time',
   'order.meetupConfirm': 'Confirm',
+  'order.meetupSkip': 'Skip',
   'order.reviewSubmitted': 'Review/report submitted successfully!',
   'order.showDetails': 'Details',
   'order.hideDetails': 'Hide details',

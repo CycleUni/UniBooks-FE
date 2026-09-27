@@ -5,6 +5,7 @@ import { TPipe } from './core/i18n.service';
 import { UiLayout } from './shared/ui/layout.component';
 import { UiToastHost } from './shared/ui/toast-host.component';
 import { UiConfirmDialog } from './shared/ui/confirm-dialog.component';
+import { UiMeetupDetailsHost } from './shared/ui/meetup-details-host.component';
 import { NavigationHistoryService } from './core/services/navigation-history.service';
 import { GoogleAuthService } from './core/services/google-auth.service';
 import { GoogleAnalyticsService } from './core/services/google-analytics.service';
@@ -41,7 +42,7 @@ export function chunkUrlFromError(error: unknown): string | null {
  * whole chrome. */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, UiLayout, UiToastHost, UiConfirmDialog, TPipe],
+  imports: [RouterOutlet, UiLayout, UiToastHost, UiConfirmDialog, UiMeetupDetailsHost, TPipe],
   template: `
     <ui-layout>
       <router-outlet />
@@ -55,6 +56,7 @@ export function chunkUrlFromError(error: unknown): string | null {
          per-page host would take down with it. -->
     <ui-toast-host />
     <ui-confirm-dialog />
+    <ui-meetup-details-host />
     @if (updateReady()) {
       <div class="update-prompt">
         <span>{{ 'app.updateAvailable' | t }}</span>

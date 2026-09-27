@@ -591,6 +591,7 @@ export const zhTW: Record<string, string> = {
   'order.meetupLocationPlaceholder': '例如：圖書館門口',
   'order.meetupTimeError': '請選擇未來的時間',
   'order.meetupConfirm': '確認送出',
+  'order.meetupSkip': '略過',
   'order.reviewSubmitted': '評價/回報已成功送出！',
   'order.showDetails': '查看詳情',
   'order.hideDetails': '收合詳情',

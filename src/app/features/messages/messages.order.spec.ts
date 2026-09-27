@@ -119,4 +119,30 @@ describe('Messages WebSocket ordering & temp-id reconciliation', () => {
     expect(component.messages[0].id).toBe('server-id-123');
     expect(component.messages[0].body).toBe('Optimistic hello');
   });
+
+  describe('accepting a meetup from the chat card', () => {
+    let updateOrderStatus: ReturnType<typeof vi.fn>;
+    let ask: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      updateOrderStatus = vi.fn(() => of({}));
+      ask = vi.fn();
+      (component as any).orderService = { updateOrderStatus };
+      (component as any).meetupDetails = { ask };
+      component.activeChat = { id: 'c1', order_id: 'o1', listing_title: 'Calculus' } as any;
+    });
+
+    it('asks for the meetup time and place, like the orders list does', async () => {
+      ask.mockResolvedValue({ time: '2026-10-01 15:00', location: 'Library' });
+      await component.handleAcceptMeetup();
+      expect(ask).toHaveBeenCalledWith('Calculus');
+      expect(updateOrderStatus).toHaveBeenCalledWith('o1', 'accepted', undefined, '2026-10-01 15:00', 'Library');
+    });
+
+    it('does not accept when the form is closed', async () => {
+      ask.mockResolvedValue(null);
+      await component.handleAcceptMeetup();
+      expect(updateOrderStatus).not.toHaveBeenCalled();
+    });
+  });
 });

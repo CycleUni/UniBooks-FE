@@ -2,9 +2,9 @@ import { Component, EventEmitter, Input, Output, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TPipe } from '../../core/i18n.service';
-import { UiButton } from '../../shared/ui/button.component';
-import { UiInput } from '../../shared/ui/input.component';
-import { UiFocusTrapDirective } from '../../shared/ui/focus-trap.directive';
+import { UiButton } from './button.component';
+import { UiInput } from './input.component';
+import { UiFocusTrapDirective } from './focus-trap.directive';
 
 @Component({
   selector: 'app-meetup-modal',
@@ -75,7 +75,7 @@ import { UiFocusTrapDirective } from '../../shared/ui/focus-trap.directive';
             {{ 'common.cancel' | t }}
           </ui-button>
           <ui-button (onClick)="onConfirm()" [disabled]="isSubmitting">
-            {{ 'order.meetupConfirm' | t }}
+            {{ (isEmpty ? 'order.meetupSkip' : 'order.meetupConfirm') | t }}
           </ui-button>
         </div>
       </div>
@@ -393,6 +393,12 @@ export class MeetupModalComponent implements OnInit {
     } else {
       this.timeError = '';
     }
+  }
+
+  /** Nothing entered: the button then reads "Skip", since pressing it accepts
+   *  the meetup without a time or place rather than confirming any. */
+  get isEmpty(): boolean {
+    return this.selectedDay === null && !this.selectedDate && !this.meetupTime && !(this.location || '').trim();
   }
 
   // --- Actions ---

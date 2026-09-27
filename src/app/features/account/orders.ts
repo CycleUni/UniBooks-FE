@@ -11,7 +11,7 @@ import { UiEmpty } from '../../shared/ui/empty.component';
 import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
 import { Router, ActivatedRoute } from '@angular/router';
 import { ReviewModalComponent } from './review-modal.component';
-import { MeetupModalComponent } from './meetup-modal.component';
+import { MeetupDetailsService } from '../../core/services/meetup-details.service';
 import { DateTimeFormatPipe } from '../../shared/pipes/datetime-format.pipe';
 import { PricePipe } from '../../shared/pipes/price.pipe';
 import { GoogleAnalyticsService } from '../../core/services/google-analytics.service';
@@ -25,7 +25,7 @@ import { RegionLinkDirective } from '../../core/region-link.directive';
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [CommonModule, RouterModule, UiSkeleton, TPipe, UiButton, UiEmpty, ReviewModalComponent, MeetupModalComponent, DateTimeFormatPipe, PricePipe, UiSearchBarComponent, RegionLinkDirective],
+  imports: [CommonModule, RouterModule, UiSkeleton, TPipe, UiButton, UiEmpty, ReviewModalComponent, DateTimeFormatPipe, PricePipe, UiSearchBarComponent, RegionLinkDirective],
   template: `
     <h2 class="section-heading">{{ 'acct.myOrders' | t }}</h2>
 
@@ -161,7 +161,6 @@ import { RegionLinkDirective } from '../../core/region-link.directive';
       </ng-template>
 
       <app-review-modal *ngIf="reviewingOrderId" [orderId]="reviewingOrderId" (onClosed)="onReviewModalClosed($event)"></app-review-modal>
-      <app-meetup-modal *ngIf="showMeetupModal" [bookTitle]="meetupModalOrder?.listing_title || ''" (onConfirmed)="onMeetupConfirmed($event)" (onClosed)="onMeetupModalClosed()"></app-meetup-modal>
   `,
   styles: [`
     .tabs {
@@ -374,14 +373,13 @@ export class OrdersComponent implements OnInit {
   boughtOrders: Order[] = [];
   soldOrders: Order[] = [];
   reviewingOrderId: string | null = null;
-  showMeetupModal = false;
-  meetupModalOrder: Order | null = null;
   searchQuery = '';
   highlightOrderId: string | null = null;
   /** Orders whose details are open. */
   expandedOrderIds = new Set<string>();
 
   private orderService = inject(OrderService);
+  private meetupDetails = inject(MeetupDetailsService);
   private authStore = inject(AuthStore);
   private accountService = inject(AccountService);
   private cdr = inject(ChangeDetectorRef);
@@ -609,22 +607,10 @@ export class OrdersComponent implements OnInit {
     });
   }
 
-  approveOrder(order: Order) {
-    this.meetupModalOrder = order;
-    this.showMeetupModal = true;
-  }
-
-  onMeetupConfirmed(result: { time: string; location: string }) {
-    const order = this.meetupModalOrder;
-    this.meetupModalOrder = null;
-    this.showMeetupModal = false;
-    if (!order) return;
-    this.updateStatus(order, 'accepted', undefined, result.time || undefined, result.location || undefined);
-  }
-
-  onMeetupModalClosed() {
-    this.meetupModalOrder = null;
-    this.showMeetupModal = false;
+  async approveOrder(order: Order) {
+    const details = await this.meetupDetails.ask(order.listing_title || '');
+    if (!details) return;
+    this.updateStatus(order, 'accepted', undefined, details.time || undefined, details.location || undefined);
   }
 
   hasExclusiveConflict(order: Order): boolean {

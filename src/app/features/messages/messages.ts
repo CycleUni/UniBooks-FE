@@ -16,6 +16,7 @@ import { FormsModule } from '@angular/forms';
 import { MessageService } from '../../core/services/message.service';
 import { AuthStore } from '../../core/auth.store';
 import { OrderService } from '../../core/services/order.service';
+import { MeetupDetailsService } from '../../core/services/meetup-details.service';
 import { GoogleAnalyticsService } from '../../core/services/google-analytics.service';
 import { ChangeDetectorRef, OnDestroy } from '@angular/core';
 import { TPipe, I18nService } from '../../core/i18n.service';
@@ -80,6 +81,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
   private messageService = inject(MessageService);
   private authStore = inject(AuthStore);
   private orderService = inject(OrderService);
+  private meetupDetails = inject(MeetupDetailsService);
   readonly i18n = inject(I18nService);
   private toast = inject(ToastService);
   private confirms = inject(ConfirmService);
@@ -994,9 +996,13 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
     });
   }
 
-  handleAcceptMeetup() {
+  async handleAcceptMeetup() {
+    // Same time/place form as accepting from the orders list; accepting here
+    // used to skip it and left the meetup with no time or place.
+    const details = await this.meetupDetails.ask(this.activeChat?.listing_title || '');
+    if (!details) return;
     this.getOrFetchOrderId((orderId) => {
-      this.orderService.updateOrderStatus(orderId, 'accepted').subscribe({
+      this.orderService.updateOrderStatus(orderId, 'accepted', undefined, details.time || undefined, details.location || undefined).subscribe({
         next: () => {
           this.ga.trackOrderStep(orderId, 'accepted');
           if (this.activeChat) this.activeChat.order_status = 'accepted';
