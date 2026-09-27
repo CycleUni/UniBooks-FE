@@ -51,12 +51,17 @@
             <ui-button (onClick)="searchBook()" *ngIf="canSearch" [disabled]="isCheckingIsbn || !searchQuery">
               {{ (isCheckingIsbn ? 'sell.searching' : 'sell.searchBook') | t }}
             </ui-button>
+            <ui-button variant="ghost" (onClick)="rescan()" *ngIf="!canSearch && lastSearchWasScan && !isCheckingIsbn && !isScanning">
+              {{ 'sell.rescan' | t }}
+            </ui-button>
           </div>
 
           <div id="reader" [hidden]="!isScanning"  class="mt-4 w-full" style="max-width: 100%; aspect-ratio: 16 / 9; border-radius: 4px; overflow: hidden; border: 1px solid var(--line);"></div>
           <div *ngIf="cameraError" class="inline-msg error">{{ cameraError }}</div>
+          <!-- Shaped like the result rows below: a cover beside two lines. -->
+          <ui-skeleton *ngIf="isCheckingIsbn" class="results-container" [count]="2"></ui-skeleton>
           <!-- Search Results List -->
-          <div *ngIf="searchResults.length > 0 && !bookPreview" class="results-container">
+          <div *ngIf="searchResults.length > 0 && !bookPreview && !isCheckingIsbn" class="results-container">
             <h4 class="select-hint">{{ 'sell.selectBook' | t }}</h4>
             <!-- A real button, not a div with a click handler. Picking the book
                  is step one of listing one, so while this was a div the whole

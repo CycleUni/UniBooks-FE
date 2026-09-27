@@ -291,6 +291,50 @@ describe('Sell Component Barcode Scanner Validation', () => {
     expect(searchBookSpy).toHaveBeenCalled();
   });
 
+  it('offers "scan again" after a scanned search, not after a typed one', () => {
+    vi.spyOn(component, 'stopScanner').mockResolvedValue();
+    vi.spyOn(component, 'searchBook').mockImplementation(() => {});
+
+    component.handleScanResult('9786264140720');
+    expect(component.lastSearchWasScan).toBe(true);
+
+    component.searchQuery = '97862641407';
+    component.onSearchQueryChange();
+    expect(component.lastSearchWasScan).toBe(false);
+  });
+
+  it('rescan clears the scanned ISBN and its results, then reopens the camera', async () => {
+    const startScannerSpy = vi.spyOn(component, 'startScanner').mockResolvedValue();
+    component.searchQuery = '9786264140720';
+    component.searchResults = [{ title: 'A book' }];
+    component.lastSearchWasScan = true;
+
+    await component.rescan();
+
+    expect(component.searchQuery).toBe('');
+    expect(component.searchResults).toEqual([]);
+    expect(component.bookPreview).toBeNull();
+    expect(component.lastSearchWasScan).toBe(false);
+    expect(startScannerSpy).toHaveBeenCalled();
+  });
+
+  it('hides the manual-entry fields once the ISBN query is edited', () => {
+    component.enterManually();
+    expect(component.bookPreview?.isManual).toBe(true);
+
+    component.searchQuery = '978626414072';
+    component.onSearchQueryChange();
+
+    expect(component.bookPreview).toBeNull();
+    expect(component.canSearch).toBe(true);
+  });
+
+  it('keeps a picked (non-manual) book when the query is edited', () => {
+    component.selectBook({ title: 'A book', author: 'Someone' });
+    component.onSearchQueryChange();
+    expect(component.bookPreview?.title).toBe('A book');
+  });
+
   it('should accept valid ISBN-10 scan with check digit X', async () => {
     const stopScannerSpy = vi.spyOn(component, 'stopScanner').mockResolvedValue();
     const searchBookSpy = vi.spyOn(component, 'searchBook').mockImplementation(() => {});

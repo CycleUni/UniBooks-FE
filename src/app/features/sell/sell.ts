@@ -9,6 +9,7 @@ import { UiButton } from '../../shared/ui/button.component';
 import { UiDropdown } from '../../shared/ui/dropdown.component';
 import { UiConditionPicker } from '../../shared/ui/condition-picker.component';
 import { UiBookCover } from '../../shared/ui/book-cover.component';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { UiVerificationPrompt } from '../../shared/ui/verification-prompt.component';
 import { AccountService } from '../../core/services/account.service';
 import { RegionService } from '../../core/region.service';
@@ -276,7 +277,7 @@ export interface SellDraft {
 @Component({
   selector: 'app-sell',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, RegionLinkDirective, UiInput, UiTextarea, UiButton, UiDropdown, UiConditionPicker, UiBookCover, UiVerificationPrompt, TPipe, PricePipe],
+  imports: [CommonModule, RouterModule, FormsModule, RegionLinkDirective, UiInput, UiTextarea, UiButton, UiDropdown, UiConditionPicker, UiBookCover, UiVerificationPrompt, UiSkeleton, TPipe, PricePipe],
   templateUrl: './sell.html',
   styleUrls: ['./sell.css']
 })
@@ -313,6 +314,8 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
   isScanning = false;
   cameraError = '';
   private html5QrCode: Html5Qrcode | null = null;
+  /** The current search came from the camera, so offer "Scan again". */
+  lastSearchWasScan = false;
   private isProcessingScan = false;
 
   /** Shown when a saved draft is found on entry — never restored silently. */
@@ -625,6 +628,7 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
     this.cameraError = '';
     this.searchQuery = validIsbn;
     this.onSearchQueryChange();
+    this.lastSearchWasScan = true;
     this.stopScanner().then(() => {
       this.searchBook();
     }).finally(() => {
@@ -777,7 +781,31 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
     this.isSearchQueryDirty = true;
     this.hideSearchButtonForNow = false;
     this.apiError = '';
+    this.lastSearchWasScan = false;
+    // Manual entry is the answer to "that ISBN found nothing"; a new query
+    // asks the question again, so the blank title/author fields go away and
+    // Search/Scan come back.
+    if (this.bookPreview?.isManual) {
+      this.bookPreview = null;
+      this.touchedFields['title'] = false;
+      this.touchedFields['authors'] = false;
+      this.attemptedSteps[1] = false;
+    }
     this.saveDraft();
+  }
+
+  /**
+   * Starts over from a scan: clears the scanned ISBN and whatever it found,
+   * then opens the camera again. Offered once a scan's search has finished,
+   * when the Scan button itself is hidden.
+   */
+  async rescan() {
+    this.searchQuery = '';
+    this.searchResults = [];
+    this.clearSelection();
+    this.isSearchQueryDirty = false;
+    this.lastSearchWasScan = false;
+    await this.startScanner();
   }
 
   selectBook(book: any) {
