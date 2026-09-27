@@ -1,6 +1,7 @@
 import { ApplicationConfig, provideZoneChangeDetection, isDevMode, APP_INITIALIZER } from '@angular/core';
-import { provideRouter, withInMemoryScrolling, withRouterConfig, withPreloading } from '@angular/router';
+import { provideRouter, withInMemoryScrolling, withRouterConfig, withPreloading, withViewTransitions } from '@angular/router';
 import { IdlePreloadingStrategy } from './core/idle-preloading.strategy';
+import { onViewTransitionCreated } from './core/view-transitions';
 import { provideHttpClient, withInterceptorsFromDi, HTTP_INTERCEPTORS } from '@angular/common/http';
 
 import { routes } from './app.routes';
@@ -24,6 +25,9 @@ export const appConfig: ApplicationConfig = {
       withRouterConfig({ canceledNavigationResolution: 'computed' }),
       // The pages a visitor opens next, fetched in idle time; see the strategy.
       withPreloading(IdlePreloadingStrategy),
+      // App-style page changes; which animation each one gets is decided in
+      // core/view-transitions.ts. Browsers without the API just swap pages.
+      withViewTransitions({ skipInitialTransition: true, onViewTransitionCreated }),
     ),
     provideHttpClient(withInterceptorsFromDi()),
     { provide: HTTP_INTERCEPTORS, useClass: ApiUrlInterceptor, multi: true },

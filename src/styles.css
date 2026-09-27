@@ -377,7 +377,86 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  /* `*` doesn't match view-transition pseudo-elements. The router skips the
+     transition for this preference already (core/view-transitions.ts); this
+     covers a preference switched on mid-transition. */
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }
+
+/*
+ * Tap feedback. No grey flash box on tap (every pressable thing here has its
+ * own :active or focus style), and no double-tap-to-zoom wait on controls, so
+ * a tap responds at once. Buttons sink slightly while pressed, like native
+ * ones; iOS only applies :active because main.ts registers a touchstart
+ * listener.
+ */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+a,
+button,
+input,
+select,
+textarea,
+label,
+summary,
+[role="button"] {
+  touch-action: manipulation;
+}
+button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+/*
+ * Page transitions. core/view-transitions.ts sets data-nav-transition on
+ * <html> to pick one; the header and bottom tab bar carry their own
+ * view-transition-name (layout.component.css), so only the page between
+ * them moves.
+ *
+ * On phones, forward/back slide like a navigation stack: the new page covers
+ * the old from the right, and the old one drifts a little the other way.
+ * Tab switches and desktop get a short crossfade instead.
+ * mix-blend-mode is reset because the UA's plus-lighter blend, meant for
+ * crossfades, would brighten the overlap of two opaque sliding pages.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.18s;
+}
+@media (max-width: 900px) {
+  html[data-nav-transition="forward"]::view-transition-old(root),
+  html[data-nav-transition="forward"]::view-transition-new(root),
+  html[data-nav-transition="back"]::view-transition-old(root),
+  html[data-nav-transition="back"]::view-transition-new(root) {
+    mix-blend-mode: normal;
+    animation-duration: 0.32s;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+    animation-fill-mode: both;
+  }
+  html[data-nav-transition="forward"]::view-transition-old(root) {
+    animation-name: page-drift-left;
+  }
+  html[data-nav-transition="forward"]::view-transition-new(root) {
+    animation-name: page-enter-right;
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12);
+  }
+  html[data-nav-transition="back"]::view-transition-old(root) {
+    animation-name: page-leave-right;
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12);
+    z-index: 1;
+  }
+  html[data-nav-transition="back"]::view-transition-new(root) {
+    animation-name: page-drift-back;
+  }
+}
+@keyframes page-enter-right { from { transform: translateX(100%); } }
+@keyframes page-leave-right { to { transform: translateX(100%); } }
+@keyframes page-drift-left { to { transform: translateX(-25%); } }
+@keyframes page-drift-back { from { transform: translateX(-25%); } }
 
 /*
  * The single content column. Full-bleed bands (hero, footer) put their
@@ -676,15 +755,26 @@ body {
 .hover-card {
   transition: transform var(--motion-base) ease, box-shadow var(--motion-base) ease;
 }
-.hover-card:hover {
-  transform: translateY(-2px);
+/* Hover lift only where a pointer can actually hover: touch browsers keep
+   :hover on whatever was last tapped, which left the card raised after the
+   finger lifted. Touch gets a press instead (below). */
+@media (hover: hover) {
+  .hover-card:hover {
+    transform: translateY(-2px);
+  }
+  .hover-card.hover-card-surface:hover {
+    box-shadow: var(--shadow-card-lg);
+  }
+  .hover-card:hover .hover-card-cover {
+    box-shadow: var(--shadow-card-lg);
+    transform: rotate(-0.5deg);
+  }
 }
-.hover-card.hover-card-surface:hover {
-  box-shadow: var(--shadow-card-lg);
-}
-.hover-card:hover .hover-card-cover {
-  box-shadow: var(--shadow-card-lg);
-  transform: rotate(-0.5deg);
+@media (hover: none) {
+  .hover-card:active {
+    transform: scale(0.98);
+    transition-duration: 0.08s;
+  }
 }
 
 /*

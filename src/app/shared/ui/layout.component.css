@@ -42,6 +42,9 @@
       position: sticky;
       top: 0;
       z-index: 100;
+      /* Own layer in page transitions, so it stays put while the page moves
+         (see the ::view-transition rules in styles.css). */
+      view-transition-name: app-header;
     }
     /* The column itself comes from .container on the same element — this is
        the edge every page's content is measured against, so it must not be a
@@ -389,6 +392,7 @@
         border-top: 1px solid var(--line);
         background-color: var(--paper);
         padding-bottom: env(safe-area-inset-bottom, 0px);
+        view-transition-name: bottom-tab-bar;
       }
       /* `flex: 1 1 0` + `min-width: 0`, not plain `flex: 1`: the bar now holds
          five tabs (six for staff), and with an auto basis the widest label
@@ -407,6 +411,12 @@
         color: var(--muted);
         text-decoration: none;
         position: relative;
+      }
+      .bottom-tab-bar svg {
+        transition: transform 0.08s ease;
+      }
+      .bottom-tab-bar a:active svg {
+        transform: scale(0.88);
       }
       .bottom-tab-bar a.active-tab {
         color: var(--accent);
