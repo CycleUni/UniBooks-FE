@@ -46,7 +46,7 @@ export class I18nService {
   }
 
   async loadLang(lang: Lang): Promise<void> {
-    if (lang === 'en' || TRANSLATIONS[lang]) return;
+    if (TRANSLATIONS[lang]) return;
 
     if (this.loadPromises.has(lang)) {
       return this.loadPromises.get(lang)!;
@@ -54,7 +54,10 @@ export class I18nService {
 
     const promise = (async () => {
       try {
-        if (lang === 'zh-TW') {
+        if (lang === 'en') {
+          const m = await import('./i18n/en');
+          TRANSLATIONS['en'] = m.en;
+        } else if (lang === 'zh-TW') {
           const m = await import('./i18n/zh-TW');
           TRANSLATIONS['zh-TW'] = m.zhTW;
         } else if (lang === 'zh-HK') {
@@ -79,8 +82,10 @@ export class I18nService {
   }
 
   t(key: string, params?: Record<string, string | number>): string {
-    const table = TRANSLATIONS[this.lang()] ?? TRANSLATIONS['en'];
-    let text = table[key] ?? TRANSLATIONS['en'][key] ?? key;
+    // English is the fallback only when it happens to be loaded: every
+    // language declares every key (i18n-keys.spec), so a loaded table rarely
+    // lacks one, and fetching English just for that would undo lazy loading.
+    let text = TRANSLATIONS[this.lang()]?.[key] ?? TRANSLATIONS['en']?.[key] ?? key;
     if (params) {
       for (const [name, value] of Object.entries(params)) {
         text = text.replaceAll(`{${name}}`, String(value));

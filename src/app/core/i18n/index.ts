@@ -1,5 +1,3 @@
-import { en } from './en';
-
 export type Lang = 'en' | 'zh-TW' | 'zh-HK';
 
 export const SUPPORTED_LANGS: readonly Lang[] = ['en', 'zh-TW', 'zh-HK'];
@@ -17,6 +15,11 @@ export const LANG_LABELS: Record<Lang, string> = {
   'en': 'English',
 };
 
-export const TRANSLATIONS: Partial<Record<Lang, Record<string, string>>> & { en: Record<string, string> } = {
-  en,
-};
+/**
+ * Loaded language tables. Every language, English included, is fetched on
+ * demand by I18nService.loadLang — the app initializer loads the visitor's
+ * language before the first render — so none sits in the initial bundle.
+ * English used to be imported here, 67 kB in every visitor's first load
+ * whatever their language.
+ */
+export const TRANSLATIONS: Partial<Record<Lang, Record<string, string>>> = {};
