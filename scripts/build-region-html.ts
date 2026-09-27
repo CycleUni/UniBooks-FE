@@ -132,6 +132,10 @@ function buildHtml(
 
 function updateServiceWorkerHash(html: string): void {
   if (!fs.existsSync(NGSW_PATH)) {
+    // A build without a service worker (the smoke configuration) has no
+    // manifest to keep in step with the patched HTML. A missing manifest
+    // beside the worker itself, though, means a broken production build.
+    if (!fs.existsSync(path.join(DIST_DIR, 'ngsw-worker.js'))) return;
     throw new Error('ngsw.json not found after Angular build');
   }
 
