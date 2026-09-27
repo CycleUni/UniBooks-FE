@@ -87,12 +87,37 @@
       text-decoration: none;
       color: var(--ink);
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 8px;
     }
+    .logo-mark {
+      display: block;
+      flex: none;
+    }
+    /* The mark's book color has a light and a dark variant; show the one
+       matching the resolved theme (same rules as the palette in styles.css).
+       html is named in :host-context so body, which never carries
+       data-theme, can't satisfy the :not() on its own. */
+    .logo-mark-dark {
+      display: none;
+    }
+    :host-context(html[data-theme="dark"]) .logo-mark-light {
+      display: none;
+    }
+    :host-context(html[data-theme="dark"]) .logo-mark-dark {
+      display: block;
+    }
+    @media (prefers-color-scheme: dark) {
+      :host-context(html:not([data-theme="light"])) .logo-mark-light {
+        display: none;
+      }
+      :host-context(html:not([data-theme="light"])) .logo-mark-dark {
+        display: block;
+      }
+    }
     .logo-name {
-      font-family: 'Noto Serif TC', serif;
-      font-weight: 700;
+      font-family: 'Fraunces', 'Noto Serif TC', serif;
+      font-weight: 600;
       font-size: var(--text-xl);
       letter-spacing: -0.01em;
     }

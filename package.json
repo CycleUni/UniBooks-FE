@@ -7,7 +7,8 @@
     "build": "node --env-file-if-exists=.env scripts/set-env.js && ng build && ts-node --project scripts/tsconfig.scripts.json scripts/build-region-html.ts",
     "watch": "node --env-file-if-exists=.env scripts/set-env.js && ng build --watch --configuration development",
     "test": "node --env-file-if-exists=.env scripts/set-env.js && ng test",
-    "smoke": "node --env-file-if-exists=.env scripts/set-env.js && ng build --configuration smoke && ts-node --project scripts/tsconfig.scripts.json scripts/build-region-html.ts && wrangler pages dev dist/unibooks-fe/browser --port 8788"
+    "icons": "node scripts/generate-icons.js",
+    "smoke":"node --env-file-if-exists=.env scripts/set-env.js && ng build --configuration smoke && ts-node --project scripts/tsconfig.scripts.json scripts/build-region-html.ts && wrangler pages dev dist/unibooks-fe/browser --port 8788"
   },
   "private": true,
   "packageManager": "npm@11.16.0",
@@ -36,6 +37,7 @@
     "jsdom": "^30.0.1",
     "nodemon": "^3.1.14",
     "prettier": "^3.9.6",
+    "sharp": "^0.35.4",
     "ts-node": "^10.9.2",
     "typescript": "~6.0.2",
     "vitest": "^4.1.11",

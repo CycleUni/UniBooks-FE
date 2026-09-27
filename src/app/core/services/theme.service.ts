@@ -20,6 +20,7 @@ export class ThemeService {
 
   constructor() {
     effect(() => this.apply(this.mode()));
+    effect(() => this.applyFavicon(this.resolved()));
     this.listenToSystemTheme();
   }
 
@@ -51,6 +52,18 @@ export class ThemeService {
     const root = document.documentElement;
     if (mode === 'system') root.removeAttribute('data-theme');
     else root.setAttribute('data-theme', mode);
+  }
+
+  // Swaps the tab icon by href rather than a prefers-color-scheme query inside
+  // the SVG: Chrome rasterizes a favicon once and never re-evaluates that
+  // query, but it does reload the icon when the link's href changes. This also
+  // lets the icon follow an explicit site theme, not just the OS one.
+  private applyFavicon(theme: 'light' | 'dark') {
+    if (typeof document === 'undefined') return;
+    const link = document.querySelector<HTMLLinkElement>('link[rel="icon"][type="image/svg+xml"]');
+    if (!link) return;
+    const href = theme === 'dark' ? '/icons/favicon-dark.svg' : '/icons/favicon.svg';
+    if (link.getAttribute('href') !== href) link.setAttribute('href', href);
   }
 
   private getSystemDarkPreference(): boolean {
