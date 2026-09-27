@@ -60,8 +60,9 @@
           <div *ngIf="cameraError" class="inline-msg error">{{ cameraError }}</div>
           <!-- Shaped like the result rows below: a cover beside two lines. -->
           <ui-skeleton *ngIf="isCheckingIsbn" class="results-container" [count]="2"></ui-skeleton>
-          <!-- Search Results List -->
-          <div *ngIf="searchResults.length > 0 && !bookPreview && !isCheckingIsbn" class="results-container">
+          <!-- Search Results List. Hidden while the camera is open; the results
+               are kept, so stopping the scan brings them back. -->
+          <div *ngIf="searchResults.length > 0 && !bookPreview && !isCheckingIsbn && !isScanning" class="results-container">
             <h4 class="select-hint">{{ 'sell.selectBook' | t }}</h4>
             <!-- A real button, not a div with a click handler. Picking the book
                  is step one of listing one, so while this was a div the whole
