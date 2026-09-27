@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Sell, SELL_DRAFT_STORAGE_KEY, SELL_MAX_PHOTOS, SELL_DRAFT_MAX_AGE_MS, cleanAndValidateIsbn, clean_and_validate_isbn, isValidIsbnChecksum, selectBestRearCamera, otherCopiesFromBook, isPriceFarAboveOtherCopies, createScanConfirmer } from './sell';
+import { Sell, SELL_DRAFT_STORAGE_KEY, SELL_MAX_PHOTOS, SELL_DRAFT_MAX_AGE_MS, cleanAndValidateIsbn, clean_and_validate_isbn, isValidIsbnChecksum, selectBestRearCamera, otherCopiesFromBook, isPriceFarAboveOtherCopies, createScanConfirmer, isBooklandIsbn } from './sell';
 import { provideRouter } from '@angular/router';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { I18nService } from '../../core/i18n.service';
@@ -57,21 +57,46 @@ describe('selectBestRearCamera', () => {
 });
 
 describe('createScanConfirmer', () => {
-  it('passes a value only on its second consecutive read', () => {
-    const confirmed = createScanConfirmer();
+  // A fake clock: each read happens `step` ms after the previous one.
+  const clock = (step: number) => { let t = 0; return () => (t += step); };
+
+  it('passes a value on its third consecutive read once 400ms have passed', () => {
+    const confirmed = createScanConfirmer(3, 400, clock(200));
     expect(confirmed('9780134685991')).toBe(false);
-    expect(confirmed('9780134685991')).toBe(true);
+    expect(confirmed('9780134685991')).toBe(false);
     expect(confirmed('9780134685991')).toBe(true);
   });
 
-  it('restarts the count when a different value is read in between', () => {
-    const confirmed = createScanConfirmer();
+  it('does not let a burst of reads of one frame confirm itself', () => {
+    // Three decodes 10ms apart are almost certainly the same camera frame.
+    const confirmed = createScanConfirmer(3, 400, clock(10));
+    for (let i = 0; i < 10; i++) expect(confirmed('9780134601991')).toBe(false);
+  });
+
+  it('restarts the count and the clock when a different value is read in between', () => {
+    const confirmed = createScanConfirmer(3, 400, clock(200));
+    expect(confirmed('9780134685991')).toBe(false);
     expect(confirmed('9780134685991')).toBe(false);
     // A misread with two digits wrong that still passes the EAN-13 check digit.
     expect(isValidIsbnChecksum('9780134601991')).toBe(true);
     expect(confirmed('9780134601991')).toBe(false);
     expect(confirmed('9780134685991')).toBe(false);
+    expect(confirmed('9780134685991')).toBe(false);
     expect(confirmed('9780134685991')).toBe(true);
+  });
+});
+
+describe('isBooklandIsbn', () => {
+  it('accepts ISBN-13s in the 978 and 979 prefixes, and ISBN-10s', () => {
+    expect(isBooklandIsbn('9780134685991')).toBe(true);
+    expect(isBooklandIsbn('9791032710586')).toBe(true);
+    expect(isBooklandIsbn('000000006X')).toBe(true);
+  });
+
+  it('rejects a checksum-valid EAN-13 whose leading digits were misread', () => {
+    // 9780134685991 with its 2nd and 3rd digits misread: still a valid EAN-13.
+    expect(isValidIsbnChecksum('9090134685991')).toBe(true);
+    expect(isBooklandIsbn('9090134685991')).toBe(false);
   });
 });
 

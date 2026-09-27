@@ -81,6 +81,17 @@ export function isValidIsbnChecksum(isbn: string): boolean {
 }
 
 /**
+ * Whether a scanned code can be a book's ISBN. Every ISBN-13 is an EAN-13 in
+ * the 978/979 "Bookland" prefix, whatever the country (the country or
+ * language group is the digits after it). Scans on iOS misread the leading
+ * digits into a different, checksum-valid number; the prefix catches those.
+ * Only for scans: typed input keeps the backend's format-only check.
+ */
+export function isBooklandIsbn(isbn: string): boolean {
+  return isbn.length !== 13 || isbn.startsWith('978') || isbn.startsWith('979');
+}
+
+/**
  * Makes sure a BarcodeDetector that reads EAN-13 exists before html5-qrcode
  * looks for one. Android Chrome ships a native detector; iOS Safari has none,
  * so html5-qrcode fell back to its bundled ZXing-JS, which reads 1D barcodes
@@ -110,22 +121,34 @@ export async function ensureEan13BarcodeDetector(): Promise<void> {
 
 /**
  * Returns a filter that passes a decoded value only once it has been read
- * `required` times in a row. A misread can change two digits so that the
- * EAN-13 check digit still holds (seen on Android at a slight distance,
- * where it opened a different book); the same misread repeating on the next
- * decode is far less likely than the true value doing so.
+ * `reads` times in a row over at least `minSpanMs`. A misread can change two
+ * digits so that the EAN-13 check digit still holds (seen on Android and iOS,
+ * where it opened a different book); a misread holding steady across several
+ * camera frames is far less likely than the true value doing so.
+ *
+ * The time span matters as much as the count: the scanner decodes ~10 times a
+ * second, but in low light the camera delivers frames more slowly, so
+ * back-to-back decodes can be the same frame read twice. Requiring two reads
+ * alone let one bad frame confirm itself.
  */
-export function createScanConfirmer(required = 2): (decodedText: string) => boolean {
+export function createScanConfirmer(
+  reads = 3,
+  minSpanMs = 400,
+  now: () => number = () => performance.now(),
+): (decodedText: string) => boolean {
   let last = '';
   let count = 0;
+  let firstSeenAt = 0;
   return (decodedText: string) => {
+    const t = now();
     if (decodedText === last) {
       count++;
     } else {
       last = decodedText;
       count = 1;
+      firstSeenAt = t;
     }
-    return count >= required;
+    return count >= reads && t - firstSeenAt >= minSpanMs;
   };
 }
 
@@ -615,7 +638,7 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
     if (this.isProcessingScan) return false;
 
     const validIsbn = cleanAndValidateIsbn(decodedText);
-    if (!validIsbn || !isValidIsbnChecksum(validIsbn)) {
+    if (!validIsbn || !isValidIsbnChecksum(validIsbn) || !isBooklandIsbn(validIsbn)) {
       const errorMsg = this.i18n.t('sell.invalidBarcodeScanned');
       if (this.cameraError !== errorMsg) {
         this.cameraError = errorMsg;
