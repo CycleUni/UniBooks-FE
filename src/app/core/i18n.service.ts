@@ -3,6 +3,21 @@ import { Lang, TRANSLATIONS, SUPPORTED_LANGS } from './i18n/index';
 
 const STORAGE_KEY = 'lang';
 
+/**
+ * The site language for a browser language tag, for a first visit with no
+ * stored choice. Only Chinese tags choose a Chinese variant: this used to
+ * match 'hk' anywhere in the tag, so en-HK — the usual setting for English
+ * speakers in Hong Kong — opened the site in Chinese.
+ */
+export function langFromBrowserTag(tag: string | undefined | null): Lang {
+  const lang = (tag || '').toLowerCase().replace(/_/g, '-');
+  if (lang.startsWith('yue')) return 'zh-HK';
+  if (lang.startsWith('zh')) {
+    return lang.includes('hk') || lang.includes('yue') ? 'zh-HK' : 'zh-TW';
+  }
+  return 'en';
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -27,12 +42,7 @@ export class I18nService {
         return stored;
       }
     }
-    if (typeof navigator !== 'undefined') {
-      const lang = navigator.language?.toLowerCase() || '';
-      if (lang.includes('hk') || lang.includes('yue')) return 'zh-HK';
-      if (lang.startsWith('zh')) return 'zh-TW';
-    }
-    return 'en';
+    return langFromBrowserTag(typeof navigator !== 'undefined' ? navigator.language : '');
   }
 
   async loadLang(lang: Lang): Promise<void> {
