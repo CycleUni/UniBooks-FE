@@ -164,9 +164,20 @@
     }
     .listing-meta {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
-      gap: 8px;
+      gap: 4px 8px;
       font-size: var(--text-xs);
+      min-width: 0;
+    }
+    /* Price and condition never break inside themselves; when the row is too
+       narrow (English labels, or two action buttons beside it) they wrap as
+       whole items and the course name is cut short. Before, all three shrank
+       together and "Like new" and the course broke one word per line. */
+    .listing-meta .price,
+    .listing-meta .badge {
+      flex-shrink: 0;
+      white-space: nowrap;
     }
     .price {
       font-family: 'Noto Serif TC', serif;
@@ -185,6 +196,10 @@
     }
     .course {
       color: var(--muted);
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .back-btn {
       display: none;
@@ -206,8 +221,30 @@
       display: flex;
       align-items: center;
       gap: 8px;
+    }
+    /* When the name is mid-sentence (Chinese: 與 {name} 的對話) the title
+       stays on one line, cut with an ellipsis. When it ends the sentence
+       (English: Conversation with {name}) the title may wrap, and the name is
+       kept whole so the break falls before it instead of splitting 王明越
+       into 王明 / 越; a name wider than the line still breaks inside. The
+       mobile header's height is measured (--chat-top-height), so a second
+       line doesn't cover the first message. */
+    .partner-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .partner-name.name-last {
+      white-space: normal;
+    }
+    .partner-name.name-last .partner-name-value {
+      display: inline-block;
+      max-width: 100%;
       overflow-wrap: anywhere;
-      word-break: break-word;
+    }
+    .partner-info ui-role-badge {
+      flex-shrink: 0;
     }
 
     .partner-info p {
@@ -274,12 +311,20 @@
       flex-direction: column;
       gap: 16px;
     }
+    /* A column whose children keep their own widths. As a plain block, the
+       bubble took the width of its widest child and .msg-content stretched
+       to fill it, so a one-character message was as wide as its timestamp
+       ("星期二 10:15"). The meetup card sets width:100% itself. */
     .msg-bubble {
       max-width: 60%;
       align-self: flex-start;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
     }
     .msg-bubble.self {
       align-self: flex-end;
+      align-items: flex-end;
     }
     .msg-content {
       position: relative;
@@ -479,7 +524,11 @@
            gap used to cause, because the gap itself is now structurally
            impossible (see .chat-top-fixed above). Still worth re-measuring
            against a real device when possible. */
-        padding-top: calc(16px + 72px + env(safe-area-inset-top, 0px));
+        /* --chat-top-height is .chat-top-fixed's measured height (header, or
+           header + banner, safe-area padding included), published by a
+           ResizeObserver in messages.ts; the calc() is the first-frame
+           fallback. */
+        padding-top: calc(16px + var(--chat-top-height, calc(72px + env(safe-area-inset-top, 0px))));
         /* --input-area-height is the input's real measured height, published
            by a ResizeObserver in messages.ts; the 72px is only the fallback
            for the first frame before that lands. The guess alone was too
@@ -490,7 +539,7 @@
         padding-bottom: calc(16px + var(--input-area-height, calc(72px + env(safe-area-inset-bottom, 0px))));
       }
       .chat-area:has(.listing-banner) .message-history {
-        padding-top: calc(16px + 72px + 92px + env(safe-area-inset-top, 0px));
+        padding-top: calc(16px + var(--chat-top-height, calc(72px + 92px + env(safe-area-inset-top, 0px))));
       }
       .msg-bubble {
         max-width: 85%;

@@ -9,12 +9,12 @@
         </div>
 
         <div class="chat-area" *ngIf="activeChat">
-          <div class="chat-top-fixed">
+          <div class="chat-top-fixed" #chatTop>
             <div class="chat-header">
               <button class="back-btn" type="button" (click)="closeChat()">{{ 'msg.back' | t }}</button>
               <div class="partner-info">
                 <h4>
-                  {{ 'msg.conversationWith' | t:{name: activeChat.other_party} }}
+                  <span class="partner-name" [class.name-last]="conversationTitle.nameLast">{{ conversationTitle.before }}<span class="partner-name-value">{{ activeChat.other_party }}</span>{{ conversationTitle.after }}</span>
                   <ui-role-badge [role]="activeChat.other_party_role"></ui-role-badge>
                 </h4>
               </div>

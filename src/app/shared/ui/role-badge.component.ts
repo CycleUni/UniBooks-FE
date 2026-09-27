@@ -23,6 +23,7 @@ import { TPipe } from '../../core/i18n.service';
       padding: 2px 6px;
       border-radius: 4px;
       text-transform: uppercase;
+      white-space: nowrap;
       background: var(--flag);
       color: var(--on-flag);
     }

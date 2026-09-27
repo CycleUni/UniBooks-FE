@@ -61,8 +61,11 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
   @ViewChild('scrollMe') private myScrollContainer!: ElementRef;
   @ViewChild('fileInput') private fileInput!: HTMLInputElement;
   @ViewChild('inputArea') private inputArea?: ElementRef<HTMLElement>;
+  @ViewChild('chatTop') private chatTop?: ElementRef<HTMLElement>;
 
   private inputAreaResizeObserver?: ResizeObserver;
+  private chatTopResizeObserver?: ResizeObserver;
+  private observedChatTop?: HTMLElement;
   private observedInputArea?: HTMLElement;
 
   // History is loaded a page at a time, newest first, and older pages are
@@ -259,6 +262,17 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
     });
   }
 
+  /**
+   * The "Conversation with {name}" title split around the name, so the name
+   * can be styled as one unbreakable piece. When the name ends the sentence
+   * (English), the title may wrap and the name moves to the next line whole;
+   * when it sits mid-sentence (Chinese), the title stays on one line.
+   */
+  get conversationTitle(): { before: string; after: string; nameLast: boolean } {
+    const [before, after = ''] = this.i18n.t('msg.conversationWith', { name: '\u0000' }).split('\u0000');
+    return { before, after, nameLast: after.trim() === '' };
+  }
+
   ngAfterViewChecked() {
     // The message history reserves space for the fixed input area with
     // padding-bottom. That reserve used to be a hand-guessed 72px, which
@@ -285,6 +299,20 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
       });
       this.inputAreaResizeObserver.observe(el);
     }
+
+    // Same for the fixed header + listing banner on mobile. Its height used
+    // to be a 72px/92px estimate, but the banner grows when its price and
+    // condition wrap beside two action buttons, which hid the first messages.
+    const top = this.chatTop?.nativeElement;
+    if (top && top !== this.observedChatTop) {
+      this.chatTopResizeObserver?.disconnect();
+      this.observedChatTop = top;
+      this.chatTopResizeObserver = new ResizeObserver(() => {
+        const target = top.parentElement ?? top;
+        target.style.setProperty('--chat-top-height', `${top.offsetHeight}px`);
+      });
+      this.chatTopResizeObserver.observe(top);
+    }
   }
 
   ngOnDestroy() {
@@ -292,6 +320,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
       this.saveDraft(this.activeChat.id, this.newMessage);
     }
     this.inputAreaResizeObserver?.disconnect();
+    this.chatTopResizeObserver?.disconnect();
     // The hub connection is owned by the app shell (ui-layout), not this
     // page, so it stays alive across navigation — only disconnectEdgeChat
     // (the per-room connection for whichever chat was open) belongs here.
