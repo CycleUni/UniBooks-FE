@@ -1,9 +1,7 @@
 import { Component, inject } from '@angular/core';
-import { Router } from '@angular/router';
 import { TPipe } from '../../core/i18n.service';
 import { SeoService } from '../../core/services/seo.service';
 import { NavigationHistoryService } from '../../core/services/navigation-history.service';
-import { RegionLinkService } from '../../core/region-link.service';
 
 /**
  * The phone header of a page pushed over a tab (a book, a listing, a seller,
@@ -13,17 +11,25 @@ import { RegionLinkService } from '../../core/region-link.service';
  *
  * The title is the page's SEO name, so every page that sets its title gets
  * one here without doing anything else.
+ *
+ * Back returns to the previous page (NavigationHistoryService), not the
+ * previous URL, and is hidden when this session has no earlier page — after
+ * a reload, or arriving from a shared link.
  */
 @Component({
   selector: 'ui-app-bar',
   standalone: true,
   imports: [TPipe],
   template: `
-    <button type="button" class="back" (click)="back()" [attr.aria-label]="'common.back' | t">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24" aria-hidden="true">
-        <path d="M15 5l-7 7 7 7"/>
-      </svg>
-    </button>
+    @if (navHistory.canGoBack) {
+      <button type="button" class="back" (click)="navHistory.goBack()" [attr.aria-label]="'common.back' | t">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24" aria-hidden="true">
+          <path d="M15 5l-7 7 7 7"/>
+        </svg>
+      </button>
+    } @else {
+      <span aria-hidden="true"></span>
+    }
     <span class="title">{{ seo.pageName() }}</span>
     <span aria-hidden="true"></span>
   `,
@@ -68,17 +74,5 @@ import { RegionLinkService } from '../../core/region-link.service';
 })
 export class UiAppBar {
   readonly seo = inject(SeoService);
-  private navHistory = inject(NavigationHistoryService);
-  private router = inject(Router);
-  private regionLink = inject(RegionLinkService);
-
-  /** The previous in-app page, or Home when arriving from a shared link with
-   *  nothing in the app to go back to. */
-  back() {
-    if (this.navHistory.canGoBack) {
-      this.navHistory.goBack();
-    } else {
-      this.router.navigate(this.regionLink.path(['/']));
-    }
-  }
+  readonly navHistory = inject(NavigationHistoryService);
 }

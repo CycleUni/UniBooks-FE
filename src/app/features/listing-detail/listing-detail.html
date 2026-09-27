@@ -50,7 +50,7 @@
           </a>
 
           <div class="price-condition-row">
-            <div class="price">{{ listing.price | price: listing.currency }}</div>
+            <div class="price" #bigPrice>{{ listing.price | price: listing.currency }}</div>
             <div class="condition-badge" [ngClass]="listing.condition">
               {{ ('cond.' + listing.condition) | t }}
             </div>
@@ -111,7 +111,7 @@
                and would be refused from this region's site. -->
           <ng-container *ngIf="!regionMismatch; else regionMismatchNotice">
           <ng-container *ngIf="isOwnListing(listing)">
-          <ui-action-bar>
+          <ui-action-bar [leadFor]="bigPrice">
             <span actionBarLead>{{ listing.price | price: listing.currency }}</span>
             <ui-button variant="white" class="flex-1" style="font-size: var(--text-md); padding: 12px;" link="/account/listings">
               {{ 'listing.manageOwn' | t }}
@@ -120,7 +120,7 @@
           <p class="chat-first-hint">{{ 'listing.ownListing' | t }}</p>
           </ng-container>
           <ng-container *ngIf="!isOwnListing(listing)">
-          <ui-action-bar>
+          <ui-action-bar [leadFor]="bigPrice">
             <span actionBarLead>{{ listing.price | price: listing.currency }}</span>
             <ui-button  class="flex-1" style="font-size: var(--text-md); padding: 12px;" (onClick)="contactSeller()">
               {{ 'book.contactSeller' | t }}

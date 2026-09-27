@@ -57,7 +57,7 @@
             </ui-button>
           </div>
 
-          <div id="reader" [hidden]="!isScanning"  class="mt-4 w-full" style="max-width: 100%; aspect-ratio: 16 / 9; border-radius: 4px; overflow: hidden; border: 1px solid var(--line);"></div>
+          <ui-barcode-scanner *ngIf="isScanning" class="mt-4" (decoded)="handleScanResult($event)" (failed)="onScannerFailed()"></ui-barcode-scanner>
           <div *ngIf="cameraError" class="inline-msg error">{{ cameraError }}</div>
           <!-- Shaped like the result rows below: a cover beside two lines. -->
           <ui-skeleton *ngIf="isCheckingIsbn" class="results-container" [count]="2"></ui-skeleton>

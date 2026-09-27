@@ -1,5 +1,5 @@
 import { RegionLinkDirective } from '../../core/region-link.directive';
-import { Component, inject, effect, ChangeDetectorRef, ElementRef, NgZone, AfterViewInit, OnDestroy, untracked } from '@angular/core';
+import { Component, inject, effect, ChangeDetectorRef, DestroyRef, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { UiButton } from '../../shared/ui/button.component';
 
@@ -8,8 +8,10 @@ import { AccountService } from '../../core/services/account.service';
 import { OrderService } from '../../core/services/order.service';
 import { I18nService, TPipe } from '../../core/i18n.service';
 
-import { RouterModule } from '@angular/router';
-import { scrollBehavior } from '../../core/reduced-motion';
+import { NavigationEnd, Router, RouterModule } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { filter } from 'rxjs';
+import { stripRegionPrefix } from '../../core/region-path';
 
 /** The signed-in dashboard. It used to double as the login wall on the same
  *  URL; that half now lives at /login and /register, and the route's authGuard
@@ -21,7 +23,7 @@ import { scrollBehavior } from '../../core/reduced-motion';
   templateUrl: './account.html',
   styleUrls: ['./account.css']
 })
-export class Account implements AfterViewInit, OnDestroy {
+export class Account {
   activeTab = 'listings';
   hasUnreadOrders = false;
 
@@ -48,62 +50,14 @@ export class Account implements AfterViewInit, OnDestroy {
   private orderService = inject(OrderService);
   private cdr = inject(ChangeDetectorRef);
   private i18n = inject(I18nService);
-  private host: ElementRef<HTMLElement> = inject(ElementRef);
-  private zone = inject(NgZone);
-  private stopWatchingNav?: () => void;
+  private router = inject(Router);
 
   /**
-   * On a phone the tabs are one scrolling row, so the one you are on can start
-   * outside the viewport — land on Account settings and the strip shows the
-   * first two tabs and no sign of where you are. Bring it into view.
-   *
-   * Nearest, not start: it moves only when the tab is actually off-screen, so
-   * arriving on the first tab does not shift a strip that was already correct.
+   * On /account itself rather than one of its pages. Phones show the menu
+   * there (profile, then a list of pages) and only the page elsewhere; wide
+   * screens always show both side by side.
    */
-  ngAfterViewInit(): void {
-    const nav = this.host.nativeElement.querySelector<HTMLElement>('.dashboard-nav');
-    const active = nav?.querySelector<HTMLElement>('a.active');
-    active?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: scrollBehavior() });
-    if (nav) {
-      this.watchNavOverflow(nav);
-    }
-  }
-
-  ngOnDestroy(): void {
-    this.stopWatchingNav?.();
-  }
-
-  /**
-   * Drives the fades at the two ends of the tab strip. Each says "there is
-   * more this way" and nothing else, so each is on only while its own side is
-   * genuinely hiding something — neither at the end of the travel it belongs
-   * to, and neither at the widths where the tabs fit outright.
-   *
-   * Measured rather than expressed in CSS because no selector can ask whether
-   * an element overflows. Outside the zone and touching only classList: this
-   * runs on every scroll frame, and a change detection pass per frame would
-   * cost the page far more than the fades are worth.
-   *
-   * The 1px slack absorbs the fractional scrollLeft a zoomed or scaled
-   * viewport produces, which would otherwise leave a fade on at rest.
-   */
-  private watchNavOverflow(nav: HTMLElement): void {
-    const sync = () => {
-      const remaining = nav.scrollWidth - nav.clientWidth - nav.scrollLeft;
-      nav.classList.toggle('has-more', remaining > 1);
-      nav.classList.toggle('has-previous', nav.scrollLeft > 1);
-    };
-    this.zone.runOutsideAngular(() => {
-      nav.addEventListener('scroll', sync, { passive: true });
-      const observer = new ResizeObserver(sync);
-      observer.observe(nav);
-      sync();
-      this.stopWatchingNav = () => {
-        nav.removeEventListener('scroll', sync);
-        observer.disconnect();
-      };
-    });
-  }
+  atMenu = false;
 
   /** Staff reach the admin console from here on phones, where it is no
    *  longer a bottom tab (the desktop header still links it directly). */
@@ -121,6 +75,14 @@ export class Account implements AfterViewInit, OnDestroy {
       this.i18n.lang();
       untracked(() => this.loadProfile());
     });
+
+    const syncAtMenu = () => {
+      this.atMenu = stripRegionPrefix(this.router.url).split(/[?#]/)[0].replace(/\/$/, '') === '/account';
+    };
+    syncAtMenu();
+    this.router.events
+      .pipe(filter(e => e instanceof NavigationEnd), takeUntilDestroyed(inject(DestroyRef)))
+      .subscribe(() => { syncAtMenu(); this.cdr.markForCheck(); });
 
     this.orderService.unreadOrders$.subscribe(unread => {
       this.hasUnreadOrders = unread;

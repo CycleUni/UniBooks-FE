@@ -19,6 +19,7 @@ import { ThemeService, ThemeMode } from '../../core/services/theme.service';
 import { MobileLayoutService } from '../../core/services/mobile-layout.service';
 import { aboutUrl as aboutSiteUrl } from '../../core/about-site';
 import { UiAppBar } from './app-bar.component';
+import { NavigationHistoryService } from '../../core/services/navigation-history.service';
 import { TAB_SECTIONS } from '../../core/view-transitions';
 
 @Component({
@@ -82,8 +83,8 @@ export class UiLayout implements OnDestroy {
   showFooter = false;
 
   /**
-   * A page pushed on top of a tab (a book, a listing, a seller, checkout...)
-   * rather than a tab's own section. On phones its header becomes ui-app-bar
+   * A page pushed on top of a tab (a book, a listing, a seller, checkout, an
+   * account page...) rather than a tab's own screen. On phones its header becomes ui-app-bar
    * in place of the logo header, and the page's own back link and breadcrumb
    * are hidden (see their components).
    */
@@ -97,6 +98,18 @@ export class UiLayout implements OnDestroy {
    * throughout the page transition.
    */
   hasActionBar = false;
+
+  private navHistory = inject(NavigationHistoryService);
+
+  /**
+   * An action-bar page takes the tab bar's place only while back can leave
+   * it. Opened from a shared link, with nowhere in the app to go back to, the
+   * tab bar stays and the action bar sits above it — otherwise the page
+   * would have no way out at all.
+   */
+  get actionBarReplacesTabs(): boolean {
+    return this.hasActionBar && this.navHistory.canGoBack;
+  }
 
   /** The route declares `data: { hidePrefs: true }`: no language/region
    *  pickers under the page (the checkout flow). */
@@ -252,8 +265,10 @@ export class UiLayout implements OnDestroy {
   /** Per-route layout state: the app bar, and the flags a route declares in
    *  its data (actionBar, hidePrefs). */
   private applyRouteState() {
-    const section = this.pathOf(this.router.url).split('/')[1] ?? '';
-    this.isSubPage = !TAB_SECTIONS.has(section);
+    // A tab's own screen is its root (/, /search, /account...); anything
+    // deeper — /account/orders — or outside the tabs is pushed on top of one.
+    const segments = this.pathOf(this.router.url).replace(/\/$/, '').split('/');
+    this.isSubPage = !(segments.length <= 2 && TAB_SECTIONS.has(segments[1] ?? ''));
     let route = this.router.routerState.snapshot.root;
     while (route.firstChild) route = route.firstChild;
     this.hasActionBar = route.data['actionBar'] === true;

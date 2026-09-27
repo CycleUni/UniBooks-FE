@@ -28,6 +28,11 @@ describe('Auth Guards & Account Routing', () => {
     router = TestBed.inject(Router);
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
   describe('accountIndexGuard', () => {
     it('redirects to /tw/account/listings when logged in and region is tw', () => {
       mockAuthStore.isLoggedIn.mockReturnValue(true);
@@ -43,6 +48,13 @@ describe('Auth Guards & Account Routing', () => {
       const result = TestBed.runInInjectionContext(() => accountIndexGuard(routeWith(), {} as any)) as UrlTree;
       expect(result).toBeInstanceOf(UrlTree);
       expect(result.toString()).toBe('/hk/account/listings');
+    });
+
+    it('lets a signed-in phone stay on /account, where the menu is', () => {
+      mockAuthStore.isLoggedIn.mockReturnValue(true);
+      vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+      const result = TestBed.runInInjectionContext(() => accountIndexGuard(routeWith(), {} as any));
+      expect(result).toBe(true);
     });
 
     it('sends a signed-out visitor to /login instead of rendering nothing', () => {
@@ -112,6 +124,14 @@ describe('Auth Guards & Account Routing', () => {
       const component = TestBed.runInInjectionContext(() => new AccountIndexComponent());
       component.ngOnInit();
       expect(navigateSpy).toHaveBeenCalledWith(['/tw/account/listings'], { replaceUrl: true });
+    });
+
+    it('stays on /account on phones, where the account page shows its menu', () => {
+      const navigateSpy = vi.spyOn(router, 'navigate').mockImplementation(() => Promise.resolve(true));
+      vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+      const component = TestBed.runInInjectionContext(() => new AccountIndexComponent());
+      component.ngOnInit();
+      expect(navigateSpy).not.toHaveBeenCalled();
     });
   });
 });

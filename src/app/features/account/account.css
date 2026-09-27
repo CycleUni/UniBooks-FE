@@ -246,47 +246,50 @@
       z-index: 1001;
     }
 
-    @media (max-width: 768px) {
+    /* Phones: an app-style account screen. /account is a menu — who you are,
+       then the pages as rows — and each page opens on its own with the app
+       bar's back button returning here. Same 900px breakpoint as the app bar
+       (core/viewport.ts). This replaced a horizontally scrolling tab strip
+       above every account page. */
+    @media (max-width: 900px) {
       .dashboard {
         flex-direction: column;
         gap: 24px;
         margin-block: var(--space-4);
       }
+      .dashboard.at-menu .dashboard-content,
+      .dashboard:not(.at-menu) .dashboard-sidebar {
+        display: none;
+      }
       .dashboard-sidebar {
         width: 100%;
       }
       /* The desktop card is a centred column — 64px avatar, name, school,
-         three counters, the email, then a full-width button — and nothing
-         reduced it here, so it ran to 310px. With the nav under it, half the
-         phone was spent before the page's own content began.
-         It becomes one identity row: who you are, where you study, and the way
-         out. The counters and the email go, rather than being shrunk: each
-         listing count is the heading of the tab it belongs to, and the email
-         is on the settings page. Neither is something you act on from here.
-         Laid out with grid so the markup stays as the desktop needs it. */
+         three counters, the email, then a full-width button. Here it is one
+         identity row: who you are and where you study. The counters and the
+         email go rather than being shrunk (each count heads its own page, and
+         the email is in settings), and signing out moves to the end of the
+         menu. Grid, so the markup stays as the desktop needs it. */
       .profile-card {
         display: grid;
-        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-columns: auto minmax(0, 1fr);
         grid-template-areas:
-          'avatar name   logout'
-          'avatar school logout';
+          'avatar name'
+          'avatar school';
         align-items: center;
         column-gap: var(--space-3);
         text-align: left;
-        padding: var(--space-3);
-        margin-bottom: var(--space-4);
+        padding: var(--space-4);
+        margin-bottom: var(--space-5);
       }
       .profile-card .avatar,
       .profile-card .avatar-image-container {
         grid-area: avatar;
-        /* The desktop rule centres it in a column with 16px beneath; here it
-           sits beside two lines of text, and that margin pushed it off their
-           centre. */
         margin: 0;
         align-self: center;
-        width: 40px;
-        height: 40px;
-        font-size: var(--text-base);
+        width: 48px;
+        height: 48px;
+        font-size: var(--text-lg);
       }
       .profile-card h3 {
         grid-area: name;
@@ -298,129 +301,67 @@
         margin: 0;
       }
       .profile-card .profile-stats,
-      .profile-card .email {
+      .profile-card .email,
+      .profile-card ui-button {
         display: none;
       }
-      /* Undo the block, the margin and the stretch the desktop column gives
-         it — ui-button's host carries align-self: stretch, which in a grid
-         pulls the button to the full height of the card instead of leaving it
-         on the centre line with the name beside it. */
-      .profile-card ui-button {
-        grid-area: logout;
-        align-self: center;
-      }
-      .profile-card ui-button.is-block {
-        display: inline-block;
-        width: auto;
-        margin-top: 0;
-      }
-      /* Titles on a line of their own, links in one row beneath them.
-         This started as a horizontal scroller holding both groups: 479px of
-         content in 343px of width, so 帳號設定 sat entirely off-screen and
-         檢舉紀錄 was clipped, and a touch device draws no scrollbar to say so.
-         Putting the titles inline instead cost the row 78px — a quarter of the
-         width — for two words that are not destinations.
-
-         The links keep one row at every width the app is used at, and the
-         titles caption it from above: 64px, against the 95px an inline
-         arrangement needed, and a second row of links would cost another 46.
-
-         The strip itself runs to the screen edges so a tab can scroll out
-         under the fade rather than stopping short of it, but its own padding
-         puts the first tab's text back on the page's 16px gutter: 4px here
-         plus the 12px each tab carries. Flush against the glass, it read as
-         if it had been cut off rather than laid out. */
+      /* The menu: each group a captioned card of rows, as in a settings app. */
       .dashboard-nav {
-        flex-direction: row;
-        flex-wrap: nowrap;
-        border-bottom: 1px solid var(--line);
-        gap: 0;
-        margin-inline: calc(var(--space-4) * -1);
-        padding-inline: var(--space-1);
-        /* The snap ports have to be inset by the same amount. Without this the
-           first tab snaps to the padding box edge, which scrolls the strip by
-           exactly the padding and puts the tab back against the glass — the
-           inset above is applied and then immediately undone. */
-        scroll-padding-inline: var(--space-1);
-        overflow-x: auto;
-        scrollbar-width: none;
-        scroll-snap-type: x proximity;
-      }
-      .dashboard-nav::-webkit-scrollbar { display: none; }
-      /* Fades whatever is at the edge rather than cutting it, so a strip with
-         more beyond it never looks like a strip that has ended. This is what
-         the original scroller was missing: a phone draws no scrollbar, so a
-         clipped tab and a final tab looked identical.
-
-         Both edges, because both can hide a tab. Once you have scrolled right,
-         我的上架 is behind the left edge with nothing to say so, and the tab
-         half-cut there reads as a rendering fault rather than as somewhere to
-         scroll back to.
-
-         Each side is on only while that side is actually hiding something —
-         the classes come from the component, since overflow is not a thing CSS
-         can ask about. Left on unconditionally, a fade sits over a tab nothing
-         is hiding, which is the impression it exists to prevent: the five
-         Chinese labels fit outright from 414px up, and this branch runs to
-         768. At 0 the stops collapse and the mask is fully opaque. */
-      .dashboard-nav {
-        --nav-fade-start: 0px;
-        --nav-fade-end: 0px;
-        mask-image: linear-gradient(
-          to right,
-          transparent 0,
-          #000 var(--nav-fade-start),
-          #000 calc(100% - var(--nav-fade-end)),
-          transparent 100%
-        );
-      }
-      .dashboard-nav.has-previous { --nav-fade-start: 28px; }
-      .dashboard-nav.has-more { --nav-fade-end: 28px; }
-      .nav-group {
-        flex-direction: column;
-        min-width: 0;
-      }
-      /* Tabs are sized by their label and the row wraps when they stop
-         fitting, rather than being forced to share the width equally.
-
-         Equal shares were tried and are wrong here, because the labels are not
-         the same length in every language. 我的上架 and its four siblings need
-         260px altogether and sit on one row on any phone; My book requests and
-         Account settings alone are over 100px each, and the five need about
-         430px. Given a fifth of 375 each, those two overflowed a 75px box —
-         and with nowrap and nothing clipping them, the overflow ran across the
-         neighbouring tab. */
-      .nav-group {
-        flex-shrink: 0;
-      }
-      .nav-links {
-        flex-direction: row;
-        flex-wrap: nowrap;
+        gap: var(--space-5);
       }
       .nav-group-title {
-        margin: 0;
-        /* Matches a tab's own inline padding, so the caption starts on the
-           same vertical as the label it captions. */
-        padding: 0 var(--space-3);
-        white-space: nowrap;
+        margin: 0 0 var(--space-2);
+        padding: 0 var(--space-1);
       }
-      .dashboard-nav a {
-        border-left: none;
-        border-bottom: 3px solid transparent;
-        white-space: nowrap;
-        /* min-height, not padding alone: 12px of padding around 13px text left
-           a 38px target, under the 44px a finger needs. */
+      .nav-links {
+        background-color: var(--surface-card);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+      }
+      .dashboard-nav a,
+      .menu-logout button {
         display: flex;
         align-items: center;
-        min-height: var(--tap-min);
-        padding-block: 12px;
-        padding-inline: var(--space-3);
-        scroll-snap-align: start;
+        gap: var(--space-2);
+        min-height: 52px;
+        padding: 0 var(--space-4);
+        border: none;
+        border-bottom: 1px solid var(--line);
+        background: none;
+        font: inherit;
+        font-weight: 500;
+        color: var(--ink);
+        text-align: left;
       }
-      .dashboard-nav a.active {
-        border-left-color: transparent;
-        border-bottom-color: var(--accent);
+      .dashboard-nav a:last-child,
+      .menu-logout button {
+        border-bottom: none;
+      }
+      /* A chevron: each row opens a page. */
+      .dashboard-nav a::after {
+        content: '';
+        flex-shrink: 0;
+        width: 7px;
+        height: 7px;
+        margin-left: auto;
+        border-top: 2px solid var(--muted);
+        border-right: 2px solid var(--muted);
+        transform: rotate(45deg);
+      }
+      .dashboard-nav a.active,
+      .dashboard-nav a:hover {
+        border-left: none;
         background-color: transparent;
+      }
+      .dashboard-nav a:active,
+      .menu-logout button:active {
+        background-color: var(--paper-warm);
+      }
+      .menu-logout button {
+        justify-content: center;
+        color: var(--flag);
+        cursor: pointer;
       }
       .content-header {
         flex-wrap: wrap;
@@ -439,9 +380,11 @@
       }
     }
 
-    /* Desktop already links the admin console from the header. */
+    /* Desktop already links the admin console from the header, and keeps
+       signing out in the profile card. */
     @media (min-width: 901px) {
-      .admin-link {
+      .admin-group,
+      .menu-logout {
         display: none;
       }
     }

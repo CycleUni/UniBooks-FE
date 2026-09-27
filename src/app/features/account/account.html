@@ -1,4 +1,4 @@
-      <div class="container dashboard">
+      <div class="container dashboard" [class.at-menu]="atMenu">
         <aside class="dashboard-sidebar">
           <div class="profile-card">
             <div class="avatar" *ngIf="!avatarUrl">{{ getAvatarInitial() }}</div>
@@ -16,9 +16,10 @@
             <ui-button variant="white"  block class="mt-4" (onClick)="doLogout()">{{ 'acct.logout' | t }}</ui-button>
           </div>
 
-          <!-- Grouped rather than one flat list of five: the two halves answer
-               different questions ("how is my trading going" vs "what is mine"),
-               and the labels give the eye somewhere to land. -->
+          <!-- Grouped rather than one flat list of five: the groups answer
+               different questions ("how is my trading going", "what is mine",
+               and for staff "running the site"), and the labels give the eye
+               somewhere to land. -->
           <nav class="dashboard-nav">
             <!-- The links sit in their own element so the title can hold a
                  line of its own above them on a phone while they stay in one
@@ -38,7 +39,21 @@
                 <a regionLink="/account/reports" routerLinkActive="active">{{ 'acct.tabReports' | t }}</a>
                 <a regionLink="/account/notifications" routerLinkActive="active">{{ 'acct.tabNotifications' | t }}</a>
                 <a regionLink="/account/settings" routerLinkActive="active">{{ 'acct.tabSettings' | t }}</a>
-                <a *ngIf="isStaff" regionLink="/admin" class="admin-link">{{ 'nav.admin' | t }}</a>
+              </div>
+            </div>
+            <!-- Staff only, and a group of its own: running the site is not
+                 one of the user's personal pages. -->
+            <div *ngIf="isStaff" class="nav-group admin-group" role="group" aria-labelledby="acct-nav-admin">
+              <h4 class="nav-group-title" id="acct-nav-admin">{{ 'acct.navGroupAdmin' | t }}</h4>
+              <div class="nav-links">
+                <a regionLink="/admin">{{ 'nav.admin' | t }}</a>
+              </div>
+            </div>
+            <!-- Phones: the menu ends with signing out, as account screens in
+                 apps do; wide screens keep the button in the profile card. -->
+            <div class="nav-group menu-logout">
+              <div class="nav-links">
+                <button type="button" (click)="doLogout()">{{ 'acct.logout' | t }}</button>
               </div>
             </div>
           </nav>

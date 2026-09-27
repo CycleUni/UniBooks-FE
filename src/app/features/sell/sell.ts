@@ -21,185 +21,13 @@ import { I18nService, TPipe } from '../../core/i18n.service';
 import { GoogleAnalyticsService } from '../../core/services/google-analytics.service';
 // Type-only: the library (~300 KB of decoders) is pulled in with a dynamic
 // import the first time the camera is opened, not on every visit to /sell.
-import type { Html5Qrcode } from 'html5-qrcode';
+import { cleanAndValidateIsbn, isbnFromScan } from '../../core/isbn';
+import { UiBarcodeScanner } from '../../shared/ui/barcode-scanner.component';
 import { RegionLinkService } from '../../core/region-link.service';
 import { RegionLinkDirective } from '../../core/region-link.directive';
 import { HasUnsavedChanges } from '../../core/unsaved-changes.guard';
 import { Subscription, catchError, concatMap, defaultIfEmpty, from, map, of, take } from 'rxjs';
 
-
-/**
- * Cleans and validates an ISBN string (mirroring backend clean_and_validate_isbn).
- * Strips hyphens and whitespace, uppercases 'X', and validates:
- * - ISBN-13: exactly 13 digits (EAN-13)
- * - ISBN-10: exactly 10 characters (first 9 digits, last char digit or 'X')
- * Returns the cleaned ISBN string if valid, or null if invalid.
- */
-export function cleanAndValidateIsbn(isbnStr: string | null | undefined): string | null {
-  if (!isbnStr) {
-    return null;
-  }
-  const rawIsbn = String(isbnStr).replace(/[-\s]/g, '').toUpperCase();
-  const isAllDigits = /^\d+$/.test(rawIsbn);
-  const is10WithX = rawIsbn.length === 10 && /^\d{9}[0-9X]$/.test(rawIsbn);
-  if (isAllDigits || is10WithX) {
-    if (rawIsbn.length === 10 || rawIsbn.length === 13) {
-      return rawIsbn;
-    }
-  }
-  return null;
-}
-
-export const clean_and_validate_isbn = cleanAndValidateIsbn;
-
-/**
- * Verifies the ISBN-10/13 check digit. Deliberately kept separate from
- * cleanAndValidateIsbn (which mirrors the backend's format-only check used
- * for typed search input) — a camera misread can produce a string that's
- * the right length and all-digit but numerically wrong, which a checksum
- * catches and a length/format check alone cannot.
- */
-export function isValidIsbnChecksum(isbn: string): boolean {
-  if (isbn.length === 13) {
-    let sum = 0;
-    for (let i = 0; i < 12; i++) {
-      sum += Number(isbn[i]) * (i % 2 === 0 ? 1 : 3);
-    }
-    const check = (10 - (sum % 10)) % 10;
-    return check === Number(isbn[12]);
-  }
-  if (isbn.length === 10) {
-    let sum = 0;
-    for (let i = 0; i < 9; i++) {
-      sum += Number(isbn[i]) * (10 - i);
-    }
-    const last = isbn[9] === 'X' ? 10 : Number(isbn[9]);
-    sum += last;
-    return sum % 11 === 0;
-  }
-  return false;
-}
-
-/**
- * Whether a scanned code can be a book's ISBN. Every ISBN-13 is an EAN-13 in
- * the 978/979 "Bookland" prefix, whatever the country (the country or
- * language group is the digits after it). Scans on iOS misread the leading
- * digits into a different, checksum-valid number; the prefix catches those.
- * Only for scans: typed input keeps the backend's format-only check.
- */
-export function isBooklandIsbn(isbn: string): boolean {
-  return isbn.length !== 13 || isbn.startsWith('978') || isbn.startsWith('979');
-}
-
-/**
- * Makes sure a BarcodeDetector that reads EAN-13 exists before html5-qrcode
- * looks for one. Android Chrome ships a native detector; iOS Safari has none,
- * so html5-qrcode fell back to its bundled ZXing-JS, which reads 1D barcodes
- * only when they fill the frame (iPhones had to nearly touch the book). The
- * polyfill runs ZXing-C++ as WebAssembly instead, served from our own origin
- * (see the zxing asset in angular.json) rather than its default CDN.
- */
-export async function ensureEan13BarcodeDetector(): Promise<void> {
-  const native = (globalThis as any).BarcodeDetector;
-  if (native) {
-    try {
-      const formats: string[] = await native.getSupportedFormats();
-      if (formats.includes('ean_13')) return;
-    } catch {
-      // Treat a detector that can't list its formats like a missing one.
-    }
-  }
-  const { BarcodeDetector, prepareZXingModule } = await import('barcode-detector/ponyfill');
-  prepareZXingModule({
-    overrides: {
-      locateFile: (path: string, prefix: string) =>
-        path.endsWith('.wasm') ? `/zxing/${path}` : prefix + path,
-    },
-  });
-  (globalThis as any).BarcodeDetector = BarcodeDetector;
-}
-
-/**
- * Returns a filter that passes a decoded value only once it has been read
- * `reads` times in a row over at least `minSpanMs`. A misread can change two
- * digits so that the EAN-13 check digit still holds (seen on Android and iOS,
- * where it opened a different book); a misread holding steady across several
- * camera frames is far less likely than the true value doing so.
- *
- * The time span matters as much as the count: the scanner decodes ~10 times a
- * second, but in low light the camera delivers frames more slowly, so
- * back-to-back decodes can be the same frame read twice. Requiring two reads
- * alone let one bad frame confirm itself.
- */
-export function createScanConfirmer(
-  reads = 3,
-  minSpanMs = 400,
-  now: () => number = () => performance.now(),
-): (decodedText: string) => boolean {
-  let last = '';
-  let count = 0;
-  let firstSeenAt = 0;
-  return (decodedText: string) => {
-    const t = now();
-    if (decodedText === last) {
-      count++;
-    } else {
-      last = decodedText;
-      count = 1;
-      firstSeenAt = t;
-    }
-    return count >= reads && t - firstSeenAt >= minSpanMs;
-  };
-}
-
-/**
- * Selects the most appropriate rear camera from available video devices only when
- * there is high confidence from device labels (e.g. avoiding explicitly labeled
- * ultra-wide or telephoto lenses on multi-lens iOS devices).
- *
- * If labels are generic, uninformative (e.g. Android "camera2 0"), or ambiguous,
- * returns null to let the browser choose naturally via { facingMode: "environment" }.
- */
-export function selectBestRearCamera(devices: { id: string; label: string }[] | null | undefined): string | null {
-  if (!devices || devices.length === 0) return null;
-
-  // Filter out front-facing cameras
-  const frontRegex = /front|user|前置|前相機|前鏡頭|facetime|selfie/i;
-  const backDevices = devices.filter(d => !frontRegex.test(d.label || ''));
-  if (backDevices.length <= 1) {
-    // If only 0 or 1 back camera candidate, let browser handle facingMode natively
-    return null;
-  }
-
-  // Avoid ultra-wide and telephoto lenses
-  const ultraWideRegex = /ultra[\s-]?wide|0\.5x|超廣角/i;
-  const telephotoRegex = /telephoto|望遠|長焦|[2-9]x/i;
-
-  const hasSpecialtyLens = backDevices.some(d =>
-    ultraWideRegex.test(d.label || '') || telephotoRegex.test(d.label || '')
-  );
-
-  // If none of the devices have explicit ultra-wide or telephoto labels,
-  // we do not have high confidence in the label scheme — fall back to browser facingMode.
-  if (!hasSpecialtyLens) {
-    return null;
-  }
-
-  const normalBackCameras = backDevices.filter(d =>
-    !ultraWideRegex.test(d.label || '') && !telephotoRegex.test(d.label || '')
-  );
-
-  if (normalBackCameras.length === 0) {
-    return null;
-  }
-
-  // If there is one explicitly labeled as main / wide / back camera, prefer it
-  const preferred = normalBackCameras.find(d =>
-    /back camera|main|廣角|後置|後相機/i.test(d.label || '')
-  );
-
-  return preferred ? preferred.id : normalBackCameras[0].id;
-}
 
 /**
  * Draft storage for the multi-step listing form. Same `unibooks.<feature>.<thing>`
@@ -300,7 +128,7 @@ export interface SellDraft {
 @Component({
   selector: 'app-sell',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, RegionLinkDirective, UiInput, UiTextarea, UiButton, UiDropdown, UiConditionPicker, UiBookCover, UiVerificationPrompt, UiSkeleton, TPipe, PricePipe],
+  imports: [CommonModule, RouterModule, FormsModule, RegionLinkDirective, UiInput, UiTextarea, UiButton, UiDropdown, UiConditionPicker, UiBookCover, UiVerificationPrompt, UiSkeleton, UiBarcodeScanner, TPipe, PricePipe],
   templateUrl: './sell.html',
   styleUrls: ['./sell.css']
 })
@@ -336,7 +164,6 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
 
   isScanning = false;
   cameraError = '';
-  private html5QrCode: Html5Qrcode | null = null;
   /** The current search came from the camera, so offer "Scan again". */
   lastSearchWasScan = false;
   private isProcessingScan = false;
@@ -637,8 +464,8 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
   handleScanResult(decodedText: string): boolean {
     if (this.isProcessingScan) return false;
 
-    const validIsbn = cleanAndValidateIsbn(decodedText);
-    if (!validIsbn || !isValidIsbnChecksum(validIsbn) || !isBooklandIsbn(validIsbn)) {
+    const validIsbn = isbnFromScan(decodedText);
+    if (!validIsbn) {
       const errorMsg = this.i18n.t('sell.invalidBarcodeScanned');
       if (this.cameraError !== errorMsg) {
         this.cameraError = errorMsg;
@@ -660,76 +487,24 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
     return true;
   }
 
+  /** Shows the camera; ui-barcode-scanner starts it once rendered. */
   async startScanner() {
     this.cameraError = '';
     this.isProcessingScan = false;
     this.isScanning = true;
     this.cdr.markForCheck();
-
-    try {
-      if (this.html5QrCode && this.html5QrCode.isScanning) {
-        await this.stopScanner();
-      }
-      await ensureEan13BarcodeDetector();
-      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
-      this.html5QrCode = new Html5Qrcode("reader", {
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.QR_CODE
-        ],
-        verbose: false,
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true
-        }
-      });
-
-      // Try camera enumeration to pick standard wide rear camera if high-confidence labels exist (e.g. multi-lens iOS)
-      let selectedDeviceId: string | null = null;
-      try {
-        const devices = await Html5Qrcode.getCameras();
-        selectedDeviceId = selectBestRearCamera(devices);
-      } catch (e) {
-        // Device enumeration can fail if permissions not yet granted or unsupported; fall back to facingMode
-        console.warn('Camera enumeration fallback to facingMode', e);
-      }
-
-      const cameraIdOrConfig = selectedDeviceId
-        ? { deviceId: { exact: selectedDeviceId } }
-        : { facingMode: "environment" };
-
-      const confirmed = createScanConfirmer();
-      await this.html5QrCode.start(
-        cameraIdOrConfig,
-        {
-          fps: 10,
-          qrbox: { width: 280, height: 120 }
-        },
-        (decodedText) => {
-          if (confirmed(decodedText)) this.handleScanResult(decodedText);
-        },
-        (errorMessage) => {
-          // ignore scan errors, they happen continuously when no code is visible
-        }
-      );
-    } catch (err) {
-      console.error('Scanner error', err);
-      this.cameraError = this.i18n.t('sell.cameraPermission');
-      this.isScanning = false;
-      this.isProcessingScan = false;
-      this.cdr.markForCheck();
-    }
   }
 
+  /** The camera could not be opened: close it and say why. */
+  onScannerFailed() {
+    this.cameraError = this.i18n.t('sell.cameraPermission');
+    this.isScanning = false;
+    this.isProcessingScan = false;
+    this.cdr.markForCheck();
+  }
+
+  /** Hides the camera; ui-barcode-scanner stops it as it is removed. */
   async stopScanner() {
-    if (this.html5QrCode && this.html5QrCode.isScanning) {
-      try {
-        await this.html5QrCode.stop();
-        this.html5QrCode.clear();
-      } catch (err) {
-        console.error('Error stopping scanner', err);
-      }
-    }
     if (this.cameraError === this.i18n.t('sell.invalidBarcodeScanned')) {
       this.cameraError = '';
     }

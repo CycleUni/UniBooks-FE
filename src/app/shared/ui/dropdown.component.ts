@@ -2,6 +2,8 @@ import { Component, Input, forwardRef, ElementRef, HostListener, inject, ViewChi
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule, ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { I18nService, TPipe } from '../../core/i18n.service';
+import { UiBottomSheet } from './bottom-sheet.component';
+import { isPhoneViewport } from '../../core/viewport';
 
 export interface DropdownOption {
   value: string;
@@ -11,7 +13,7 @@ export interface DropdownOption {
 @Component({
   selector: 'ui-dropdown',
   standalone: true,
-  imports: [CommonModule, FormsModule, TPipe],
+  imports: [CommonModule, FormsModule, TPipe, UiBottomSheet],
   template: `
     <div class="dropdown-wrapper" [class.compact]="compact">
       <label *ngIf="label && !inlineLabel">{{ label }}</label>
@@ -36,37 +38,54 @@ export interface DropdownOption {
           </svg>
         </button>
 
+        <!-- The search box and options, shared by the desktop panel and the
+             phone bottom sheet. -->
+        <ng-template #optionsTemplate>
+          <input
+            *ngIf="searchable"
+            type="text"
+            class="dropdown-search"
+            [placeholder]="'common.search' | t"
+            [(ngModel)]="searchQuery"
+            (click)="$event.stopPropagation()"
+          />
+          <ul class="dropdown-list" [class.in-sheet]="sheet" role="listbox">
+            <li
+              *ngFor="let opt of filteredOptions"
+              role="option"
+              [attr.aria-selected]="opt.value === value"
+              [class.active]="opt.value === value"
+              (click)="selectOption(opt)"
+            >
+              <span>{{ opt.label }}</span>
+              <svg *ngIf="opt.value === value" class="dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </li>
+            <li *ngIf="filteredOptions.length === 0" class="dropdown-empty">{{ 'common.noMatches' | t }}</li>
+          </ul>
+        </ng-template>
+
         <ng-template #panelTemplate>
-          <div class="dropdown-panel" [class.align-right]="align === 'right' && !appendToBody" [class.append-to-body]="appendToBody" [ngStyle]="panelStyle" *ngIf="open">
-            <input
-              *ngIf="searchable"
-              type="text"
-              class="dropdown-search"
-              [placeholder]="'common.search' | t"
-              [(ngModel)]="searchQuery"
-              (click)="$event.stopPropagation()"
-            />
-            <ul class="dropdown-list" role="listbox">
-              <li
-                *ngFor="let opt of filteredOptions"
-                role="option"
-                [attr.aria-selected]="opt.value === value"
-                [class.active]="opt.value === value"
-                (click)="selectOption(opt)"
-              >
-                <span>{{ opt.label }}</span>
-                <svg *ngIf="opt.value === value" class="dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-              </li>
-              <li *ngIf="filteredOptions.length === 0" class="dropdown-empty">{{ 'common.noMatches' | t }}</li>
-            </ul>
+          <div class="dropdown-panel" [class.align-right]="align === 'right' && !appendToBody" [class.append-to-body]="appendToBody" [ngStyle]="panelStyle" *ngIf="open && !sheet">
+            <ng-container *ngTemplateOutlet="optionsTemplate"></ng-container>
           </div>
         </ng-template>
 
         <ng-container *ngIf="!appendToBody">
           <ng-container *ngTemplateOutlet="panelTemplate"></ng-container>
         </ng-container>
+
+        <!-- Phones: the options slide up from the bottom instead. Deferred:
+             the header's pickers put this component in the initial bundle,
+             and the sheet is only needed once one is opened on a phone. -->
+        @if (open && sheet) {
+          @defer (on immediate) {
+            <ui-bottom-sheet [title]="sheetHeading" (closed)="close()">
+              <ng-container *ngTemplateOutlet="optionsTemplate"></ng-container>
+            </ui-bottom-sheet>
+          }
+        }
       </div>
     </div>
   `,
@@ -244,6 +263,14 @@ export interface DropdownOption {
       flex-shrink: 0;
       color: var(--accent);
     }
+    /* In the phone sheet: full-height list, finger-sized rows. */
+    .dropdown-list.in-sheet {
+      max-height: none;
+    }
+    .dropdown-list.in-sheet li {
+      min-height: 48px;
+      padding: 12px;
+    }
     .dropdown-empty {
       color: var(--muted);
       cursor: default;
@@ -288,6 +315,9 @@ export class UiDropdown implements ControlValueAccessor, AfterViewInit, OnDestro
   @ViewChild('panelTemplate', { read: TemplateRef }) panelTemplateRef!: TemplateRef<any>;
 
   open = false;
+  /** Open as a bottom sheet (phones) rather than a panel under the trigger.
+   *  Decided each time it opens, from the same breakpoint as the layout. */
+  sheet = false;
   searchQuery = '';
   value: string = '';
   @Input() disabled: boolean = false;
@@ -305,6 +335,15 @@ export class UiDropdown implements ControlValueAccessor, AfterViewInit, OnDestro
 
   onChange = (val: string) => {};
   onTouched = () => {};
+
+  /** Heading of the phone bottom sheet, for a field whose trigger shows its
+   *  value rather than a name (the header's school picker). Otherwise the
+   *  sheet takes whatever already names the field. */
+  @Input() sheetTitle = '';
+
+  get sheetHeading(): string {
+    return this.sheetTitle || this.label || this.triggerAriaLabel || this.placeholder || '';
+  }
 
   get selectedLabel(): string {
     return this.options.find(o => o.value === this.value)?.label || '';
@@ -338,6 +377,8 @@ export class UiDropdown implements ControlValueAccessor, AfterViewInit, OnDestro
     this.open = !this.open;
     if (this.open) {
       this.searchQuery = '';
+      this.sheet = isPhoneViewport();
+      if (this.sheet) return;
       if (this.appendToBody && this.isBrowser) {
         this.createBodyPanel();
         this.updatePanelPosition();
@@ -464,7 +505,9 @@ export class UiDropdown implements ControlValueAccessor, AfterViewInit, OnDestro
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {
-    if (this.open) {
+    // The sheet closes itself (backdrop, Escape, drag); a tap inside it —
+    // its search box — must not count as an outside click.
+    if (this.open && !this.sheet) {
       const target = event.target as Node;
       const triggerClicked = this.triggerRef?.nativeElement.contains(target);
       const panelClicked = this.bodyPanelRef?.rootNodes.some((node: any) => node.contains(target));

@@ -50,12 +50,12 @@ const featureRoutes: Routes = [
     loadComponent: () => import('./features/account/account').then((m) => m.Account),
     children: [
       { path: '', canActivate: [accountIndexGuard], data: { preload: true }, loadComponent: () => import('./features/account/account-index.component').then(m => m.AccountIndexComponent) },
-      { path: 'listings', canActivate: [authGuard], data: { preload: true }, loadComponent: () => import('./features/account/listings').then(m => m.ListingsComponent) },
-      { path: 'subscriptions', canActivate: [authGuard], loadComponent: () => import('./features/account/subscriptions').then(m => m.SubscriptionsComponent) },
-      { path: 'orders', canActivate: [authGuard], loadComponent: () => import('./features/account/orders').then(m => m.OrdersComponent) },
-      { path: 'reports', canActivate: [authGuard], loadComponent: () => import('./features/account/reports').then(m => m.ReportsComponent) },
-      { path: 'notifications', canActivate: [authGuard], loadComponent: () => import('./features/account/notifications').then(m => m.NotificationsComponent) },
-      { path: 'settings', canActivate: [authGuard], data: { preload: true }, loadComponent: () => import('./features/account/settings').then(m => m.SettingsComponent) }
+      { path: 'listings', canActivate: [authGuard], data: { seo: { titleKey: 'acct.tabListings' }, preload: true }, loadComponent: () => import('./features/account/listings').then(m => m.ListingsComponent) },
+      { path: 'subscriptions', canActivate: [authGuard], data: { seo: { titleKey: 'acct.tabSubs' } }, loadComponent: () => import('./features/account/subscriptions').then(m => m.SubscriptionsComponent) },
+      { path: 'orders', canActivate: [authGuard], data: { seo: { titleKey: 'acct.myOrders' } }, loadComponent: () => import('./features/account/orders').then(m => m.OrdersComponent) },
+      { path: 'reports', canActivate: [authGuard], data: { seo: { titleKey: 'acct.tabReports' } }, loadComponent: () => import('./features/account/reports').then(m => m.ReportsComponent) },
+      { path: 'notifications', canActivate: [authGuard], data: { seo: { titleKey: 'acct.tabNotifications' } }, loadComponent: () => import('./features/account/notifications').then(m => m.NotificationsComponent) },
+      { path: 'settings', canActivate: [authGuard], data: { seo: { titleKey: 'acct.tabSettings' }, preload: true }, loadComponent: () => import('./features/account/settings').then(m => m.SettingsComponent) }
     ]
   },
   // hidePrefs: no language/region pickers at the bottom of the checkout

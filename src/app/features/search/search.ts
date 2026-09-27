@@ -18,6 +18,10 @@ import { UiRecentListings } from '../../shared/ui/recent-listings.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
 import { UiBookTile } from '../../shared/ui/book-tile.component';
 import { UiRadioGroup } from '../../shared/ui/radio-group.component';
+import { UiBottomSheet } from '../../shared/ui/bottom-sheet.component';
+import { UiBarcodeScanner } from '../../shared/ui/barcode-scanner.component';
+import { isbnFromScan } from '../../core/isbn';
+import { POPULAR_SEARCH_KEYS, RecentSearches } from '../../core/search-suggestions';
 import { UiFacetList, FacetOption } from '../../shared/ui/facet-list.component';
 import { combineLatest, Subscription } from 'rxjs';
 import { map, distinctUntilChanged, switchMap } from 'rxjs/operators';
@@ -55,7 +59,7 @@ const CONDITION_NONE = 'none';
 @Component({
   selector: 'app-search',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, UiInput, UiButton, UiSkeleton, UiRecentListings, UiPagination, UiBookTile, UiFacetList, UiRadioGroup, TPipe],
+  imports: [CommonModule, RouterModule, FormsModule, UiInput, UiButton, UiSkeleton, UiRecentListings, UiPagination, UiBookTile, UiFacetList, UiRadioGroup, UiBottomSheet, UiBarcodeScanner, TPipe],
   template: `
       <div class="search-header">
         <div class="header-inner container">
@@ -75,23 +79,21 @@ const CONDITION_NONE = 'none';
               class="search-page-input"
             ></ui-input>
           </div>
+          <!-- Phones: search by scanning the book's barcode. -->
+          <button type="button" class="scan-button" (click)="openScanner()" [attr.aria-label]="'search.scanBarcode' | t">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="22" height="22" aria-hidden="true">
+              <path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2"/>
+              <path d="M8 8v8M11 8v8M14 8v8M17 8v8"/>
+            </svg>
+          </button>
           <ui-button (onClick)="onSearch()" class="search-button"><span class="submit-label sr-only-mobile">{{ 'common.search' | t }}</span><svg class="submit-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="20" y1="20" x2="15.4" y2="15.4"/></svg></ui-button>
         </div>
       </div>
 
       <div class="container search-layout">
-        <button
-          type="button"
-          class="filter-toggle"
-          (click)="filtersOpen = !filtersOpen"
-          [attr.aria-expanded]="filtersOpen"
-        >
-          <span>{{ 'search.filters' | t }}</span>
-          <svg class="filter-toggle-caret" [class.open]="filtersOpen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true">
-            <polyline points="6 9 12 15 18 9"/>
-          </svg>
-        </button>
-        <aside class="sidebar" [class.mobile-collapsed]="!filtersOpen">
+        <!-- The filter groups, rendered in the sidebar on wide screens and in
+             a bottom sheet on phones. -->
+        <ng-template #filterGroups>
           <div class="filter-group">
             <ui-facet-list
               [title]="'common.condition' | t"
@@ -133,6 +135,33 @@ const CONDITION_NONE = 'none';
               <ui-input [placeholder]="'search.priceMaxPlaceholder' | t" [(ngModel)]="priceMax" inputmode="decimal" enterkeyhint="done" (focusout)="commitPriceRange()" (keyup.enter)="commitPriceRange()" class="price-input"></ui-input>
             </div>
           </div>
+        </ng-template>
+
+        <!-- Phones: opens the filters as a bottom sheet. They apply as they
+             are tapped, as in the sidebar; the sheet's button only closes it. -->
+        <button
+          type="button"
+          class="filter-toggle"
+          (click)="filtersOpen = true"
+          aria-haspopup="dialog"
+        >
+          <span>{{ 'search.filters' | t }}</span>
+          <span class="filter-count" *ngIf="activeFilterCount > 0">{{ activeFilterCount }}</span>
+          <svg class="filter-toggle-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <ui-bottom-sheet *ngIf="filtersOpen" [title]="'search.filters' | t" (closed)="filtersOpen = false">
+          <div class="sheet-filters">
+            <ng-container *ngTemplateOutlet="filterGroups"></ng-container>
+          </div>
+          <div sheetFooter class="sheet-footer">
+            <ui-button block (onClick)="filtersOpen = false">{{ 'search.showResults' | t }}</ui-button>
+          </div>
+        </ui-bottom-sheet>
+
+        <aside class="sidebar">
+          <ng-container *ngTemplateOutlet="filterGroups"></ng-container>
         </aside>
 
         <main class="results">
@@ -156,8 +185,33 @@ const CONDITION_NONE = 'none';
                still empty, and the grid used to fetch "all schools" for a
                page that turned out to be a search. -->
           <ng-container *ngIf="paramsReady && !activeQuery && !category">
+            <!-- Before a search: the visitor's recent searches and a few
+                 popular ones, as a search screen in an app offers. -->
+            <section class="suggestions" *ngIf="recentSearches.items().length > 0">
+              <div class="suggestions-head">
+                <h2 class="suggestions-title">{{ 'search.recentSearches' | t }}</h2>
+                <button type="button" class="suggestions-clear" (click)="recentSearches.clear()">{{ 'search.clearRecent' | t }}</button>
+              </div>
+              <ul class="recent-list">
+                <li *ngFor="let q of recentSearches.items()">
+                  <button type="button" class="recent-query" (click)="searchFor(q)">{{ q }}</button>
+                  <button type="button" class="recent-remove" (click)="recentSearches.remove(q)" [attr.aria-label]="'search.removeRecent' | t:{q: q}">×</button>
+                </li>
+              </ul>
+            </section>
+            <section class="suggestions">
+              <h2 class="suggestions-title">{{ 'search.popularSearches' | t }}</h2>
+              <div class="popular-list">
+                <button type="button" class="popular-chip" *ngFor="let key of popularSearchKeys" (click)="searchForKey(key)">{{ key | t }}</button>
+              </div>
+            </section>
             <ui-recent-listings [school]="currentSchool"></ui-recent-listings>
           </ng-container>
+
+          <ui-bottom-sheet *ngIf="scanning" [title]="'search.scanBarcode' | t" (closed)="closeScanner()">
+            <ui-barcode-scanner (decoded)="onScanned($event)" (failed)="onScannerFailed()"></ui-barcode-scanner>
+            <p class="scan-hint" [class.error]="scanError">{{ scanError || ('search.scanHint' | t) }}</p>
+          </ui-bottom-sheet>
 
           <!-- Loading state with animation -->
           <ng-container *ngIf="loading">
@@ -249,6 +303,20 @@ const CONDITION_NONE = 'none';
        header above it, so the filter rail started 16px inside the logo. */
     .search-layout { display: flex; gap: 48px; }
     .filter-toggle { display: none; }
+    .scan-button { display: none; }
+    /* Before a search: recent and popular searches. */
+    .suggestions { margin-bottom: var(--space-6); }
+    .suggestions-head { display: flex; align-items: baseline; justify-content: space-between; }
+    .suggestions-title { margin: 0 0 var(--space-3); font-size: var(--text-base); font-weight: 600; color: var(--ink); }
+    .suggestions-clear { background: none; border: none; padding: 4px 0; color: var(--muted); font: inherit; font-size: var(--text-sm); cursor: pointer; }
+    .recent-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+    .recent-list li { display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+    .recent-query { flex: 1; min-width: 0; min-height: 44px; padding: 0 4px; background: none; border: none; font: inherit; color: var(--ink); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+    .recent-remove { flex-shrink: 0; width: 44px; height: 44px; background: none; border: none; color: var(--muted); font-size: var(--text-lg); cursor: pointer; }
+    .popular-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .popular-chip { min-height: 36px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 18px; background: var(--paper); font: inherit; color: var(--ink); cursor: pointer; }
+    .scan-hint { margin: 12px 8px 4px; text-align: center; color: var(--muted); font-size: var(--text-sm); }
+    .scan-hint.error { color: var(--flag); }
     .sidebar { width: 240px; flex-shrink: 0; }
     .filter-group { margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
     .filter-group:last-of-type { border-bottom: none; }
@@ -277,6 +345,22 @@ const CONDITION_NONE = 'none';
     @media (max-width: 1024px) {
       .header-inner { flex-wrap:wrap; } .search-page-input-wrap { flex:1; width:auto; min-width:200px; }
     }
+    /* Phones (the app's 900px breakpoint, core/viewport.ts): filters open as a
+       bottom sheet, and a scan button sits beside the search box. */
+    @media (max-width: 900px) {
+      .search-layout { flex-direction:column; gap:0; }
+      /* --line-strong, not --line: this is a real button, i.e. an
+         interactive boundary, and --line is 1.48:1 — below the 3:1
+         WCAG 1.4.11 asks of non-text UI. */
+      .filter-toggle { display:flex; align-items:center; justify-content:space-between; width:100%; padding:12px 16px; margin-bottom:16px; border:1px solid var(--line-strong); border-radius:4px; background-color:var(--paper); color:var(--ink); font-size: var(--text-base); font-weight:500; font-family:inherit; cursor:pointer; }
+      .filter-toggle-caret { flex-shrink:0; margin-left:auto; color:var(--muted); }
+      .filter-count { margin-left:8px; min-width:20px; height:20px; padding:0 6px; border-radius:10px; background-color:var(--btn-primary-bg); color:var(--btn-primary-ink); font-size:var(--text-xs); line-height:20px; text-align:center; }
+      .scan-button { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:44px; height:44px; border:1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--paper); color: var(--ink); cursor:pointer; }
+      .sidebar { display:none; }
+      .sheet-filters { padding: 8px 8px 0; }
+      .sheet-filters .filter-group { margin-bottom:20px; padding-bottom:20px; }
+      .sheet-footer { flex: 1; }
+    }
     @media (max-width: 768px) {
       /* Stays a row. With flex-direction:column the main axis turns vertical,
          so the button's flex-basis sized its height and align-items:stretch
@@ -291,16 +375,6 @@ const CONDITION_NONE = 'none';
       .search-button { flex: 0 0 44px; }
       .search-button ::ng-deep .ui-btn.md { padding-inline: 0; }
       .search-button .submit-icon { display: block; }
-      .search-layout { flex-direction:column; gap:0; }
-      /* --line-strong, not --line: this is a real button, i.e. an
-         interactive boundary, and --line is 1.48:1 — below the 3:1
-         WCAG 1.4.11 asks of non-text UI. */
-      .filter-toggle { display:flex; align-items:center; justify-content:space-between; width:100%; padding:12px 16px; margin-bottom:16px; border:1px solid var(--line-strong); border-radius:4px; background-color:var(--paper); color:var(--ink); font-size: var(--text-base); font-weight:500; font-family:inherit; cursor:pointer; }
-      .filter-toggle-caret { flex-shrink:0; color:var(--muted); transition:transform var(--motion-base); }
-      .filter-toggle-caret.open { transform:rotate(180deg); }
-      .sidebar { width:100%; display:flex; flex-wrap:wrap; gap:0 24px; border-bottom:1px solid var(--line); margin-bottom:24px; }
-      .sidebar.mobile-collapsed { display:none; }
-      .filter-group { flex:1 1 40%; min-width:150px; margin-bottom:16px; padding-bottom:0; border-bottom:none; }
     }
   `]
 })
@@ -313,6 +387,18 @@ export class Search implements OnInit {
   resultsTruncated = false;
   loading = true; fetchError = false;
   filtersOpen = false;
+
+  /** How many filters narrow the results, shown on the phone Filters button
+   *  so a filtered list isn't mistaken for everything there is. */
+  get activeFilterCount(): number {
+    return [
+      Object.values(this.conditionFilters).some(on => !on),
+      !!this.category,
+      !!this.course,
+      this.stockFilter !== 'all',
+      !!(this.priceMin || this.priceMax),
+    ].filter(Boolean).length;
+  }
   results: any[] = []; categories: any[] = []; courses: CourseFacet[] = []; currentSchool = ''; currentPage = 1; totalCount = 0;
   /** Set once the query parameters and the opening school have both arrived. */
   paramsReady = false;
@@ -442,6 +528,8 @@ export class Search implements OnInit {
   private destroyRef = inject(DestroyRef);
   private i18n = inject(I18nService);
   private toast = inject(ToastService);
+  readonly recentSearches = inject(RecentSearches);
+  readonly popularSearchKeys = POPULAR_SEARCH_KEYS;
   private schoolStateService = inject(SchoolStateService);
   private metadataService = inject(MetadataService);
   private ga = inject(GoogleAnalyticsService);
@@ -536,7 +624,12 @@ export class Search implements OnInit {
     const q = params['q'] || '';
     // 只有 q 真的變了才覆寫輸入框。現在勾書況、改價格也會導頁，若無條件覆寫，
     // 使用者打到一半還沒按 Enter 的字會被自己按下的篩選吃掉。
-    if (q !== this.activeQuery) this.searchQuery = q;
+    if (q !== this.activeQuery) {
+      this.searchQuery = q;
+      // Every way a search starts ends here (typed, the home hero, a
+      // suggestion, a scan), so this is the one place it is remembered.
+      if (q) this.recentSearches.add(q);
+    }
     this.activeQuery = q;
     this.category = params['category'] || '';
     this.course = params['course'] || '';
@@ -637,6 +730,48 @@ export class Search implements OnInit {
   /** 換頁是唯一「不重設 page」的操作，所以它是唯一要明講 page 的呼叫端。 */
   onPageChange(page: number) {
     this.navigateWithState({ page });
+  }
+
+  /** The barcode scanner sheet (phones): scan a book to search its ISBN. */
+  scanning = false;
+  scanError = '';
+
+  openScanner() {
+    this.scanError = '';
+    this.scanning = true;
+  }
+
+  closeScanner() {
+    this.scanning = false;
+    this.scanError = '';
+  }
+
+  onScanned(decodedText: string) {
+    const isbn = isbnFromScan(decodedText);
+    if (!isbn) {
+      // Keep scanning: the reader may simply have caught another code.
+      this.scanError = this.i18n.t('sell.invalidBarcodeScanned');
+      this.cdr.markForCheck();
+      return;
+    }
+    this.closeScanner();
+    this.searchFor(isbn);
+  }
+
+  onScannerFailed() {
+    this.closeScanner();
+    this.toast.error(this.i18n.t('sell.cameraPermission'));
+  }
+
+  /** Runs a remembered search. */
+  searchFor(query: string) {
+    this.searchQuery = query;
+    this.onSearch();
+  }
+
+  /** Runs a popular search, given as an i18n key. */
+  searchForKey(key: string) {
+    this.searchFor(this.i18n.t(key));
   }
 
   onSearch() {

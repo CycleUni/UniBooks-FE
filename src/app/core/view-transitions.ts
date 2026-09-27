@@ -24,6 +24,14 @@ import { prefersReducedMotion } from './reduced-motion';
  */
 export const TAB_SECTIONS: ReadonlySet<string> = new Set(['', 'search', 'sell', 'messages', 'account']);
 
+/**
+ * Navigation state marking a move up to a page's parent screen (the account
+ * menu from My listings — NavigationHistoryService.goBack). It is a new
+ * navigation rather than a history step, but reads as going back, so it
+ * animates as one.
+ */
+export const NAV_UP_STATE = 'navUp';
+
 function segments(root: ActivatedRouteSnapshot): string[] {
   let leaf = root;
   while (leaf.firstChild) leaf = leaf.firstChild;
@@ -53,8 +61,10 @@ export function onViewTransitionCreated({ transition, from, to }: ViewTransition
     return;
   }
 
-  const isBack = router.currentNavigation()?.trigger === 'popstate';
-  if (isBack && browserAnimatesBack()) {
+  const navigation = router.currentNavigation();
+  const isBack = navigation?.trigger === 'popstate' || navigation?.extras?.state?.[NAV_UP_STATE] === true;
+  // Only a real history step can be Safari's edge swipe; going up is a tap.
+  if (navigation?.trigger === 'popstate' && browserAnimatesBack()) {
     transition.skipTransition();
     return;
   }

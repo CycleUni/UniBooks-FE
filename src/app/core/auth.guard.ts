@@ -1,4 +1,5 @@
 import { inject } from '@angular/core';
+import { isPhoneViewport } from './viewport';
 import { Router, CanActivateFn } from '@angular/router';
 import { RegionService } from './region.service';
 import { regionUrlTree } from './region-path';
@@ -48,7 +49,10 @@ export const accountIndexGuard: CanActivateFn = requiresAuth((route, state) => {
   const regionService = inject(RegionService);
 
   if (auth.isLoggedIn()) {
-    return regionUrlTree(router, regionService, ['/account', 'listings']);
+    // Phones stay: /account is the account menu there, each item a page of
+    // its own. Wide screens show the menu as a sidebar beside a page, so
+    // they open the first one.
+    return isPhoneViewport() ? true : regionUrlTree(router, regionService, ['/account', 'listings']);
   }
 
   // The parent route's authGuard normally catches this first; this is the

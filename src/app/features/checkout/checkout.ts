@@ -45,7 +45,7 @@ import { RegionLinkService } from '../../core/region-link.service';
               <div>
                 <h4 class="book-title-serif">{{ listing.book_title }}</h4>
                 <p class="muted">{{ listing.book_authors }}</p>
-                <div class="price">{{ listing.price | price: listing.currency }}</div>
+                <div class="price" #summaryPrice>{{ listing.price | price: listing.currency }}</div>
               </div>
             </div>
           </div>
@@ -64,7 +64,7 @@ import { RegionLinkService } from '../../core/region-link.service';
               </div>
             </div>
 
-            <ui-action-bar class="mt-5">
+            <ui-action-bar class="mt-5" [leadFor]="summaryPrice">
               <span actionBarLead>{{ listing.price | price: listing.currency }}</span>
               <ui-button block class="flex-1" (onClick)="placeOrder()" [disabled]="isSubmitting">
                 {{ (isSubmitting ? 'checkout.processing' : 'checkout.sendMeetupRequest') | t }}

@@ -1,4 +1,5 @@
 import { RegionLinkDirective } from '../../core/region-link.directive';
+import { POPULAR_SEARCH_KEYS } from '../../core/search-suggestions';
 import { Component, Input, Output, EventEmitter, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
@@ -71,9 +72,7 @@ export interface HeroCover {
 
             <div class="popular-tags">
               <span class="tag-label">{{ 'home.popularSearches' | t }}</span>
-              <button type="button" class="tag-btn" (click)="setSearchQueryFromKey('home.tagCalculus')">{{ 'home.tagCalculus' | t }}</button>
-              <button type="button" class="tag-btn" (click)="setSearchQueryFromKey('home.tagEconomics')">{{ 'home.tagEconomics' | t }}</button>
-              <button type="button" class="tag-btn" (click)="setSearchQueryFromKey('home.tagAnatomy')">{{ 'home.tagAnatomy' | t }}</button>
+              <button type="button" class="tag-btn" *ngFor="let key of popularSearchKeys" (click)="setSearchQueryFromKey(key)">{{ key | t }}</button>
             </div>
 
             <!-- The supply side had exactly one entry point on this page, a
@@ -463,6 +462,9 @@ export class HomeHero {
   }
 
   setSearchQuery(tag: string) { this.searchQuery = tag; this.onSearch(); }
+
+  /** Shared with the search screen's suggestions. */
+  readonly popularSearchKeys = POPULAR_SEARCH_KEYS;
 
   setSearchQueryFromKey(key: string) {
     const translated = this.i18n.t(key);

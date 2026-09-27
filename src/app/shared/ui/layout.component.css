@@ -387,10 +387,15 @@
       .main-content.hide-bottom-nav {
         padding-bottom: 0;
       }
-      /* Room for the page's ui-action-bar (a 44px button + 10px padding
-         above and below) in place of the tab bar's. */
+      /* Room for the page's ui-action-bar in place of the tab bar's: 10px
+         padding above and below a button that is 44px on one line and up to
+         about 52px when a long English label wraps to two. */
       .main-content.has-action-bar {
-        padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+        padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+      }
+      /* Both bars: the action bar stacked on the tab bar (ui-action-bar). */
+      .main-content.action-bar-over-tabs {
+        padding-bottom: calc(76px + 57px + env(safe-area-inset-bottom, 0px));
       }
       .bottom-tab-bar {
         display: flex;
