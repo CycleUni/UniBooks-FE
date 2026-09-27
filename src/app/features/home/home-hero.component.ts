@@ -60,6 +60,7 @@ export interface HeroCover {
                   [ariaLabel]="'common.search' | t"
                   [placeholder]="'common.searchPlaceholder' | t"
                   [(ngModel)]="searchQuery"
+                  enterkeyhint="search"
                   (keyup.enter)="onSearch()"
                   class="hero-input"
                   [noMargin]="true"

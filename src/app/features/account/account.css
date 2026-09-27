@@ -438,3 +438,10 @@
         padding: 16px;
       }
     }
+
+    /* Desktop already links the admin console from the header. */
+    @media (min-width: 901px) {
+      .admin-link {
+        display: none;
+      }
+    }

@@ -22,6 +22,12 @@ import { RegionLinkService } from '../../core/region-link.service';
     </button>
   `,
   styles: [`
+    /* Phones show the layout's app bar (back + page title) on the pages that
+       use this back link, so it would only repeat it. Same breakpoint as the
+       app bar in layout.component.css. */
+    @media (max-width: 900px) {
+      :host { display: none; }
+    }
     .go-back-btn {
       display: inline-flex;
       align-items: center;

@@ -11,20 +11,25 @@ import { MessageService } from '../../core/services/message.service';
 import { GoogleAnalyticsService } from '../../core/services/google-analytics.service';
 import { TPipe, I18nService } from '../../core/i18n.service';
 import { PricePipe } from '../../shared/pipes/price.pipe';
+import { UiActionBar } from '../../shared/ui/action-bar.component';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { RegionLinkService } from '../../core/region-link.service';
 
 
 @Component({
   selector: 'app-checkout',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, UiButton, UiBookCover, TPipe, PricePipe],
+  imports: [CommonModule, RouterModule, FormsModule, UiButton, UiActionBar, UiSkeleton, UiBookCover, TPipe, PricePipe],
   template: `
       <main class="container container--form checkout-page">
         <h2>{{ 'checkout.title' | t }}</h2>
 
-        <div *ngIf="isLoading"  style="padding: 40px; text-align: center;">
-          {{ 'checkout.loading' | t }}
-        </div>
+        <!-- Shaped like the two cards below: a cover beside the title, then
+             the form. -->
+        <ng-container *ngIf="isLoading">
+          <ui-skeleton variant="list" [count]="1"></ui-skeleton>
+          <ui-skeleton variant="report" [count]="1"></ui-skeleton>
+        </ng-container>
 
         <div *ngIf="!isLoading && listing" class="checkout-grid">
           <!-- Order Summary -->
@@ -59,9 +64,12 @@ import { RegionLinkService } from '../../core/region-link.service';
               </div>
             </div>
 
-            <ui-button  block class="mt-5" (onClick)="placeOrder()" [disabled]="isSubmitting">
-              {{ (isSubmitting ? 'checkout.processing' : 'checkout.sendMeetupRequest') | t }}
-            </ui-button>
+            <ui-action-bar class="mt-5">
+              <span actionBarLead>{{ listing.price | price: listing.currency }}</span>
+              <ui-button block class="flex-1" (onClick)="placeOrder()" [disabled]="isSubmitting">
+                {{ (isSubmitting ? 'checkout.processing' : 'checkout.sendMeetupRequest') | t }}
+              </ui-button>
+            </ui-action-bar>
           </div>
         </div>
       </main>

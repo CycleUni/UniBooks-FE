@@ -342,18 +342,7 @@
       word-break: break-word;
     }
 
-    /* Actions */
-    .action-buttons {
-      display: flex;
-      gap: 16px;
-      margin-top: auto;
-    }
-    
-    @media (max-width: 600px) {
-      .action-buttons {
-        flex-direction: column;
-      }
-    }
+    /* Actions: see ui-action-bar */
 
     /* Standing note under the CTAs: a meetup request is only accepted after
        buyer and seller have chatted, so say so before the button is pressed
@@ -385,4 +374,3 @@
       color: var(--accent);
     }
 
-    .loading { padding: 40px; text-align: center; color: var(--muted); }

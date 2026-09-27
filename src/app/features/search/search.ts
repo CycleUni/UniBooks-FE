@@ -70,6 +70,7 @@ const CONDITION_NONE = 'none';
               [ariaLabel]="'common.search' | t"
               [placeholder]="'common.searchPlaceholder' | t"
               [(ngModel)]="searchQuery"
+              enterkeyhint="search"
               (keyup.enter)="onSearch()"
               class="search-page-input"
             ></ui-input>
@@ -127,9 +128,9 @@ const CONDITION_NONE = 'none';
                  而且 "1" / "12" / "120" 會各觸發一次狀態還原。
                  blur 不會冒泡，所以聽的是 ui-input 主機元素上的 focusout。 -->
             <div class="price-range">
-              <ui-input [placeholder]="'search.priceMinPlaceholder' | t" [(ngModel)]="priceMin" (focusout)="commitPriceRange()" (keyup.enter)="commitPriceRange()" class="price-input"></ui-input>
+              <ui-input [placeholder]="'search.priceMinPlaceholder' | t" [(ngModel)]="priceMin" inputmode="decimal" enterkeyhint="done" (focusout)="commitPriceRange()" (keyup.enter)="commitPriceRange()" class="price-input"></ui-input>
               <span>-</span>
-              <ui-input [placeholder]="'search.priceMaxPlaceholder' | t" [(ngModel)]="priceMax" (focusout)="commitPriceRange()" (keyup.enter)="commitPriceRange()" class="price-input"></ui-input>
+              <ui-input [placeholder]="'search.priceMaxPlaceholder' | t" [(ngModel)]="priceMax" inputmode="decimal" enterkeyhint="done" (focusout)="commitPriceRange()" (keyup.enter)="commitPriceRange()" class="price-input"></ui-input>
             </div>
           </div>
         </aside>

@@ -43,10 +43,9 @@ export const en: Record<string, string> = {
   'nav.messages': 'Messages',
   'nav.account': 'Account',
   'nav.admin': 'Admin',
-  // Bottom tab bar: six tabs share ~62px each on a 375px phone, where
-  // "Find Books" and "後台管理" were cut to an ellipsis.
+  // Bottom tab bar: five tabs share ~75px each on a 375px phone, where the
+  // full "Find Books" was cut to an ellipsis.
   'nav.tabSearch': 'Search',
-  'nav.tabAdmin': 'Admin',
   'nav.languageSwitcher': 'Change language',
   'nav.themeSwitcher': 'Change appearance',
   'nav.themeSystem': 'System',
@@ -526,7 +525,6 @@ export const en: Record<string, string> = {
   'checkout.errOwnListing': 'You cannot buy your own listing.',
   'checkout.errRegionMismatch': 'This listing belongs to a different region. Switch to that region before sending a meetup request.',
   'checkout.chatFirstHint': 'Chat with the seller first, then send a meetup request.',
-  'checkout.loading': 'Loading...',
   'checkout.meetupFormTitle': 'Meetup Request',
   'checkout.meetupFormDesc': 'Confirming will send a meetup request to the seller. Please make sure you have discussed the meetup details with the seller via messages.',
   'checkout.sendMeetupRequest': 'Send Meetup Request',

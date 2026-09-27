@@ -1,4 +1,4 @@
-import { DOCUMENT, Injectable, effect, inject, signal } from '@angular/core';
+import { DOCUMENT, Injectable, computed, effect, inject, signal } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
 import { ActivatedRouteSnapshot, NavigationEnd, ResolveStart, Router } from '@angular/router';
 import { I18nService } from '../i18n.service';
@@ -70,6 +70,18 @@ export class SeoService {
       this.render({ ...this.routeSeo(), ...this.pageSeo() }, this.path());
     });
   }
+
+  /**
+   * The current page's own name, without the site suffix ("Sample Book 1",
+   * not "Sample Book 1 · UniBooks"); '' where the page has none. The mobile
+   * app bar shows it as the screen title, so every page that sets its SEO
+   * title gets one without doing anything else.
+   */
+  readonly pageName = computed(() => {
+    this.i18n.lang();
+    const seo = { ...this.routeSeo(), ...this.pageSeo() };
+    return seo.title || (seo.titleKey ? this.i18n.t(seo.titleKey, seo.titleParams) : '');
+  });
 
   /** Describe the page currently shown. Replaces any earlier call for it. */
   setPage(seo: PageSeo): void {

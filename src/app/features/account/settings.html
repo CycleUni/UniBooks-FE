@@ -36,7 +36,7 @@
         <ng-container *ngIf="!showPendingVerification; else pendingVerificationBlock">
           <div class="form-group mt-4"  style="max-width: 400px;">
             <label>{{ 'acct.eduEmailLabel' | t:{suffixesText: ' (' + currentRegion.edu_email_suffix.join(', ') + ')'} }}</label>
-            <ui-input placeholder="student@university{{ currentRegion.edu_email_suffix[0] }}" [(ngModel)]="eduEmail" ></ui-input>
+            <ui-input type="email" autocomplete="off" placeholder="student@university{{ currentRegion.edu_email_suffix[0] }}" [(ngModel)]="eduEmail" ></ui-input>
             <ui-button  class="mt-2" (onClick)="onRequestVerification()" [disabled]="isLoading || resendCooldownSeconds > 0">
               {{
                 isLoading
@@ -84,7 +84,7 @@
     <div class="form-group"  style="max-width: 400px; margin-top: 32px; border-top: 1px solid var(--line); padding-top: 32px;">
       <div  class="mb-4">
         <label>{{ 'acct.loginEmailLabel' | t }}</label>
-        <ui-input [(ngModel)]="email"  [disabled]="isGoogleLinked"></ui-input>
+        <ui-input type="email" autocomplete="email" [(ngModel)]="email"  [disabled]="isGoogleLinked"></ui-input>
         <div *ngIf="isGoogleLinked" class="text-muted"  style="font-size: var(--text-xs); margin-top: 4px;">
           {{ 'acct.googleLinkedEmailDesc' | t }}
         </div>

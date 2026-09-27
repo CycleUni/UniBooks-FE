@@ -38,6 +38,7 @@
           <ui-input
             [placeholder]="'sell.isbnPlaceholder' | t"
             [(ngModel)]="searchQuery"
+            enterkeyhint="search"
             (ngModelChange)="onSearchQueryChange()"
             (compositionstart)="imeComposing = true"
             (compositionend)="onSearchCompositionEnd()"
@@ -186,7 +187,7 @@
           <label class="price-field-label">{{ 'acct.priceLabel' | t:{currency: regionService.currency().symbol} }}</label>
           <div class="price-field">
             <span class="price-currency">{{ regionService.currency().symbol }}</span>
-            <input class="price-input focus-no-ring" type="number" min="0" [(ngModel)]="price" (ngModelChange)="onFormChange()" (blur)="markTouched('price')" name="price" />
+            <input class="price-input focus-no-ring" type="number" inputmode="decimal" enterkeyhint="done" min="0" [(ngModel)]="price" (ngModelChange)="onFormChange()" (blur)="markTouched('price')" name="price" />
           </div>
           <div *ngIf="priceErrorKey" class="inline-msg error field-msg">{{ priceErrorKey | t }}</div>
 

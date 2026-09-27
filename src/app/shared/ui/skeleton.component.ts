@@ -93,6 +93,21 @@ import { TPipe } from '../../core/i18n.service';
           </div>
         </ng-container>
 
+        <!-- One page, not a list: count is ignored. -->
+        <ng-container *ngSwitchCase="'detail'">
+          <div class="s-detail">
+            <div class="s-gallery pulse"></div>
+            <div class="s-detail-info">
+              <div class="s-bar pulse w-80 h-32"></div>
+              <div class="s-bar pulse w-40"></div>
+              <div class="s-bar pulse w-40 h-32 s-price"></div>
+              <div class="s-seller pulse"></div>
+              <div class="s-bar pulse w-60"></div>
+              <div class="s-bar pulse w-50"></div>
+            </div>
+          </div>
+        </ng-container>
+
         <ng-container *ngSwitchDefault>
           <div class="skeleton-row" *ngFor="let i of slots">
             <div class="s-cover pulse"></div>
@@ -131,6 +146,7 @@ import { TPipe } from '../../core/i18n.service';
     }
     .s-bar { height: 16px; }
     .h-24 { height: 24px; }
+    .h-32 { height: 32px; }
     .w-80 { width: 80%; }
     .w-60 { width: 60%; }
     .w-50 { width: 50%; }
@@ -228,6 +244,28 @@ import { TPipe } from '../../core/i18n.service';
       border-bottom: none;
     }
 
+    /* detail: mirrors .product-layout in listing-detail.css — one column,
+       then a 400px 3:4 gallery beside the details from 768px */
+    .s-detail {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 40px;
+      padding: 32px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+    @media (min-width: 768px) {
+      .s-detail { grid-template-columns: 400px 1fr; }
+    }
+    .s-gallery { width: 100%; aspect-ratio: 3 / 4; }
+    .s-detail-info {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+    .s-price { margin-top: var(--space-4); }
+    .s-seller { height: 88px; border-radius: 8px; }
+
     @keyframes pulse {
       0% { opacity: 0.75; }
       50% { opacity: 0.5; }
@@ -237,7 +275,7 @@ import { TPipe } from '../../core/i18n.service';
 })
 export class UiSkeleton {
   @Input() count: number = 3;
-  @Input() variant: 'list' | 'row' | 'card-row' | 'discover-grid' | 'report' | 'order' | 'table' = 'list';
+  @Input() variant: 'list' | 'row' | 'card-row' | 'discover-grid' | 'report' | 'order' | 'table' | 'detail' = 'list';
 
   get slots(): number[] {
     return Array.from({ length: Math.max(0, this.count) }, (_, i) => i);

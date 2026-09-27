@@ -13,6 +13,7 @@ import { TPipe } from '../../core/i18n.service';
         [placeholder]="placeholder" 
         [attr.aria-label]="placeholder"
         [value]="value" 
+        enterkeyhint="search"
         (input)="onInput($event)" 
         (keyup.enter)="onSearchClick()"
         class="search-input"

@@ -20,6 +20,7 @@ let nextInputId = 0;
         [attr.name]="name || null"
         [attr.autocomplete]="autocomplete || null"
         [attr.inputmode]="inputmode || null"
+        [attr.enterkeyhint]="enterkeyhint || null"
         [attr.aria-label]="ariaLabel || null"
         [attr.aria-describedby]="ariaDescribedby || null"
         [placeholder]="placeholder"
@@ -123,6 +124,9 @@ export class UiInput implements ControlValueAccessor {
   @Input() name: string = '';
   @Input() autocomplete: string = '';
   @Input() inputmode: string = '';
+  /** The label on the on-screen keyboard's Enter key: 'search', 'send',
+   *  'next', 'done'... Unset, phones show a generic return key. */
+  @Input() enterkeyhint: string = '';
   // For fields with no visible label, where the placeholder was the only
   // name — and a placeholder is not an accessible name once text is typed.
   @Input() ariaLabel: string = '';

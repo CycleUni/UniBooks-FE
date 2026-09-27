@@ -23,7 +23,7 @@ import { RegionLinkService } from '../../core/region-link.service';
               <p>{{ 'fp.requestHint' | t }}</p>
 
               <div  style="margin: 24px 0; text-align: left;">
-                <ui-input [placeholder]="'auth.emailLabel' | t" [(ngModel)]="email" [disabled]="requestStatus === 'loading'"></ui-input>
+                <ui-input type="email" autocomplete="email" [placeholder]="'auth.emailLabel' | t" [(ngModel)]="email" [disabled]="requestStatus === 'loading'"></ui-input>
               </div>
 
               <div *ngIf="errorMessage" class="error-msg">{{ errorMessage }}</div>

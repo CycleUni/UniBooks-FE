@@ -162,6 +162,7 @@
                  class="flex-1"
                 [noMargin]="true"
                 [(ngModel)]="newMessage"
+                enterkeyhint="send"
                 (ngModelChange)="onDraftChange($event)"
                 (compositionstart)="imeComposing = true"
                 (compositionend)="onCompositionEnd()"

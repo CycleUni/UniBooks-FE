@@ -15,6 +15,8 @@ import { TPipe, I18nService } from '../../core/i18n.service';
 import { AuthStore } from '../../core/auth.store';
 import { BookCoverPipe } from '../../shared/pipes/book-cover.pipe';
 import { PricePipe } from '../../shared/pipes/price.pipe';
+import { UiActionBar } from '../../shared/ui/action-bar.component';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { AccountService } from '../../core/services/account.service';
 import { GoogleAnalyticsService } from '../../core/services/google-analytics.service';
 import { ReportModalComponent } from './report-modal.component';
@@ -30,7 +32,7 @@ import { SeoService } from '../../core/services/seo.service';
 @Component({
   selector: 'app-listing-detail',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, UiButton, UiErrorState, UiBackButton, UiBreadcrumb, UiListingCard, UiSellerReputation, TPipe, PricePipe, ReportModalComponent, UiVerificationPrompt],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, UiButton, UiActionBar, UiSkeleton, UiErrorState, UiBackButton, UiBreadcrumb, UiListingCard, UiSellerReputation, TPipe, PricePipe, ReportModalComponent, UiVerificationPrompt],
   templateUrl: './listing-detail.html',
   styleUrls: ['./listing-detail.css']
 })

@@ -38,6 +38,7 @@
                 <a regionLink="/account/reports" routerLinkActive="active">{{ 'acct.tabReports' | t }}</a>
                 <a regionLink="/account/notifications" routerLinkActive="active">{{ 'acct.tabNotifications' | t }}</a>
                 <a regionLink="/account/settings" routerLinkActive="active">{{ 'acct.tabSettings' | t }}</a>
+                <a *ngIf="isStaff" regionLink="/admin" class="admin-link">{{ 'nav.admin' | t }}</a>
               </div>
             </div>
           </nav>

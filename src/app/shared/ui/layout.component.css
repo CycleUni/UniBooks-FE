@@ -361,6 +361,11 @@
       .school-trigger-label {
         min-width: 0;
       }
+      /* Pages pushed over a tab show ui-app-bar instead. The logo, school
+         picker and theme switcher belong to the tabs' own screens. */
+      .app-header.sub-page .header-content {
+        display: none;
+      }
       /* Primary nav moves to the bottom tab bar on mobile; only the theme
          switcher stays in the header. */
       .header-right .nav-links {
@@ -381,6 +386,11 @@
       }
       .main-content.hide-bottom-nav {
         padding-bottom: 0;
+      }
+      /* Room for the page's ui-action-bar (a 44px button + 10px padding
+         above and below) in place of the tab bar's. */
+      .main-content.has-action-bar {
+        padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
       }
       .bottom-tab-bar {
         display: flex;

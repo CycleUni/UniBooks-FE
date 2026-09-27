@@ -43,10 +43,9 @@ export const zhHK: Record<string, string> = {
   'nav.messages': '訊息',
   'nav.account': '會員',
   'nav.admin': '後台管理',
-  // Bottom tab bar: six tabs share ~62px each on a 375px phone, where
-  // "Find Books" and "後台管理" were cut to an ellipsis.
+  // Bottom tab bar: five tabs share ~75px each on a 375px phone, where the
+  // full "Find Books" was cut to an ellipsis.
   'nav.tabSearch': '搵書',
-  'nav.tabAdmin': '後台',
   'nav.languageSwitcher': '切換語言',
   'nav.themeSwitcher': '切換外觀',
   'nav.themeSystem': '跟隨系統',
@@ -525,7 +524,6 @@ export const zhHK: Record<string, string> = {
   'checkout.errOwnListing': '無法購買自己刊登的商品。',
   'checkout.errRegionMismatch': '呢件貨品唔係喺而家揀咗嘅地區上架，請切換到上架地區再送出面交請求。',
   'checkout.chatFirstHint': '同賣家傾過先，先可以發面交請求。',
-  'checkout.loading': '載入中…',
   'checkout.meetupFormTitle': '面交請求',
   'checkout.meetupFormDesc': '確認之後會向賣家發面交請求。記得事先喺訊息同賣家夾好細節。',
   'checkout.sendMeetupRequest': '發送面交請求',

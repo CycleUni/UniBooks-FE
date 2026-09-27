@@ -58,15 +58,19 @@ const featureRoutes: Routes = [
       { path: 'settings', canActivate: [authGuard], data: { preload: true }, loadComponent: () => import('./features/account/settings').then(m => m.SettingsComponent) }
     ]
   },
-  { path: 'checkout/success', data: { seo: { titleKey: 'checkout.successTitle' } }, loadComponent: () => import('./features/checkout/success').then(m => m.OrderSuccessComponent) },
+  // hidePrefs: no language/region pickers at the bottom of the checkout
+  // flow; switching region mid-order would only strand it.
+  { path: 'checkout/success', data: { seo: { titleKey: 'checkout.successTitle' }, hidePrefs: true }, loadComponent: () => import('./features/checkout/success').then(m => m.OrderSuccessComponent) },
   // Guarded, though it never used to be: placing an order needs a session.
   // Its entrances already assume one — listing-detail's canStartTransaction and
   // book's buy buttons bounce a signed-out visitor to /login themselves, and
   // messages' goToCheckout sits behind /messages' own authGuard. Saying so on
   // the route means a session that dies *while* the visitor is on checkout gets
   // the same answer, instead of leaving them on a page whose only button fails.
-  { path: 'checkout/:id', data: { seo: { titleKey: 'checkout.title' } }, canActivate: [authGuard], loadComponent: () => import('./features/checkout/checkout').then(m => m.CheckoutComponent) },
-  { path: 'listing/:id', data: { preload: true }, loadComponent: () => import('./features/listing-detail/listing-detail').then(m => m.ListingDetail) },
+  // actionBar: the page pins its primary actions to the bottom on phones
+  // (ui-action-bar), so the layout drops the tab bar there.
+  { path: 'checkout/:id', data: { seo: { titleKey: 'checkout.title' }, actionBar: true, hidePrefs: true }, canActivate: [authGuard], loadComponent: () => import('./features/checkout/checkout').then(m => m.CheckoutComponent) },
+  { path: 'listing/:id', data: { preload: true, actionBar: true }, loadComponent: () => import('./features/listing-detail/listing-detail').then(m => m.ListingDetail) },
   { path: 'seller/:id', data: { preload: true }, loadComponent: () => import('./features/seller/seller').then(m => m.SellerPageComponent) },
   {
     path: 'messages',

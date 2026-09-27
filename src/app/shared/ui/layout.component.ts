@@ -18,11 +18,13 @@ import { Subscription } from 'rxjs';
 import { ThemeService, ThemeMode } from '../../core/services/theme.service';
 import { MobileLayoutService } from '../../core/services/mobile-layout.service';
 import { aboutUrl as aboutSiteUrl } from '../../core/about-site';
+import { UiAppBar } from './app-bar.component';
+import { TAB_SECTIONS } from '../../core/view-transitions';
 
 @Component({
   selector: 'ui-layout',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, UiDropdown, TPipe, UiPrefsSelector],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, UiDropdown, TPipe, UiPrefsSelector, UiAppBar],
   templateUrl: './layout.component.html',
   styleUrls: ['./layout.component.css']
 })
@@ -79,6 +81,28 @@ export class UiLayout implements OnDestroy {
   /** True on routes that show the footer bar (home and search). */
   showFooter = false;
 
+  /**
+   * A page pushed on top of a tab (a book, a listing, a seller, checkout...)
+   * rather than a tab's own section. On phones its header becomes ui-app-bar
+   * in place of the logo header, and the page's own back link and breadcrumb
+   * are hidden (see their components).
+   */
+  isSubPage = false;
+
+  /**
+   * The route declares `data: { actionBar: true }`: its page pins its primary
+   * actions to the bottom on phones (ui-action-bar), which take the tab bar's
+   * place. Read from the route at navigation time, not from the bar being
+   * rendered, so the tab bar is already gone while the page loads and
+   * throughout the page transition.
+   */
+  hasActionBar = false;
+
+  /** The route declares `data: { hidePrefs: true }`: no language/region
+   *  pickers under the page (the checkout flow). */
+  hidePrefs = false;
+
+
   private unreadCountSubscription: Subscription;
   /** Route of the page on screen, so query-only navigations are not page changes. */
   private currentPath = '';
@@ -117,11 +141,13 @@ export class UiLayout implements OnDestroy {
     // does not fire for the route the app boots on.
     this.applyFullBleed();
     this.applyFooterVisibility();
+    this.applyRouteState();
     this.currentPath = this.pathOf(this.router.url);
     this.routerSubscription = this.router.events.subscribe(event => {
       if (event instanceof NavigationEnd) {
         this.applyFullBleed();
         this.applyFooterVisibility();
+        this.applyRouteState();
         // Only a different page gets the bottom bar back. A page that puts
         // its own state in the query string — the messages page opening a
         // chat as `?chat=<id>` — navigates without leaving, and resetting on
@@ -221,6 +247,17 @@ export class UiLayout implements OnDestroy {
   /** The route part of a URL: no query string, no fragment, no region prefix. */
   private pathOf(url: string): string {
     return stripRegionPrefix(url).split(/[?#]/)[0];
+  }
+
+  /** Per-route layout state: the app bar, and the flags a route declares in
+   *  its data (actionBar, hidePrefs). */
+  private applyRouteState() {
+    const section = this.pathOf(this.router.url).split('/')[1] ?? '';
+    this.isSubPage = !TAB_SECTIONS.has(section);
+    let route = this.router.routerState.snapshot.root;
+    while (route.firstChild) route = route.firstChild;
+    this.hasActionBar = route.data['actionBar'] === true;
+    this.hidePrefs = route.data['hidePrefs'] === true;
   }
 
   private applyFooterVisibility() {

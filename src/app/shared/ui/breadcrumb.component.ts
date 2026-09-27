@@ -47,6 +47,12 @@ const NAV_LABEL_KEY = 'common.breadcrumb';
     </nav>
   `,
   styles: [`
+    /* Phones show the layout's app bar (back + page title) on the pages that
+       use this breadcrumb, so it would only repeat it. Same breakpoint as the
+       app bar in layout.component.css. */
+    @media (max-width: 900px) {
+      :host { display: none; }
+    }
     .breadcrumb {
       margin-bottom: var(--space-4);
     }

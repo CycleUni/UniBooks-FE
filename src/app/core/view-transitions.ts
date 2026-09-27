@@ -17,8 +17,12 @@ import { prefersReducedMotion } from './reduced-motion';
  * skip the transition: the page is updating in place, not being replaced.
  */
 
-// First path segment after the region of each bottom-tab section.
-const TAB_ROOTS = new Set(['', 'search', 'sell', 'messages', 'account', 'admin']);
+/**
+ * First path segment after the region of each bottom-tab section. Pages
+ * outside these are pushed on top of a tab: they slide in here, and on mobile
+ * the layout gives them a back/title bar instead of the logo header.
+ */
+export const TAB_SECTIONS: ReadonlySet<string> = new Set(['', 'search', 'sell', 'messages', 'account']);
 
 function segments(root: ActivatedRouteSnapshot): string[] {
   let leaf = root;
@@ -62,7 +66,7 @@ export function onViewTransitionCreated({ transition, from, to }: ViewTransition
   const regionChanged = before[0] !== after[0];
   const fromSection = section(before);
   const toSection = section(after);
-  const tabSwitch = fromSection !== toSection && TAB_ROOTS.has(toSection) && (TAB_ROOTS.has(fromSection) || !isBack);
+  const tabSwitch = fromSection !== toSection && TAB_SECTIONS.has(toSection) && (TAB_SECTIONS.has(fromSection) || !isBack);
   const kind = regionChanged || tabSwitch ? 'fade' : isBack ? 'back' : 'forward';
 
   const root = document.documentElement;

@@ -105,6 +105,12 @@ export class Account implements AfterViewInit, OnDestroy {
     });
   }
 
+  /** Staff reach the admin console from here on phones, where it is no
+   *  longer a bottom tab (the desktop header still links it directly). */
+  get isStaff(): boolean {
+    return this.auth.isAuthenticated() && this.auth.user()?.is_staff === true;
+  }
+
   constructor(public auth: AuthStore) {
     // Reload the profile when the language changes so localized fields
     // (e.g. the school name) come back in the new language
