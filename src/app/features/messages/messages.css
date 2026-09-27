@@ -294,12 +294,15 @@
       word-break: break-word;
     }
     
-    /* Dark mode override for opponent's bubble to ensure contrast */
-    :host-context([data-theme="dark"]) .msg-bubble:not(.self) .msg-content {
+    /* Dark mode override for opponent's bubble to ensure contrast. html is
+       named in :host-context because the host (and body) never carry
+       data-theme, so a bare :not([data-theme="light"]) always matched them
+       and kept this on after the user explicitly chose light. */
+    :host-context(html[data-theme="dark"]) .msg-bubble:not(.self) .msg-content {
       background-color: var(--line);
     }
     @media (prefers-color-scheme: dark) {
-      :host-context(:not([data-theme="light"])) .msg-bubble:not(.self) .msg-content {
+      :host-context(html:not([data-theme="light"])) .msg-bubble:not(.self) .msg-content {
         background-color: var(--line);
       }
     }
