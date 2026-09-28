@@ -141,6 +141,14 @@ let nextId = 0;
       width: 100%;
       height: 100%;
     }
+    /* html5-qrcode sizes the video to the camera's own shape (portrait on a
+       phone), taller than this frame; cropped to fill it instead, so the
+       frame's centre, where the guide corners are drawn, is the video's. */
+    .reader ::ng-deep video {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover !important;
+    }
   `]
 })
 export class UiBarcodeScanner implements AfterViewInit, OnDestroy {
