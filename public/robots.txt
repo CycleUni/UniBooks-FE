@@ -1,3 +1,9 @@
 User-agent: *
 Allow: /
 Disallow: /api/
+
+# Fixed pages; generated at build time by scripts/build-region-html.ts.
+Sitemap: https://unibooks.app/sitemap.xml
+# Book and listing pages, built from the database by the backend. Naming it
+# here is what lets search engines accept a sitemap served from another host.
+Sitemap: https://api.unibooks.app/api/v1/sitemap.xml

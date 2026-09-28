@@ -9,6 +9,16 @@ const DIST_DIR = path.join(__dirname, '../dist/unibooks-fe/browser');
 const INDEX_HTML_PATH = path.join(DIST_DIR, 'index.html');
 const REDIRECTS_PATH = path.join(DIST_DIR, '_redirects');
 const NGSW_PATH = path.join(DIST_DIR, 'ngsw.json');
+const SITEMAP_PATH = path.join(DIST_DIR, 'sitemap.xml');
+const SITE_ORIGIN = 'https://unibooks.app';
+
+/**
+ * The pages every region has and anyone can open, for the static sitemap.
+ * Book and listing pages come and go with the data, so the backend serves
+ * those (UniBooks-BE listings/sitemap.py); robots.txt names both files.
+ * Anything behind a login, the auth flow, checkout and admin stay out.
+ */
+const SITEMAP_PAGES = ['', '/search', '/sell'];
 const I18N_DIR = path.resolve(__dirname, '../src/app/core/i18n');
 
 type Strings = Record<string, string>;
@@ -194,6 +204,22 @@ function injectRedirects(regions: string[]): void {
   console.log(`Injected redirect rules for: ${regions.join(', ')}`);
 }
 
+/** Write dist/sitemap.xml with each region's fixed public pages. */
+function writeSitemap(regions: string[]): void {
+  const urls = regions.flatMap((region) =>
+    SITEMAP_PAGES.map((page) => `  <url><loc>${SITE_ORIGIN}/${region}${page}</loc></url>`),
+  );
+  const xml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...urls,
+    '</urlset>',
+    '',
+  ].join('\n');
+  fs.writeFileSync(SITEMAP_PATH, xml);
+  console.log(`Wrote sitemap.xml (${urls.length} URLs)`);
+}
+
 
 // ---------------------------------------------------------------------------
 // Main
@@ -231,6 +257,7 @@ async function run(): Promise<void> {
   }
 
   injectRedirects(regions);
+  writeSitemap(regions);
 }
 
 run().catch((error: unknown) => {
