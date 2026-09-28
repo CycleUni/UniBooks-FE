@@ -3,7 +3,6 @@ import { Component, OnInit, OnDestroy, inject, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { RegionService } from '../../core/region.service';
-import { navigateWithSearchFocus } from '../../core/phone-search-focus';
 import { UiButton } from '../../shared/ui/button.component';
 import { UiRecentListings } from '../../shared/ui/recent-listings.component';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
@@ -11,6 +10,8 @@ import { UiErrorState } from '../../shared/ui/error-state.component';
 import { HomeHero, HeroCover } from './home-hero.component';
 import { UiCategoryRail } from '../../shared/ui/category-rail.component';
 import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
+import { UiSearchField } from '../../shared/ui/search-field.component';
+import { FormsModule } from '@angular/forms';
 import { isPhoneViewport, watchPhoneViewport } from '../../core/viewport';
 import { ListingService } from '../../core/services/listing.service';
 import { Subject } from 'rxjs';
@@ -31,12 +32,14 @@ import { hasCoverFailed, markCoverFailed } from '../../shared/ui/book-cover.comp
     RegionLinkDirective,
     CommonModule,
     RouterModule,
+    FormsModule,
     HomeHero,
     UiButton,
     UiRecentListings,
     UiCategoryRail,
     UiSkeleton,
     UiErrorState,
+    UiSearchField,
     TPipe,
     CountCapPipe,
     BookCoverPipe,
@@ -46,13 +49,10 @@ import { hasCoverFailed, markCoverFailed } from '../../shared/ui/book-cover.comp
     <ui-pull-to-refresh [refreshing]="refreshing" (refresh)="onRefresh()">
       <!-- Redesigned header on phone returning visits: compact search bar + category chips -->
       <div *ngIf="isPhone && seenHero" class="phone-home-header container">
-        <a [regionLink]="['/search']" class="phone-search-bar" [attr.aria-label]="'common.search' | t" (click)="onPhoneSearchClick($event)">
-          <svg class="phone-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="18" height="18" aria-hidden="true">
-            <circle cx="10.5" cy="10.5" r="6.5"/>
-            <line x1="20" y1="20" x2="15.4" y2="15.4"/>
-          </svg>
-          <span class="phone-search-placeholder">{{ 'common.searchPlaceholder' | t }}</span>
-        </a>
+        <ui-search-field
+          [(ngModel)]="searchQuery"
+          (search)="onSearch($event)"
+        ></ui-search-field>
 
         <nav class="phone-category-chips" *ngIf="categories?.length" [attr.aria-label]="'home.categoriesTitle' | t">
           <a
@@ -375,35 +375,6 @@ import { hasCoverFailed, markCoverFailed } from '../../shared/ui/book-cover.comp
       flex-direction: column;
       gap: var(--space-3);
     }
-    .phone-search-bar {
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
-      padding: var(--space-3) var(--space-4);
-      min-height: 48px;
-      background: var(--paper-warm);
-      border: 1px solid var(--line-strong);
-      border-radius: 999px;
-      color: var(--muted);
-      text-decoration: none;
-      box-sizing: border-box;
-      transition: background-color var(--motion-base), border-color var(--motion-base);
-    }
-    .phone-search-bar:active {
-      background: var(--surface-card);
-      border-color: var(--accent);
-    }
-    .phone-search-icon {
-      color: var(--muted);
-      flex-shrink: 0;
-    }
-    .phone-search-placeholder {
-      font-size: var(--text-base);
-      color: var(--ink-soft);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
     .phone-category-chips {
       display: flex;
       align-items: center;
@@ -515,12 +486,14 @@ export class Home implements OnInit, OnDestroy {
   private router = inject(Router);
   private regionService = inject(RegionService);
 
-  onPhoneSearchClick(event: MouseEvent): void {
-    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
-      return;
-    }
-    event.preventDefault();
-    navigateWithSearchFocus(this.router, ['/', this.regionService.region(), 'search']);
+  searchQuery = '';
+
+  onSearch(query?: string): void {
+    const q = (query ?? this.searchQuery).trim();
+    if (!q) return;
+    this.router.navigate(['/', this.regionService.region(), 'search'], {
+      queryParams: { q }
+    });
   }
 
   constructor() {

@@ -12,6 +12,8 @@ import { MetadataService } from '../../core/services/metadata.service';
 import { GoogleAnalyticsService } from '../../core/services/google-analytics.service';
 import { SeoService } from '../../core/services/seo.service';
 import { en } from '../../core/i18n/en';
+import { By } from '@angular/platform-browser';
+import { UiSearchField } from '../../shared/ui/search-field.component';
 
 describe('Search page', () => {
   let fixture: ComponentFixture<Search>;
@@ -248,32 +250,87 @@ describe('Search page', () => {
     });
   });
 
-  describe('focus on arrival behaviour', () => {
-    // As the router reports a tap on the home search bar in the running app.
-    const arrivingWith = (navigated: boolean, trigger: string, state: Record<string, unknown>) => (router: Router) => {
-      router.navigated = navigated;
-      vi.spyOn(router, 'currentNavigation').mockReturnValue({ trigger, extras: { state } } as any);
-    };
+  describe('search header on phone vs desktop', () => {
+    describe('phones', () => {
+      beforeEach(() => {
+        vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+          matches: true,
+          media: query,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        })));
+      });
 
-    const focusAfterView = () => {
-      const focusSpy = vi.spyOn(component.searchInput!, 'focus');
-      component.ngAfterViewInit();
-      return focusSpy;
-    };
+      afterEach(() => {
+        vi.unstubAllGlobals();
+      });
 
-    it('focuses the search input when arriving from the home search bar', async () => {
-      await setUp({}, undefined, arrivingWith(true, 'imperative', { focusSearch: true }));
-      expect(focusAfterView()).toHaveBeenCalled();
+      it('uses ui-search-field on phones', async () => {
+        await setUp({});
+        const searchField = fixture.nativeElement.querySelector('ui-search-field');
+        expect(searchField).toBeTruthy();
+        const desktopWrap = fixture.nativeElement.querySelector('.search-page-input-wrap');
+        expect(desktopWrap).toBeNull();
+      });
+
+      it('submitting runs the existing search path', async () => {
+        await setUp({});
+        const searchFieldDe = fixture.debugElement.query(By.directive(UiSearchField));
+        const searchFieldComp = searchFieldDe.componentInstance as UiSearchField;
+        searchFieldComp.search.emit('algorithms');
+
+        expect(navigate).toHaveBeenCalled();
+        expect(lastQueryParams()).toEqual({ q: 'algorithms' });
+      });
+
+      it('scan opens the scanner', async () => {
+        await setUp({});
+        expect(component.scanning).toBe(false);
+
+        const searchFieldDe = fixture.debugElement.query(By.directive(UiSearchField));
+        const searchFieldComp = searchFieldDe.componentInstance as UiSearchField;
+        searchFieldComp.scan.emit();
+
+        expect(component.scanning).toBe(true);
+      });
+
+      it('a q in the URL shows in the field', async () => {
+        await setUp({ q: 'calculus' });
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        expect(component.searchQuery).toBe('calculus');
+        const searchFieldDe = fixture.debugElement.query(By.directive(UiSearchField));
+        const searchFieldComp = searchFieldDe.componentInstance as UiSearchField;
+        expect(searchFieldComp.value).toBe('calculus');
+      });
     });
 
-    it('does not focus it when arriving any other way', async () => {
-      await setUp({}, undefined, arrivingWith(true, 'imperative', {}));
-      expect(focusAfterView()).not.toHaveBeenCalled();
-    });
+    describe('desktop', () => {
+      beforeEach(() => {
+        vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+          matches: false,
+          media: query,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        })));
+      });
 
-    it('does not focus it on a reload or Back, which restore the flag from history', async () => {
-      await setUp({}, undefined, arrivingWith(false, 'imperative', { focusSearch: true }));
-      expect(focusAfterView()).not.toHaveBeenCalled();
+      afterEach(() => {
+        vi.unstubAllGlobals();
+      });
+
+      it('uses the old header on desktop', async () => {
+        await setUp({});
+        const searchField = fixture.nativeElement.querySelector('ui-search-field');
+        expect(searchField).toBeNull();
+
+        const desktopWrap = fixture.nativeElement.querySelector('.search-page-input-wrap');
+        expect(desktopWrap).toBeTruthy();
+
+        const searchBtn = fixture.nativeElement.querySelector('.search-button');
+        expect(searchBtn).toBeTruthy();
+      });
     });
   });
 });

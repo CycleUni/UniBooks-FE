@@ -1,4 +1,4 @@
-import { Component, OnInit, AfterViewInit, ViewChild, inject, effect, DestroyRef, untracked } from '@angular/core';
+import { Component, OnInit, ViewChild, inject, effect, DestroyRef, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
@@ -6,6 +6,7 @@ import { UiInput } from '../../shared/ui/input.component';
 import { UiButton } from '../../shared/ui/button.component';
 import { UiListingRow } from '../../shared/ui/listing-row.component';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiSearchField } from '../../shared/ui/search-field.component';
 import { FormsModule } from '@angular/forms';
 import { BookService, CourseFacet, SearchEngine, engineForSource, parseSearchEngine } from '../../core/services/book.service';
 import { AuthStore } from '../../core/auth.store';
@@ -24,7 +25,6 @@ import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
 import { UiInfiniteScroll } from '../../shared/ui/infinite-scroll.component';
 import { injectIsPhone } from '../../core/viewport';
 import { PhonePager } from '../../core/phone-pager';
-import { consumeSearchFocusIntent, cleanupSearchFocus } from '../../core/phone-search-focus';
 import { isbnFromScan } from '../../core/isbn';
 import { POPULAR_SEARCH_KEYS, RecentSearches } from '../../core/search-suggestions';
 import { UiFacetList, FacetOption } from '../../shared/ui/facet-list.component';
@@ -68,36 +68,39 @@ type FilterDraft = Pick<SearchUrlState, 'conditions' | 'category' | 'course' | '
 @Component({
   selector: 'app-search',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, UiInput, UiButton, UiSkeleton, UiRecentListings, UiPagination, UiBookTile, UiFacetList, UiRadioGroup, UiBottomSheet, UiBarcodeScanner, UiPullToRefresh, UiInfiniteScroll, TPipe],
+  imports: [CommonModule, RouterModule, FormsModule, UiInput, UiButton, UiSkeleton, UiRecentListings, UiPagination, UiBookTile, UiFacetList, UiRadioGroup, UiBottomSheet, UiBarcodeScanner, UiPullToRefresh, UiInfiniteScroll, UiSearchField, TPipe],
   template: `
     <ui-pull-to-refresh [refreshing]="refreshing" (refresh)="onRefresh()">
       <div class="search-header">
         <div class="header-inner container">
-          <div class="search-page-input-wrap">
-            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true">
-              <circle cx="10.5" cy="10.5" r="6.5"/>
-              <line x1="20" y1="20" x2="15.4" y2="15.4"/>
-            </svg>
-            <!-- No visible label: the placeholder was the only name, and it
-                 stops naming anything once text is typed. -->
-            <ui-input
-              #searchInput
-              [ariaLabel]="'common.search' | t"
-              [placeholder]="'common.searchPlaceholder' | t"
+          <ng-container *ngIf="isPhone; else desktopSearchHeader">
+            <ui-search-field
+              class="phone-search-field"
+              [showScan]="true"
               [(ngModel)]="searchQuery"
-              enterkeyhint="search"
-              (keyup.enter)="onSearch()"
-              class="search-page-input"
-            ></ui-input>
-          </div>
-          <!-- Phones: search by scanning the book's barcode. -->
-          <button type="button" class="scan-button" (click)="openScanner()" [attr.aria-label]="'search.scanBarcode' | t">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="22" height="22" aria-hidden="true">
-              <path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2"/>
-              <path d="M8 8v8M11 8v8M14 8v8M17 8v8"/>
-            </svg>
-          </button>
-          <ui-button (onClick)="onSearch()" class="search-button"><span class="submit-label sr-only-mobile">{{ 'common.search' | t }}</span><svg class="submit-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="20" y1="20" x2="15.4" y2="15.4"/></svg></ui-button>
+              (search)="onSearch($event)"
+              (scan)="openScanner()"
+            ></ui-search-field>
+          </ng-container>
+          <ng-template #desktopSearchHeader>
+            <div class="search-page-input-wrap">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true">
+                <circle cx="10.5" cy="10.5" r="6.5"/>
+                <line x1="20" y1="20" x2="15.4" y2="15.4"/>
+              </svg>
+              <!-- No visible label: the placeholder was the only name, and it
+                   stops naming anything once text is typed. -->
+              <ui-input
+                [ariaLabel]="'common.search' | t"
+                [placeholder]="'common.searchPlaceholder' | t"
+                [(ngModel)]="searchQuery"
+                enterkeyhint="search"
+                (keyup.enter)="onSearch()"
+                class="search-page-input"
+              ></ui-input>
+            </div>
+            <ui-button (onClick)="onSearch()" class="search-button"><span class="submit-label">{{ 'common.search' | t }}</span></ui-button>
+          </ng-template>
         </div>
       </div>
 
@@ -295,6 +298,7 @@ type FilterDraft = Pick<SearchUrlState, 'conditions' | 'category' | 'course' | '
        gutter is the shared one rather than a second 16px added on top of it. */
     .search-header { background-color: var(--paper-warm); border-bottom: 1px solid var(--line); padding-block: 24px; margin-bottom: 32px; }
     .header-inner { display: flex; gap: 8px; }
+    .phone-search-field { width: 100%; }
     .search-page-input-wrap { position: relative; width: 400px; max-width: 100%; }
     .search-page-input-wrap .search-icon { position: absolute; left: 2px; bottom: 10px; color: var(--muted); pointer-events: none; }
     .search-page-input { display: inline-block !important; width: 100%; }
@@ -312,13 +316,11 @@ type FilterDraft = Pick<SearchUrlState, 'conditions' | 'category' | 'course' | '
       box-shadow: none;
     }
     .search-button { flex-shrink: 0; }
-    .search-button .submit-icon { display: none; }
     /* Layout only. This used to redeclare .container at 1120px, which with
        border-box padding yields a 1088px column — 16px narrower than the
        header above it, so the filter rail started 16px inside the logo. */
     .search-layout { display: flex; gap: 48px; }
     .filter-toggle { display: none; }
-    .scan-button { display: none; }
     /* Before a search: recent and popular searches. */
     .suggestions { margin-bottom: var(--space-6); }
     .suggestions-head { display: flex; align-items: baseline; justify-content: space-between; }
@@ -361,8 +363,11 @@ type FilterDraft = Pick<SearchUrlState, 'conditions' | 'category' | 'course' | '
       .header-inner { flex-wrap:wrap; } .search-page-input-wrap { flex:1; width:auto; min-width:200px; }
     }
     /* Phones (the app's 900px breakpoint, core/viewport.ts): filters open as a
-       bottom sheet, and a scan button sits beside the search box. */
+       bottom sheet, and a pill-shaped search field replaces the desktop header. */
     @media (max-width: 900px) {
+      /* No band: the pill carries its own fill and border, and sits on the
+         page as it does on the phone home page, so the two screens match. */
+      .search-header { background-color: transparent; border-bottom: none; padding-block: var(--space-3) 0; margin-bottom: var(--space-4); }
       .search-layout { flex-direction:column; gap:0; }
       /* --line-strong, not --line: this is a real button, i.e. an
          interactive boundary, and --line is 1.48:1 — below the 3:1
@@ -370,30 +375,14 @@ type FilterDraft = Pick<SearchUrlState, 'conditions' | 'category' | 'course' | '
       .filter-toggle { display:flex; align-items:center; justify-content:space-between; width:100%; padding:12px 16px; margin-bottom:16px; border:1px solid var(--line-strong); border-radius:4px; background-color:var(--paper); color:var(--ink); font-size: var(--text-base); font-weight:500; font-family:inherit; cursor:pointer; }
       .filter-toggle-caret { flex-shrink:0; margin-left:auto; color:var(--muted); }
       .filter-count { margin-left:8px; min-width:20px; height:20px; padding:0 6px; border-radius:10px; background-color:var(--btn-primary-bg); color:var(--btn-primary-ink); font-size:var(--text-xs); line-height:20px; text-align:center; }
-      .scan-button { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:44px; height:44px; border:1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--paper); color: var(--ink); cursor:pointer; }
       .sidebar { display:none; }
       .sheet-filters { padding: 8px 8px 0; }
       .sheet-filters .filter-group { margin-bottom:20px; padding-bottom:20px; }
       .sheet-footer { flex: 1; }
     }
-    @media (max-width: 768px) {
-      /* Stays a row. With flex-direction:column the main axis turns vertical,
-         so the button's flex-basis sized its height and align-items:stretch
-         pulled both children to full width — which is what made the button a
-         343px block instead of a 44px square. */
-      .header-inner { align-items: stretch; }
-      /* Same collapse as the home hero: a full-width filled button for an
-         action Enter already performs is the biggest thing on the screen. */
-      .search-page-input-wrap { flex:1; width:auto; min-width:0; max-width:100%; }
-      .search-page-input-wrap .search-icon { display: none; }
-      .search-page-input ::ng-deep input { padding-left: var(--space-3); }
-      .search-button { flex: 0 0 44px; }
-      .search-button ::ng-deep .ui-btn.md { padding-inline: 0; }
-      .search-button .submit-icon { display: block; }
-    }
   `]
 })
-export class Search implements OnInit, AfterViewInit {
+export class Search implements OnInit {
   searchQuery = ''; activeQuery = ''; category = ''; course = '';
   engine: SearchEngine | null = null;
   googleUnavailable = false;
@@ -423,7 +412,6 @@ export class Search implements OnInit, AfterViewInit {
   set isPhone(v: boolean) { this.isPhoneSignal.set(v); }
   refreshing = false;
 
-  @ViewChild('searchInput') searchInput?: UiInput;
   @ViewChild(UiRecentListings) recentListings?: UiRecentListings;
 
   get loadingMore(): boolean { return this.pager.loading; }
@@ -635,8 +623,6 @@ export class Search implements OnInit, AfterViewInit {
   private regionLink = inject(RegionLinkService);
   private seo = inject(SeoService);
 
-  private focusOnArrival = false;
-
   readonly pager = new PhonePager<any>({
     fetchPage: (page) => this.bookService.searchBooks(
       this.activeQuery,
@@ -662,15 +648,7 @@ export class Search implements OnInit, AfterViewInit {
   });
 
   constructor(private route: ActivatedRoute, private router: Router) {
-    this.focusOnArrival = consumeSearchFocusIntent(this.router);
     effect(() => { this.i18n.lang(); untracked(() => this.loadMetadata()); });
-  }
-
-  ngAfterViewInit() {
-    if (this.focusOnArrival) {
-      this.searchInput?.focus();
-      cleanupSearchFocus();
-    }
   }
 
   loadMetadata(onComplete?: () => void) {
@@ -970,7 +948,10 @@ export class Search implements OnInit, AfterViewInit {
     this.searchFor(this.i18n.t(key));
   }
 
-  onSearch() {
+  onSearch(query?: string) {
+    if (typeof query === 'string') {
+      this.searchQuery = query;
+    }
     const q = this.searchQuery.trim();
     // 保留 category / course：在某個分類底下再打關鍵字，使用者的預期是
     // 「在這個分類裡找」，而不是被丟回全站搜尋。

@@ -9,6 +9,8 @@ import { SchoolStateService } from '../../core/services/school-state.service';
 import { of } from 'rxjs';
 import { Router } from '@angular/router';
 import { RegionService } from '../../core/region.service';
+import { By } from '@angular/platform-browser';
+import { UiSearchField } from '../../shared/ui/search-field.component';
 
 
 describe('HomeComponent', () => {
@@ -317,9 +319,9 @@ describe('HomeComponent', () => {
       expect(h1).toBeTruthy();
       expect(h1?.textContent).toContain('home.heroTitle');
 
-      // Compact search bar
-      const searchBar = el.querySelector('.phone-search-bar');
-      expect(searchBar).toBeTruthy();
+      // Compact search field
+      const searchField = el.querySelector('ui-search-field');
+      expect(searchField).toBeTruthy();
 
       // Category chips
       const chips = el.querySelectorAll('.phone-category-chip');
@@ -330,6 +332,36 @@ describe('HomeComponent', () => {
       const catSection = el.querySelector('.categories-section');
       expect(catSection?.classList.contains('hide-on-phone-redesign')).toBe(true);
 
+      testFixture.destroy();
+    });
+
+    it('typing and submitting navigates to the search page with q', () => {
+      mockMatchMedia(true);
+      localStorage.setItem('unibooks.home.seenHero', 'true');
+
+      const testFixture = TestBed.createComponent(Home);
+      const testComp = testFixture.componentInstance;
+      testFixture.detectChanges();
+
+      testComp.onSearch('algorithms');
+
+      expect(router.navigate).toHaveBeenCalledWith(['/', 'tw', 'search'], {
+        queryParams: { q: 'algorithms' }
+      });
+      testFixture.destroy();
+    });
+
+    it('empty search query does not navigate', () => {
+      mockMatchMedia(true);
+      localStorage.setItem('unibooks.home.seenHero', 'true');
+
+      const testFixture = TestBed.createComponent(Home);
+      const testComp = testFixture.componentInstance;
+      testFixture.detectChanges();
+
+      testComp.onSearch('   ');
+
+      expect(router.navigate).not.toHaveBeenCalled();
       testFixture.destroy();
     });
 

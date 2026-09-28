@@ -7,7 +7,7 @@ import { Injectable, signal } from '@angular/core';
 export const POPULAR_SEARCH_KEYS = ['home.tagCalculus', 'home.tagEconomics', 'home.tagAnatomy'] as const;
 
 const STORAGE_KEY = 'unibooks.search.recent';
-const MAX_RECENT = 8;
+const MAX_RECENT = 5;
 
 /**
  * The visitor's own recent searches, newest first, kept in this browser only.

@@ -2,6 +2,7 @@ export const zhHK: Record<string, string> = {
   // Common
   'common.search': '搜尋',
   'common.searchPlaceholder': '書名、ISBN、課程、教授都得…',
+  'common.clear': '清除',
   'common.previous': '上一頁',
   'common.next': '下一頁',
   'common.cancel': '取消',

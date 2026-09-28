@@ -12,11 +12,11 @@ describe('RecentSearches', () => {
     expect(new RecentSearches().items()).toEqual(['Calculus', 'Economics']);
   });
 
-  it('keeps at most eight and ignores blank queries', () => {
+  it('keeps at most five and ignores blank queries', () => {
     const recent = new RecentSearches();
     for (let i = 1; i <= 10; i++) recent.add(`q${i}`);
     recent.add('   ');
-    expect(recent.items().length).toBe(8);
+    expect(recent.items().length).toBe(5);
     expect(recent.items()[0]).toBe('q10');
   });
 

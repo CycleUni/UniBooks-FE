@@ -2,6 +2,7 @@ export const en: Record<string, string> = {
   // Common
   'common.search': 'Search',
   'common.searchPlaceholder': 'Search by title, ISBN, course, or professor...',
+  'common.clear': 'Clear',
   'common.previous': 'Previous',
   'common.next': 'Next',
   'common.cancel': 'Cancel',
