@@ -209,7 +209,7 @@ export class UiPullToRefresh {
       if (event.cancelable) {
         event.preventDefault();
       }
-      // Logarithmic resistance so extreme drags don't break page flow
+      // Linear resistance (50% scale, capped) so extreme drags don't break page flow
       this.pullDistance = Math.min(UiPullToRefresh.MAX_PULL, deltaY * 0.5);
       this.cdr.markForCheck();
     }

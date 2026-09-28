@@ -81,4 +81,64 @@ describe('SellerPageComponent', () => {
     expect(component.listings.length).toBe(2);
     expect(component.hasMoreListings).toBe(false);
   });
+
+  it('starts at page 1 on phone, ignoring ?page=3', async () => {
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [SellerPageComponent, HttpClientTestingModule],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            paramMap: of(convertToParamMap({ id: 'seller1' })),
+            snapshot: { queryParamMap: convertToParamMap({ page: '3' }) },
+          },
+        },
+        { provide: AccountService, useValue: { getPublicUserProfile } },
+        { provide: ListingService, useValue: { getListings } },
+        { provide: I18nService, useValue: i18n },
+        { provide: RegionService, useValue: { region: () => 'tw', currency: () => ({ code: 'TWD', symbol: 'NT$', decimal_places: 0 }) } },
+        { provide: SeoService, useValue: { setPage: vi.fn() } },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(SellerPageComponent);
+    component = fixture.componentInstance;
+    component.isPhone = true;
+    fixture.detectChanges();
+
+    expect(component.currentPage).toBe(1);
+    expect(getListings).toHaveBeenCalledWith(undefined, 'seller1', 1);
+  });
+
+  it('opens page 3 on desktop when carrying ?page=3', async () => {
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [SellerPageComponent, HttpClientTestingModule],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            paramMap: of(convertToParamMap({ id: 'seller1' })),
+            snapshot: { queryParamMap: convertToParamMap({ page: '3' }) },
+          },
+        },
+        { provide: AccountService, useValue: { getPublicUserProfile } },
+        { provide: ListingService, useValue: { getListings } },
+        { provide: I18nService, useValue: i18n },
+        { provide: RegionService, useValue: { region: () => 'tw', currency: () => ({ code: 'TWD', symbol: 'NT$', decimal_places: 0 }) } },
+        { provide: SeoService, useValue: { setPage: vi.fn() } },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(SellerPageComponent);
+    component = fixture.componentInstance;
+    component.isPhone = false;
+    fixture.detectChanges();
+
+    expect(component.currentPage).toBe(3);
+    expect(getListings).toHaveBeenCalledWith(undefined, 'seller1', 3);
+  });
 });

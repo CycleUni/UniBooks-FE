@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
 import { Book, BOOK_SOURCE_LABEL_KEYS, bookSourceLabelKey } from './book';
 import { BookService } from '../../core/services/book.service';
 import { I18nService } from '../../core/i18n.service';
@@ -44,6 +44,7 @@ describe('bookSourceLabelKey', () => {
 describe('Book page data source footer', () => {
   let fixture: ComponentFixture<Book>;
   let getBook: ReturnType<typeof vi.fn>;
+  let queryParamMap$: BehaviorSubject<any>;
 
   const i18n = {
     lang: () => 'zh-TW',
@@ -69,11 +70,12 @@ describe('Book page data source footer', () => {
 
   beforeEach(async () => {
     getBook = vi.fn();
+    queryParamMap$ = new BehaviorSubject(convertToParamMap({ isbn: '9786264140720' }));
     await TestBed.configureTestingModule({
       imports: [Book, HttpClientTestingModule],
       providers: [
         provideRouter([]),
-        { provide: ActivatedRoute, useValue: { queryParamMap: of(convertToParamMap({ isbn: '9786264140720' })) } },
+        { provide: ActivatedRoute, useValue: { queryParamMap: queryParamMap$ } },
         { provide: BookService, useValue: { getBook } },
         { provide: I18nService, useValue: i18n },
         { provide: AuthStore, useValue: { isLoggedIn: () => false, user: () => null } },
@@ -138,6 +140,38 @@ describe('Book page data source footer', () => {
       expect(getBook).toHaveBeenCalledWith('9786264140720', 2, '', undefined);
       expect(component.listings.length).toBe(2);
       expect(component.hasMoreListings).toBe(false);
+    });
+
+    it('starts at page 1 on phone, ignoring ?page=3', () => {
+      queryParamMap$.next(convertToParamMap({ isbn: '9786264140720', page: '3' }));
+      getBook.mockReturnValue(of({
+        id: 'b1', isbn13: '9786264140720', title: '微積分', authors: 'Stewart',
+        listings: { count: 0, results: [] }
+      }));
+
+      fixture = TestBed.createComponent(Book);
+      const component = fixture.componentInstance;
+      component.isPhone = true;
+      fixture.detectChanges();
+
+      expect(component.currentPage).toBe(1);
+      expect(getBook).toHaveBeenCalledWith('9786264140720', 1, '', undefined);
+    });
+
+    it('opens page 3 on desktop when carrying ?page=3', () => {
+      queryParamMap$.next(convertToParamMap({ isbn: '9786264140720', page: '3' }));
+      getBook.mockReturnValue(of({
+        id: 'b1', isbn13: '9786264140720', title: '微積分', authors: 'Stewart',
+        listings: { count: 0, results: [] }
+      }));
+
+      fixture = TestBed.createComponent(Book);
+      const component = fixture.componentInstance;
+      component.isPhone = false;
+      fixture.detectChanges();
+
+      expect(component.currentPage).toBe(3);
+      expect(getBook).toHaveBeenCalledWith('9786264140720', 3, '', undefined);
     });
   });
 });

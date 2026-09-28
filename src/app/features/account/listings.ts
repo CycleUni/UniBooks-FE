@@ -12,7 +12,8 @@ import { UiDropdown, DropdownOption } from '../../shared/ui/dropdown.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
 import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
 import { UiInfiniteScroll } from '../../shared/ui/infinite-scroll.component';
-import { isPhoneViewport, watchPhoneViewport } from '../../core/viewport';
+import { injectIsPhone } from '../../core/viewport';
+import { PhonePager } from '../../core/phone-pager';
 import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
 import { TPipe, I18nService } from '../../core/i18n.service';
 import { ListingService } from '../../core/services/listing.service';
@@ -25,6 +26,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
 import { parseApiError } from '../../core/api-error.util';
 import { SELL_MAX_PHOTOS } from '../sell/sell';
 import { firstValueFrom, Subscription } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 /**
  * The photos an edit starts from: the listing's whole `photos` list, since
@@ -316,22 +318,12 @@ export class ListingsComponent implements OnInit {
   categoryOptions: any[] = [];
   totalListings = 0;
   currentPage = 1;
-  isPhone = isPhoneViewport();
+  private isPhoneSignal = injectIsPhone();
+  get isPhone(): boolean { return this.isPhoneSignal(); }
+  set isPhone(v: boolean) { this.isPhoneSignal.set(v); }
   refreshing = false;
-  loadingMore = false;
-  loadMoreError = false;
-  loadedPhonePage = 1;
-  private unwatchPhone?: () => void;
-  private loadMoreSub?: Subscription;
+
   private destroyRef = inject(DestroyRef);
-
-  get hasMoreListings(): boolean {
-    return this.myListings.length < this.totalListings;
-  }
-  searchQuery = '';
-  status: StatusTab = '';
-  sort: ListingSort = 'newest';
-
   private accountService = inject(AccountService);
   private listingService = inject(ListingService);
   private metadataService = inject(MetadataService);
@@ -340,9 +332,43 @@ export class ListingsComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private regionLink = inject(RegionLinkService);
   readonly i18n = inject(I18nService);
-
   private toast = inject(ToastService);
   private confirms = inject(ConfirmService);
+
+  readonly pager = new PhonePager<any>({
+    fetchPage: (page) => this.accountService
+      .getMyProfile(page, this.searchQuery, { status: this.status, sort: this.sort === 'newest' ? undefined : this.sort })
+      .pipe(
+        map((data: any) => {
+          let items: any[] = [];
+          let total = this.totalListings;
+          if (data.myListings && !Array.isArray(data.myListings)) {
+            items = data.myListings.results || [];
+            total = data.myListings.count || total;
+          } else {
+            items = data.myListings || [];
+          }
+          if (data.myListingCounts) this.counts = data.myListingCounts;
+          return { items, total };
+        })
+      ),
+    onAppend: (items) => {
+      this.myListings = [...this.myListings, ...items];
+    },
+    currentCount: () => this.myListings.length,
+    total: () => this.totalListings,
+    cdr: this.cdr,
+    destroyRef: this.destroyRef
+  });
+
+  get loadingMore(): boolean { return this.pager.loading; }
+  get loadMoreError(): boolean { return this.pager.error; }
+  get hasMoreListings(): boolean { return this.pager.hasMore; }
+  get loadedPhonePage(): number { return this.pager.loadedPage; }
+
+  searchQuery = '';
+  status: StatusTab = '';
+  sort: ListingSort = 'newest';
 
   get conditionOptions(): DropdownOption[] {
     return ['new', 'like_new', 'noted', 'damaged'].map(value => ({
@@ -369,22 +395,14 @@ export class ListingsComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.unwatchPhone = watchPhoneViewport(matches => {
-      this.isPhone = matches;
-      this.cdr.markForCheck();
-    });
-    this.destroyRef.onDestroy(() => {
-      this.unwatchPhone?.();
-      this.loadMoreSub?.unsubscribe();
-    });
-
     const qp = this.route.snapshot.queryParamMap;
     const status = qp.get('status') as StatusTab;
     if (STATUSES.includes(status)) this.status = status;
     const sort = qp.get('sort') as ListingSort;
     if (SORTS.includes(sort)) this.sort = sort;
     this.searchQuery = qp.get('q') ?? '';
-    this.currentPage = Math.max(1, Number(qp.get('page')) || 1);
+    const pageParam = Math.max(1, Number(qp.get('page')) || 1);
+    this.currentPage = this.isPhone ? 1 : pageParam;
 
     this.metadataService.getMetadata().subscribe({
       next: (data) => {
@@ -407,6 +425,7 @@ export class ListingsComponent implements OnInit {
   onSearchQuery(query: string) {
     this.searchQuery = query;
     this.currentPage = 1;
+    this.pager.reset(1);
     this.syncUrl();
     this.loadMyListings();
   }
@@ -415,6 +434,7 @@ export class ListingsComponent implements OnInit {
     if (status === this.status) return;
     this.status = status;
     this.currentPage = 1;
+    this.pager.reset(1);
     this.syncUrl();
     this.loadMyListings();
   }
@@ -422,6 +442,7 @@ export class ListingsComponent implements OnInit {
   onSortChange(sort: ListingSort) {
     this.sort = sort;
     this.currentPage = 1;
+    this.pager.reset(1);
     this.syncUrl();
     this.loadMyListings();
   }
@@ -436,6 +457,7 @@ export class ListingsComponent implements OnInit {
     this.searchQuery = '';
     this.status = '';
     this.currentPage = 1;
+    this.pager.reset(1);
     this.syncUrl();
     this.loadMyListings();
   }
@@ -456,10 +478,7 @@ export class ListingsComponent implements OnInit {
 
   loadMyListings() {
     this.loading = true;
-    this.loadedPhonePage = this.currentPage;
-    this.loadingMore = false;
-    this.loadMoreError = false;
-    this.loadMoreSub?.unsubscribe();
+    this.pager.reset(this.currentPage, this.totalListings);
     this.accountService
       // The default sort is left out rather than sent: the backend's default is
       // the same, and first page, no search, no filter, no sort is the plain
@@ -479,6 +498,7 @@ export class ListingsComponent implements OnInit {
           this.counts = data.myListingCounts || {};
           this.loading = false;
           this.refreshing = false;
+          this.pager.reset(this.currentPage, this.totalListings);
           this.cdr.markForCheck();
         },
         error: (err) => {
@@ -492,8 +512,7 @@ export class ListingsComponent implements OnInit {
 
   onRefresh() {
     this.refreshing = true;
-    this.loadedPhonePage = 1;
-    this.loadMoreSub?.unsubscribe();
+    this.pager.reset(1);
     if (this.isPhone) {
       this.currentPage = 1;
       this.syncUrl();
@@ -503,36 +522,7 @@ export class ListingsComponent implements OnInit {
   }
 
   onLoadMore() {
-    if (this.loading || this.loadingMore || !this.hasMoreListings) return;
-    this.loadingMore = true;
-    this.loadMoreError = false;
-    this.cdr.markForCheck();
-
-    const nextPage = this.loadedPhonePage + 1;
-    this.loadMoreSub = this.accountService
-      .getMyProfile(nextPage, this.searchQuery, { status: this.status, sort: this.sort === 'newest' ? undefined : this.sort })
-      .subscribe({
-        next: (data: any) => {
-          let newItems: any[] = [];
-          if (data.myListings && !Array.isArray(data.myListings)) {
-            newItems = data.myListings.results || [];
-            this.totalListings = data.myListings.count || this.totalListings;
-          } else {
-            newItems = data.myListings || [];
-          }
-          this.myListings = [...this.myListings, ...newItems];
-          this.counts = data.myListingCounts || this.counts;
-          this.loadedPhonePage = nextPage;
-          this.loadingMore = false;
-          this.loadMoreError = false;
-          this.cdr.markForCheck();
-        },
-        error: () => {
-          this.loadingMore = false;
-          this.loadMoreError = true;
-          this.cdr.markForCheck();
-        }
-      });
+    this.pager.loadMore();
   }
 
   async onListingAction(event: { type: string, id: number | string }) {

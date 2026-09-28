@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { RouterTestingModule } from '@angular/router/testing';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { ListingsComponent, editablePhotos } from './listings';
 import { SELL_MAX_PHOTOS } from '../sell/sell';
 import { Subject } from 'rxjs';
@@ -379,6 +380,54 @@ describe('ListingsComponent edit dialog photos', () => {
       expect(getMyProfile).toHaveBeenCalledWith(2, '', { status: '', sort: undefined });
       expect(component.myListings.length).toBe(30);
       expect(component.hasMoreListings).toBe(false);
+    });
+
+    it('starts at page 1 on phone, ignoring ?page=3', () => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        imports: [ListingsComponent, HttpClientTestingModule, RouterTestingModule],
+        providers: [
+          {
+            provide: ActivatedRoute,
+            useValue: {
+              snapshot: {
+                queryParamMap: convertToParamMap({ page: '3' }),
+              },
+            },
+          },
+        ],
+      });
+      const fixture = TestBed.createComponent(ListingsComponent);
+      const comp = fixture.componentInstance;
+      comp.isPhone = true;
+      comp.loadMyListings = vi.fn();
+      comp.ngOnInit();
+
+      expect(comp.currentPage).toBe(1);
+    });
+
+    it('opens page 3 on desktop when carrying ?page=3', () => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        imports: [ListingsComponent, HttpClientTestingModule, RouterTestingModule],
+        providers: [
+          {
+            provide: ActivatedRoute,
+            useValue: {
+              snapshot: {
+                queryParamMap: convertToParamMap({ page: '3' }),
+              },
+            },
+          },
+        ],
+      });
+      const fixture = TestBed.createComponent(ListingsComponent);
+      const comp = fixture.componentInstance;
+      comp.isPhone = false;
+      comp.loadMyListings = vi.fn();
+      comp.ngOnInit();
+
+      expect(comp.currentPage).toBe(3);
     });
   });
 });

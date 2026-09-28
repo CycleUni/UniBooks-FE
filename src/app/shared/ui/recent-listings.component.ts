@@ -218,6 +218,8 @@ export class UiRecentListings {
   // after a newer one has already resolved.
   private fetchTrigger$ = new Subject<void>();
 
+  private reloadCallbacks: Array<() => void> = [];
+
   constructor() {
     // debounceTime(0): the school and limit inputs and the language effect
     // each ask for a fetch as the component starts, all in the same turn.
@@ -244,6 +246,9 @@ export class UiRecentListings {
       }
       this.loading = false;
       this.cdr.markForCheck();
+      const cbs = this.reloadCallbacks;
+      this.reloadCallbacks = [];
+      cbs.forEach(cb => cb());
     });
 
     effect(() => {
@@ -292,7 +297,10 @@ export class UiRecentListings {
     return bookQueryParams(item);
   }
 
-  reload() {
+  reload(onComplete?: () => void) {
+    if (onComplete) {
+      this.reloadCallbacks.push(onComplete);
+    }
     this.fetchRecentBooks();
   }
 }

@@ -1,4 +1,4 @@
-import { Component, Input, forwardRef } from '@angular/core';
+import { Component, ElementRef, Input, forwardRef, inject } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 
@@ -133,6 +133,13 @@ export class UiInput implements ControlValueAccessor {
   @Input() ariaDescribedby: string | null = null;
 
   private readonly generatedId = `ui-input-${++nextInputId}`;
+  private elementRef = inject(ElementRef);
+
+  /** Focuses the inner native <input> element. */
+  focus(): void {
+    const input = this.elementRef.nativeElement.querySelector('input') as HTMLInputElement | null;
+    input?.focus();
+  }
 
   get controlId(): string {
     return this.inputId || this.generatedId;

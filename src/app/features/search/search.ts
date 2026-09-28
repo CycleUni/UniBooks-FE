@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, effect, DestroyRef, untracked } from '@angular/core';
+import { Component, OnInit, AfterViewInit, ViewChild, inject, effect, DestroyRef, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
@@ -22,7 +22,9 @@ import { UiBottomSheet } from '../../shared/ui/bottom-sheet.component';
 import { UiBarcodeScanner } from '../../shared/ui/barcode-scanner.component';
 import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
 import { UiInfiniteScroll } from '../../shared/ui/infinite-scroll.component';
-import { isPhoneViewport, watchPhoneViewport } from '../../core/viewport';
+import { injectIsPhone } from '../../core/viewport';
+import { PhonePager } from '../../core/phone-pager';
+import { consumeSearchFocusIntent, cleanupSearchFocus } from '../../core/phone-search-focus';
 import { isbnFromScan } from '../../core/isbn';
 import { POPULAR_SEARCH_KEYS, RecentSearches } from '../../core/search-suggestions';
 import { UiFacetList, FacetOption } from '../../shared/ui/facet-list.component';
@@ -79,6 +81,7 @@ type FilterDraft = Pick<SearchUrlState, 'conditions' | 'category' | 'course' | '
             <!-- No visible label: the placeholder was the only name, and it
                  stops naming anything once text is typed. -->
             <ui-input
+              #searchInput
               [ariaLabel]="'common.search' | t"
               [placeholder]="'common.searchPlaceholder' | t"
               [(ngModel)]="searchQuery"
@@ -390,7 +393,7 @@ type FilterDraft = Pick<SearchUrlState, 'conditions' | 'category' | 'course' | '
     }
   `]
 })
-export class Search implements OnInit {
+export class Search implements OnInit, AfterViewInit {
   searchQuery = ''; activeQuery = ''; category = ''; course = '';
   engine: SearchEngine | null = null;
   googleUnavailable = false;
@@ -415,17 +418,18 @@ export class Search implements OnInit {
     ].filter(Boolean).length;
   }
   results: any[] = []; categories: any[] = []; courses: CourseFacet[] = []; currentSchool = ''; currentPage = 1; totalCount = 0;
-  isPhone = isPhoneViewport();
+  private isPhoneSignal = injectIsPhone();
+  get isPhone(): boolean { return this.isPhoneSignal(); }
+  set isPhone(v: boolean) { this.isPhoneSignal.set(v); }
   refreshing = false;
-  loadingMore = false;
-  loadMoreError = false;
-  loadedPhonePage = 1;
-  private unwatchPhone?: () => void;
-  private searchMoreSub?: Subscription;
 
-  get hasMoreResults(): boolean {
-    return this.results.length < this.totalCount;
-  }
+  @ViewChild('searchInput') searchInput?: UiInput;
+  @ViewChild(UiRecentListings) recentListings?: UiRecentListings;
+
+  get loadingMore(): boolean { return this.pager.loading; }
+  get loadMoreError(): boolean { return this.pager.error; }
+  get hasMoreResults(): boolean { return this.pager.hasMore; }
+  get loadedPhonePage(): number { return this.pager.loadedPage; }
   /** Set once the query parameters and the opening school have both arrived. */
   paramsReady = false;
   private searchSub?: Subscription;
@@ -631,26 +635,63 @@ export class Search implements OnInit {
   private regionLink = inject(RegionLinkService);
   private seo = inject(SeoService);
 
+  private focusOnArrival = false;
+
+  readonly pager = new PhonePager<any>({
+    fetchPage: (page) => this.bookService.searchBooks(
+      this.activeQuery,
+      this.category,
+      this.course,
+      this.schoolStateService.currentSchool,
+      page,
+      this.engine,
+      this.listingFilterParams
+    ).pipe(
+      map(data => ({
+        items: data.results || data || [],
+        total: data.count || this.totalCount
+      }))
+    ),
+    onAppend: (items) => {
+      this.results = [...this.results, ...items];
+    },
+    currentCount: () => this.results.length,
+    total: () => this.totalCount,
+    cdr: this.cdr,
+    destroyRef: this.destroyRef
+  });
+
   constructor(private route: ActivatedRoute, private router: Router) {
+    this.focusOnArrival = consumeSearchFocusIntent(this.router);
     effect(() => { this.i18n.lang(); untracked(() => this.loadMetadata()); });
   }
 
-  loadMetadata() {
+  ngAfterViewInit() {
+    if (this.focusOnArrival) {
+      this.searchInput?.focus();
+      cleanupSearchFocus();
+    }
+  }
+
+  loadMetadata(onComplete?: () => void) {
     this.metadataService.getMetadata().subscribe({
-      next: data => { if (data.categories) { this.categories = data.categories; this.cdr.markForCheck(); } },
-      error: err => console.error('Failed to load metadata', err)
+      next: data => {
+        if (data.categories) {
+          this.categories = data.categories;
+          this.cdr.markForCheck();
+        }
+      },
+      error: err => {
+        console.error('Failed to load metadata', err);
+        onComplete?.();
+      },
+      complete: () => {
+        onComplete?.();
+      }
     });
   }
 
   ngOnInit() {
-    this.unwatchPhone = watchPhoneViewport(matches => {
-      this.isPhone = matches;
-      this.cdr.markForCheck();
-    });
-    this.destroyRef.onDestroy(() => {
-      this.unwatchPhone?.();
-      this.searchMoreSub?.unsubscribe();
-    });
 
     this.schoolStateService.schools$.subscribe(() => {
       this.cdr.markForCheck();
@@ -699,6 +740,7 @@ export class Search implements OnInit {
         this.fetchResults();
       } else {
         this.results = []; this.totalCount = 0; this.localCount = null; this.loading = false; this.fetchError = false;
+        this.pager.reset(1, 0);
         this.cdr.markForCheck();
       }
     });
@@ -742,7 +784,9 @@ export class Search implements OnInit {
     this.course = params['course'] || '';
     this.engine = parseSearchEngine(params['engine']);
     // 壞掉的 ?page=abc 當第 1 頁，別讓 NaN 一路傳到 API。
-    this.currentPage = Math.max(1, parseInt(params['page'], 10) || 1);
+    // 手機版一律從第 1 頁開始，忽略 ?page（不改寫網址，桌機開同一連結仍看得到該頁）
+    const pageParam = Math.max(1, parseInt(params['page'], 10) || 1);
+    this.currentPage = this.isPhone ? 1 : pageParam;
 
     // 沒有 condition 參數＝四個全選＝不篩選；有參數就只認得出來的值，因此
     // 序列化時用的 'none' 會如預期還原成「一個都沒勾」。
@@ -755,9 +799,7 @@ export class Search implements OnInit {
     this.priceMin = params['price_min'] || '';
     this.priceMax = params['price_max'] || '';
     this.stockFilter = params['in_stock'] === '1' ? 'inStock' : 'all';
-    this.loadedPhonePage = this.currentPage;
-    this.loadingMore = false;
-    this.loadMoreError = false;
+    this.pager.reset(this.currentPage);
   }
 
   /** 目前畫面上完整的搜尋條件，navigateWithState() 以它為底。 */
@@ -819,10 +861,7 @@ export class Search implements OnInit {
   fetchResults() {
     this.loading = true;
     this.fetchError = false;
-    this.loadedPhonePage = this.currentPage;
-    if (this.searchMoreSub) {
-      this.searchMoreSub.unsubscribe();
-    }
+    this.pager.reset(this.currentPage, this.totalCount);
     this.cdr.markForCheck();
 
     if (this.searchSub) {
@@ -839,6 +878,7 @@ export class Search implements OnInit {
         this.loading = false;
         this.fetchError = false;
         this.refreshing = false;
+        this.pager.reset(this.currentPage, this.totalCount);
         if (this.activeQuery || this.category || this.course) {
           this.ga.trackSearch(this.activeQuery || `${this.category} ${this.course}`.trim(), this.totalCount, this.currentSchool);
         }
@@ -856,53 +896,31 @@ export class Search implements OnInit {
 
   onRefresh() {
     this.refreshing = true;
-    this.loadedPhonePage = 1;
-    if (this.searchMoreSub) {
-      this.searchMoreSub.unsubscribe();
-    }
+    this.pager.reset(1);
     if (this.searching) {
       if (this.isPhone) {
         this.currentPage = 1;
       }
       this.fetchResults();
     } else {
-      this.loadMetadata();
-      this.refreshing = false;
-      this.cdr.markForCheck();
+      let pending = 1;
+      const checkDone = () => {
+        pending--;
+        if (pending <= 0) {
+          this.refreshing = false;
+          this.cdr.markForCheck();
+        }
+      };
+      if (this.recentListings) {
+        pending++;
+        this.recentListings.reload(checkDone);
+      }
+      this.loadMetadata(checkDone);
     }
   }
 
   onLoadMore() {
-    if (this.loading || this.loadingMore || !this.hasMoreResults) return;
-    this.loadingMore = true;
-    this.loadMoreError = false;
-    this.cdr.markForCheck();
-
-    const nextPage = this.loadedPhonePage + 1;
-    this.searchMoreSub = this.bookService.searchBooks(
-      this.activeQuery,
-      this.category,
-      this.course,
-      this.schoolStateService.currentSchool,
-      nextPage,
-      this.engine,
-      this.listingFilterParams
-    ).subscribe({
-      next: data => {
-        const newItems = data.results || data || [];
-        this.results = [...this.results, ...newItems];
-        this.totalCount = data.count || this.totalCount;
-        this.loadedPhonePage = nextPage;
-        this.loadingMore = false;
-        this.loadMoreError = false;
-        this.cdr.markForCheck();
-      },
-      error: () => {
-        this.loadingMore = false;
-        this.loadMoreError = true;
-        this.cdr.markForCheck();
-      }
-    });
+    this.pager.loadMore();
   }
 
   /** 換頁是唯一「不重設 page」的操作，所以它是唯一要明講 page 的呼叫端。 */

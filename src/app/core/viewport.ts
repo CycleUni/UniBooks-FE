@@ -1,3 +1,5 @@
+import { DestroyRef, WritableSignal, inject, signal } from '@angular/core';
+
 /**
  * The phone breakpoint, in the one place script needs it. The stylesheets use
  * the same `max-width: 900px` for the app-style mobile layout (app bar, bottom
@@ -37,4 +39,19 @@ export function watchPhoneViewport(listener: (isPhone: boolean) => void): () => 
     query.removeEventListener('change', check);
     window.removeEventListener('resize', check);
   };
+}
+
+/**
+ * Returns a reactive signal tracking whether the viewport is currently within
+ * the phone layout (<= 900px).
+ *
+ * Automatically tracks media query and window resize changes, and unsubscribes
+ * when the calling injection context (or explicit DestroyRef) is destroyed.
+ */
+export function injectIsPhone(destroyRef?: DestroyRef): WritableSignal<boolean> {
+  const ref = destroyRef ?? inject(DestroyRef);
+  const isPhone = signal(isPhoneViewport());
+  const unwatch = watchPhoneViewport(matches => isPhone.set(matches));
+  ref.onDestroy(unwatch);
+  return isPhone;
 }

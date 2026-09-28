@@ -1,7 +1,9 @@
 import { RegionLinkDirective } from '../../core/region-link.directive';
 import { Component, OnInit, OnDestroy, inject, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
+import { RegionService } from '../../core/region.service';
+import { navigateWithSearchFocus } from '../../core/phone-search-focus';
 import { UiButton } from '../../shared/ui/button.component';
 import { UiRecentListings } from '../../shared/ui/recent-listings.component';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
@@ -44,7 +46,7 @@ import { hasCoverFailed, markCoverFailed } from '../../shared/ui/book-cover.comp
     <ui-pull-to-refresh [refreshing]="refreshing" (refresh)="onRefresh()">
       <!-- Redesigned header on phone returning visits: compact search bar + category chips -->
       <div *ngIf="isPhone && seenHero" class="phone-home-header container">
-        <a [regionLink]="['/search']" class="phone-search-bar" [attr.aria-label]="'common.search' | t">
+        <a [regionLink]="['/search']" class="phone-search-bar" [attr.aria-label]="'common.search' | t" (click)="onPhoneSearchClick($event)">
           <svg class="phone-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="18" height="18" aria-hidden="true">
             <circle cx="10.5" cy="10.5" r="6.5"/>
             <line x1="20" y1="20" x2="15.4" y2="15.4"/>
@@ -64,7 +66,8 @@ import { hasCoverFailed, markCoverFailed } from '../../shared/ui/book-cover.comp
         </nav>
       </div>
 
-      <app-home-hero [class.sr-only-phone]="isPhone && seenHero" [covers]="heroCovers" [loading]="metadataLoading" (adClick)="onAdClick($event)"></app-home-hero>
+      <app-home-hero *ngIf="!(isPhone && seenHero)" [covers]="heroCovers" [loading]="metadataLoading" (adClick)="onAdClick($event)"></app-home-hero>
+      <h1 *ngIf="isPhone && seenHero" class="sr-only">{{ 'home.heroTitle' | t }}</h1>
 
       <!-- Categories: show skeleton during load, then the real content, never blank -->
       <div class="two-cols container" [class.hero-has-covers]="heroCovers.length > 0">
@@ -343,7 +346,7 @@ import { hasCoverFailed, markCoverFailed } from '../../shared/ui/book-cover.comp
     /* ---- narrow screens ------------------------------------------------ */
     @media (max-width: 900px) {
       .two-cols { gap: var(--space-6); }
-      app-home-hero.sr-only-phone {
+      .sr-only {
         position: absolute !important;
         width: 1px !important;
         height: 1px !important;
@@ -509,6 +512,16 @@ export class Home implements OnInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
   private destroy$ = new Subject<void>();
   private i18n = inject(I18nService);
+  private router = inject(Router);
+  private regionService = inject(RegionService);
+
+  onPhoneSearchClick(event: MouseEvent): void {
+    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+      return;
+    }
+    event.preventDefault();
+    navigateWithSearchFocus(this.router, ['/', this.regionService.region(), 'search']);
+  }
 
   constructor() {
     // Language changes reload the metadata. The first load waits for the
@@ -579,6 +592,9 @@ export class Home implements OnInit, OnDestroy {
           localStorage.setItem('unibooks.home.seenHero', 'true');
         } catch {}
       }
+      if (!matches) {
+        this.recordAdImpressions();
+      }
       this.cdr.markForCheck();
     });
 
@@ -624,21 +640,28 @@ export class Home implements OnInit, OnDestroy {
         onComplete?.();
         this.cdr.markForCheck();
 
-        this.activeAds.forEach(ad => {
-          const viewedKey = `ad_viewed_${ad.id}`;
-          if (!sessionStorage.getItem(viewedKey)) {
-            sessionStorage.setItem(viewedKey, '1');
-            this.metadataService.recordAdView(ad.id)
-              .pipe(takeUntil(this.destroy$))
-              .subscribe({ error: () => {} });
-          }
-        });
+        this.recordAdImpressions();
       },
       error: () => {
         this.activeAds = [];
         this.updateHeroCovers();
         onComplete?.();
         this.cdr.markForCheck();
+      }
+    });
+  }
+
+  private recordAdImpressions() {
+    this.activeAds.forEach(ad => {
+      if (ad.show_in_hero && (this.isPhone && this.seenHero)) {
+        return;
+      }
+      const viewedKey = `ad_viewed_${ad.id}`;
+      if (typeof sessionStorage !== 'undefined' && !sessionStorage.getItem(viewedKey)) {
+        sessionStorage.setItem(viewedKey, '1');
+        this.metadataService.recordAdView(ad.id)
+          .pipe(takeUntil(this.destroy$))
+          .subscribe({ error: () => {} });
       }
     });
   }

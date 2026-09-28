@@ -291,14 +291,13 @@ describe('HomeComponent', () => {
       const el = testFixture.nativeElement as HTMLElement;
       const hero = el.querySelector('app-home-hero');
       expect(hero).toBeTruthy();
-      expect(hero?.classList.contains('sr-only-phone')).toBe(false);
       expect(el.querySelector('.phone-home-header')).toBeNull();
 
       expect(localStorage.getItem('unibooks.home.seenHero')).toBe('true');
       testFixture.destroy();
     });
 
-    it('visually hides hero and shows compact search bar and category chips on returning phone visits', () => {
+    it('does not render hero and shows compact search bar, category chips, and sr-only h1 on returning phone visits', () => {
       mockMatchMedia(true);
       localStorage.setItem('unibooks.home.seenHero', 'true');
 
@@ -311,11 +310,12 @@ describe('HomeComponent', () => {
 
       const el = testFixture.nativeElement as HTMLElement;
       const hero = el.querySelector('app-home-hero');
-      expect(hero).toBeTruthy();
-      expect(hero?.classList.contains('sr-only-phone')).toBe(true);
+      expect(hero).toBeNull();
 
-      // SEO: h1 inside app-home-hero remains in DOM
-      expect(el.querySelector('app-home-hero h1')).toBeTruthy();
+      // SEO & accessibility: sr-only h1 with the same title text remains in DOM
+      const h1 = el.querySelector('h1.sr-only');
+      expect(h1).toBeTruthy();
+      expect(h1?.textContent).toContain('home.heroTitle');
 
       // Compact search bar
       const searchBar = el.querySelector('.phone-search-bar');
@@ -330,6 +330,22 @@ describe('HomeComponent', () => {
       const catSection = el.querySelector('.categories-section');
       expect(catSection?.classList.contains('hide-on-phone-redesign')).toBe(true);
 
+      testFixture.destroy();
+    });
+
+    it('does not record ad impressions for hero ads on returning phone visits', () => {
+      mockMatchMedia(true);
+      localStorage.setItem('unibooks.home.seenHero', 'true');
+
+      const heroAd: any = { id: 99, title: 'Ad Title', image_url: 'http://img.png', target_url: 'http://link.com', show_in_hero: true };
+      mockMetadataService.getActiveAds.mockReturnValue(of({ results: [heroAd] }));
+      const recordAdViewSpy = mockMetadataService.recordAdView;
+      recordAdViewSpy.mockClear();
+
+      const testFixture = TestBed.createComponent(Home);
+      testFixture.detectChanges();
+
+      expect(recordAdViewSpy).not.toHaveBeenCalledWith(99);
       testFixture.destroy();
     });
 

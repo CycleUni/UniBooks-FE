@@ -1,6 +1,7 @@
 import { onLanguageChange } from '../../core/on-language-change';
 import { Component, OnInit, inject, ChangeDetectorRef, effect, untracked, DestroyRef } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { Subscription, of } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { SeoService } from '../../core/services/seo.service';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -12,7 +13,8 @@ import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { UiListingRow } from '../../shared/ui/listing-row.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
 import { UiInfiniteScroll } from '../../shared/ui/infinite-scroll.component';
-import { isPhoneViewport, watchPhoneViewport } from '../../core/viewport';
+import { injectIsPhone } from '../../core/viewport';
+import { PhonePager } from '../../core/phone-pager';
 import { UiBreadcrumb, BreadcrumbItem } from '../../shared/ui/breadcrumb.component';
 import { TPipe, I18nService } from '../../core/i18n.service';
 import { RegionLinkService } from '../../core/region-link.service';
@@ -221,16 +223,42 @@ export class SellerPageComponent implements OnInit {
   error = false;
   totalListings = 0;
   currentPage = 1;
-  isPhone = isPhoneViewport();
-  loadingMore = false;
-  loadMoreError = false;
-  loadedPhonePage = 1;
-  private unwatchPhone?: () => void;
-  private loadMoreSub?: Subscription;
+  private isPhoneSignal = injectIsPhone();
+  get isPhone(): boolean { return this.isPhoneSignal(); }
+  set isPhone(v: boolean) { this.isPhoneSignal.set(v); }
 
-  get hasMoreListings(): boolean {
-    return this.listings.length < this.totalListings;
-  }
+  readonly pager = new PhonePager<any>({
+    fetchPage: (page) => {
+      if (!this.currentId) {
+        return of({ items: [], total: this.totalListings });
+      }
+      return this.listingService.getListings(undefined, this.currentId, page).pipe(
+        map((data: any) => {
+          let items: any[] = [];
+          let total = this.totalListings;
+          if (data.results) {
+            items = data.results;
+            total = data.count || total;
+          } else {
+            items = data || [];
+          }
+          return { items, total };
+        })
+      );
+    },
+    onAppend: (items) => {
+      this.listings = [...this.listings, ...items];
+    },
+    currentCount: () => this.listings.length,
+    total: () => this.totalListings,
+    cdr: this.cdr,
+    destroyRef: this.destroyRef
+  });
+
+  get loadingMore(): boolean { return this.pager.loading; }
+  get loadMoreError(): boolean { return this.pager.error; }
+  get hasMoreListings(): boolean { return this.pager.hasMore; }
+  get loadedPhonePage(): number { return this.pager.loadedPage; }
   averageRating = 0;
   reviewCount = 0;
   noShowCount = 0;
@@ -256,28 +284,18 @@ export class SellerPageComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.unwatchPhone = watchPhoneViewport(matches => {
-      this.isPhone = matches;
-      this.cdr.detectChanges();
-    });
-    this.destroyRef.onDestroy(() => {
-      this.unwatchPhone?.();
-      this.loadMoreSub?.unsubscribe();
-    });
-
     this.route.paramMap.subscribe(params => {
       const id = params.get('id');
+      const pageParam = Math.max(1, Number(this.route.snapshot?.queryParamMap?.get('page')) || 1);
+      // Lists always start at page 1 on phone, ignoring ?page without rewriting the URL
+      this.currentPage = this.isPhone ? 1 : pageParam;
       if (id !== this.currentId) {
         // Another seller: show the skeleton, not the previous seller's page.
         this.seller = null;
         this.listings = [];
         this.loadingListings = true;
         this.error = false;
-        this.currentPage = 1;
-        this.loadedPhonePage = 1;
-        this.loadingMore = false;
-        this.loadMoreError = false;
-        this.loadMoreSub?.unsubscribe();
+        this.pager.reset(this.currentPage, 0);
       }
       this.currentId = id;
       if (id) {
@@ -308,10 +326,7 @@ export class SellerPageComponent implements OnInit {
 
   loadListings(sellerId: string) {
     this.loadingListings = true;
-    this.loadedPhonePage = this.currentPage;
-    this.loadingMore = false;
-    this.loadMoreError = false;
-    this.loadMoreSub?.unsubscribe();
+    this.pager.reset(this.currentPage, this.totalListings);
     this.cdr.detectChanges();
     this.listingService.getListings(undefined, sellerId, this.currentPage).subscribe({
       next: (data: any) => {
@@ -322,6 +337,7 @@ export class SellerPageComponent implements OnInit {
           this.listings = data || [];
           this.totalListings = this.listings.length;
         }
+        this.pager.reset(this.currentPage, this.totalListings);
         this.loadingListings = false;
         this.cdr.detectChanges();
       },
@@ -333,28 +349,7 @@ export class SellerPageComponent implements OnInit {
   }
 
   onLoadMore() {
-    if (this.loadingListings || this.loadingMore || !this.hasMoreListings || !this.currentId) return;
-    this.loadingMore = true;
-    this.loadMoreError = false;
-    this.cdr.detectChanges();
-
-    const nextPage = this.loadedPhonePage + 1;
-    this.loadMoreSub = this.listingService.getListings(undefined, this.currentId, nextPage).subscribe({
-      next: (data: any) => {
-        const newItems = data.results || data || [];
-        this.listings = [...this.listings, ...newItems];
-        this.totalListings = data.count || this.totalListings;
-        this.loadedPhonePage = nextPage;
-        this.loadingMore = false;
-        this.loadMoreError = false;
-        this.cdr.detectChanges();
-      },
-      error: () => {
-        this.loadingMore = false;
-        this.loadMoreError = true;
-        this.cdr.detectChanges();
-      }
-    });
+    this.pager.loadMore();
   }
 
   onPageChange(page: number) {

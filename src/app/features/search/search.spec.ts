@@ -41,7 +41,11 @@ describe('Search page', () => {
   // The URL the page navigated to last, as query params.
   const lastQueryParams = () => navigate.mock.calls.at(-1)?.[1]?.queryParams;
 
-  const setUp = async (params: Record<string, string>, response: unknown = { count: 0, results: [] }) => {
+  const setUp = async (
+    params: Record<string, string>,
+    response: unknown = { count: 0, results: [] },
+    beforeCreate?: (router: Router) => void,
+  ) => {
     queryParams = new BehaviorSubject(params);
     searchBooks = vi.fn().mockReturnValue(of(response));
     getTopCourses = vi.fn().mockReturnValue(of([]));
@@ -68,6 +72,7 @@ describe('Search page', () => {
     }).compileComponents();
 
     navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    beforeCreate?.(TestBed.inject(Router));
     fixture = TestBed.createComponent(Search);
     component = fixture.componentInstance;
     fixture.detectChanges();
@@ -197,6 +202,78 @@ describe('Search page', () => {
 
       expect(component.refreshing).toBe(false);
       expect(searchBooks).toHaveBeenLastCalledWith('calculus', '', '', 'NTU', 1, null, {});
+    });
+
+    it('reloads recent listings and metadata on landing screen refresh', async () => {
+      await setUp({});
+      const reloadSpy = vi.fn((cb?: () => void) => cb?.());
+      component.recentListings = { reload: reloadSpy } as any;
+
+      component.onRefresh();
+
+      expect(reloadSpy).toHaveBeenCalled();
+      expect(component.refreshing).toBe(false);
+    });
+
+    it('starts at page 1 on phone, ignoring ?page=3', async () => {
+      vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+        matches: true,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })));
+      try {
+        await setUp({ q: 'calculus', page: '3' });
+        expect(component.currentPage).toBe(1);
+        expect(searchBooks).toHaveBeenCalledWith('calculus', '', '', 'NTU', 1, null, {});
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('opens page 3 on desktop when carrying ?page=3', async () => {
+      vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })));
+      try {
+        await setUp({ q: 'calculus', page: '3' });
+        expect(component.currentPage).toBe(3);
+        expect(searchBooks).toHaveBeenCalledWith('calculus', '', '', 'NTU', 3, null, {});
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+  });
+
+  describe('focus on arrival behaviour', () => {
+    // As the router reports a tap on the home search bar in the running app.
+    const arrivingWith = (navigated: boolean, trigger: string, state: Record<string, unknown>) => (router: Router) => {
+      router.navigated = navigated;
+      vi.spyOn(router, 'currentNavigation').mockReturnValue({ trigger, extras: { state } } as any);
+    };
+
+    const focusAfterView = () => {
+      const focusSpy = vi.spyOn(component.searchInput!, 'focus');
+      component.ngAfterViewInit();
+      return focusSpy;
+    };
+
+    it('focuses the search input when arriving from the home search bar', async () => {
+      await setUp({}, undefined, arrivingWith(true, 'imperative', { focusSearch: true }));
+      expect(focusAfterView()).toHaveBeenCalled();
+    });
+
+    it('does not focus it when arriving any other way', async () => {
+      await setUp({}, undefined, arrivingWith(true, 'imperative', {}));
+      expect(focusAfterView()).not.toHaveBeenCalled();
+    });
+
+    it('does not focus it on a reload or Back, which restore the flag from history', async () => {
+      await setUp({}, undefined, arrivingWith(false, 'imperative', { focusSearch: true }));
+      expect(focusAfterView()).not.toHaveBeenCalled();
     });
   });
 });
