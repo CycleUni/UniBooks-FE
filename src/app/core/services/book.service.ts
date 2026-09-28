@@ -49,7 +49,13 @@ export class BookService {
    * ISBN registry, then Open Library); `engine=googlebooks` means Google
    * alone, falling back only when Google rate-limits.
    */
-  searchBooks(query: string, category?: string, course?: string, school?: string, page: number = 1, engine?: SearchEngine | null): Observable<any> {
+  /**
+   * `filters` are the listing filters (condition, price_min, price_max,
+   * in_stock) as the search page writes them in its URL. The backend applies
+   * them before paging, so every page is filtered, and they alone are enough
+   * to list books with no keyword.
+   */
+  searchBooks(query: string, category?: string, course?: string, school?: string, page: number = 1, engine?: SearchEngine | null, filters: Record<string, string> = {}): Observable<any> {
     let url = `/search/books/?q=${encodeURIComponent(query)}&page=${page}`;
     if (category) {
       url += `&category=${encodeURIComponent(category)}`;
@@ -62,6 +68,9 @@ export class BookService {
     }
     if (engine) {
       url += `&engine=${encodeURIComponent(engine)}`;
+    }
+    for (const [key, value] of Object.entries(filters)) {
+      url += `&${key}=${encodeURIComponent(value)}`;
     }
     return this.http.get<any[]>(url, { context: OPTIONAL_AUTH_NO_LANG });
   }

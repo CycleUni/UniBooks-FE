@@ -124,6 +124,7 @@ export const zhHK: Record<string, string> = {
   'search.resultsTruncated': '只顯示最新的部分結果，請加上篩選條件縮小範圍。',
   'search.resultsFor': '「{q}」的搜尋結果',
   'search.categoryResults': '學院搜尋結果',
+  'search.filterResults': '篩選結果',
   'search.foundCountScoped': '喺 {school} 搵到 {n} 本啱嘅書',
   'search.foundCountNoneAtSchool': '搵到 {n} 本啱嘅書，{school} 暫時未有人上架',
   'search.foundCountAll': '搵到 {n} 本啱嘅書',

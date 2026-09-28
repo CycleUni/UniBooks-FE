@@ -38,6 +38,13 @@ describe('BookService.searchBooks engine parameter', () => {
     const req = http.expectOne(r => r.urlWithParams.includes('engine=isbnnet'));
     req.flush([]);
   });
+
+  it('sends the listing filters, so the backend filters before paging', () => {
+    service.searchBooks('', '', '', '', 1, null, { condition: 'damaged', price_min: '100' }).subscribe();
+
+    const req = http.expectOne(r => r.urlWithParams.includes('condition=damaged') && r.urlWithParams.includes('price_min=100'));
+    req.flush([]);
+  });
 });
 
 describe('search engine helpers', () => {

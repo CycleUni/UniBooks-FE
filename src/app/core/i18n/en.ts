@@ -127,6 +127,7 @@ export const en: Record<string, string> = {
   'search.resultsTruncated': 'Showing the newest matches only — add a filter to narrow this down.',
   'search.resultsFor': 'Search results for "{q}"',
   'search.categoryResults': 'Category search results',
+  'search.filterResults': 'Filtered results',
   'search.foundCountScoped': 'Found {n} matching books at {school}',
   'search.foundCountNoneAtSchool': 'Found {n} matching books, none listed at {school} yet',
   'search.foundCountAll': 'Found {n} matching books',

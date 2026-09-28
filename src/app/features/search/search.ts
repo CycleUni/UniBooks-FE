@@ -23,7 +23,7 @@ import { UiBarcodeScanner } from '../../shared/ui/barcode-scanner.component';
 import { isbnFromScan } from '../../core/isbn';
 import { POPULAR_SEARCH_KEYS, RecentSearches } from '../../core/search-suggestions';
 import { UiFacetList, FacetOption } from '../../shared/ui/facet-list.component';
-import { combineLatest, Subscription } from 'rxjs';
+import { Subject, combineLatest, merge, Subscription } from 'rxjs';
 import { map, distinctUntilChanged, switchMap } from 'rxjs/operators';
 import { RegionLinkService } from '../../core/region-link.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -55,6 +55,10 @@ interface SearchUrlState {
 /** 「一個書況都沒勾」的哨兵值 —— 空字串在網址裡和「沒有這個參數」分不出來，
  *  但兩者的意思相反（沒有參數＝全選，沒有勾＝結果為空）。 */
 const CONDITION_NONE = 'none';
+
+/** The filters the filter controls edit, as the page holds them before they
+ *  go into the URL (prices as typed). */
+type FilterDraft = Pick<SearchUrlState, 'conditions' | 'category' | 'course' | 'inStock' | 'priceMin' | 'priceMax'>;
 
 @Component({
   selector: 'app-search',
@@ -121,7 +125,7 @@ const CONDITION_NONE = 'none';
           <div class="filter-group">
             <h4 class="filter-title">{{ 'search.stockTitle' | t }}</h4>
             <!-- 單向綁定 + 明確的 handler：狀態由網址還原，radio 只負責發動導頁。 -->
-            <ui-radio-group [options]="stockOptions" [ngModel]="stockFilter" (ngModelChange)="onStockChange($event)"></ui-radio-group>
+            <ui-radio-group [options]="stockOptions" [ngModel]="shownFilters.inStock ? 'inStock' : 'all'" (ngModelChange)="onStockChange($event)"></ui-radio-group>
           </div>
           <div class="filter-group">
             <h4 class="filter-title">{{ 'search.priceTitle' | t }}</h4>
@@ -130,19 +134,20 @@ const CONDITION_NONE = 'none';
                  而且 "1" / "12" / "120" 會各觸發一次狀態還原。
                  blur 不會冒泡，所以聽的是 ui-input 主機元素上的 focusout。 -->
             <div class="price-range">
-              <ui-input [placeholder]="'search.priceMinPlaceholder' | t" [(ngModel)]="priceMin" inputmode="decimal" enterkeyhint="done" (focusout)="commitPriceRange()" (keyup.enter)="commitPriceRange()" class="price-input"></ui-input>
+              <ui-input [placeholder]="'search.priceMinPlaceholder' | t" [ngModel]="shownFilters.priceMin" (ngModelChange)="setPrice('priceMin', $event)" inputmode="decimal" enterkeyhint="done" (focusout)="commitPriceRange()" (keyup.enter)="commitPriceRange()" class="price-input"></ui-input>
               <span>-</span>
-              <ui-input [placeholder]="'search.priceMaxPlaceholder' | t" [(ngModel)]="priceMax" inputmode="decimal" enterkeyhint="done" (focusout)="commitPriceRange()" (keyup.enter)="commitPriceRange()" class="price-input"></ui-input>
+              <ui-input [placeholder]="'search.priceMaxPlaceholder' | t" [ngModel]="shownFilters.priceMax" (ngModelChange)="setPrice('priceMax', $event)" inputmode="decimal" enterkeyhint="done" (focusout)="commitPriceRange()" (keyup.enter)="commitPriceRange()" class="price-input"></ui-input>
             </div>
           </div>
         </ng-template>
 
-        <!-- Phones: opens the filters as a bottom sheet. They apply as they
-             are tapped, as in the sidebar; the sheet's button only closes it. -->
+        <!-- Phones: opens the filters as a bottom sheet. Choices there are a
+             draft (filterDraft) that the sheet's button applies; closing the
+             sheet any other way drops them, as in a native filter screen. -->
         <button
           type="button"
           class="filter-toggle"
-          (click)="filtersOpen = true"
+          (click)="openFilters()"
           aria-haspopup="dialog"
         >
           <span>{{ 'search.filters' | t }}</span>
@@ -151,12 +156,12 @@ const CONDITION_NONE = 'none';
             <polyline points="6 9 12 15 18 9"/>
           </svg>
         </button>
-        <ui-bottom-sheet *ngIf="filtersOpen" [title]="'search.filters' | t" (closed)="filtersOpen = false">
+        <ui-bottom-sheet *ngIf="filtersOpen" [title]="'search.filters' | t" (closed)="discardFilters()">
           <div class="sheet-filters">
             <ng-container *ngTemplateOutlet="filterGroups"></ng-container>
           </div>
           <div sheetFooter class="sheet-footer">
-            <ui-button block (onClick)="filtersOpen = false">{{ 'search.showResults' | t }}</ui-button>
+            <ui-button block (onClick)="applyFilters()">{{ 'search.showResults' | t }}</ui-button>
           </div>
         </ui-bottom-sheet>
 
@@ -171,20 +176,21 @@ const CONDITION_NONE = 'none';
           <p class="fallback-hint" *ngIf="resultsTruncated">{{ 'search.resultsTruncated' | t }}</p>
           <h2 class="section-heading" *ngIf="activeQuery">{{ 'search.resultsFor' | t:{q: activeQuery} }}</h2>
           <h2 class="section-heading" *ngIf="!activeQuery && category">{{ 'search.categoryResults' | t }}</h2>
-          <p class="scoped-count" *ngIf="(activeQuery || category) && !loading && !fetchError && filteredResults.length > 0">
+          <h2 class="section-heading" *ngIf="!activeQuery && !category && searching">{{ 'search.filterResults' | t }}</h2>
+          <p class="scoped-count" *ngIf="searching && !loading && !fetchError && filteredResults.length > 0">
             <!-- The scoped count is books with a copy at this school. When that
                  is zero while catalogue matches are listed right below,
                  "Found 0 matching books" contradicted the page. -->
             <ng-container *ngIf="currentSchool && localResultsCount > 0">{{ 'search.foundCountScoped' | t:{school: currentSchoolLabel, n: localResultsCount} }}</ng-container>
-            <ng-container *ngIf="currentSchool && localResultsCount === 0">{{ 'search.foundCountNoneAtSchool' | t:{school: currentSchoolLabel, n: filteredResults.length} }}</ng-container>
-            <ng-container *ngIf="!currentSchool">{{ 'search.foundCountAll' | t:{n: filteredResults.length} }}</ng-container>
+            <ng-container *ngIf="currentSchool && localResultsCount === 0">{{ 'search.foundCountNoneAtSchool' | t:{school: currentSchoolLabel, n: totalCount} }}</ng-container>
+            <ng-container *ngIf="!currentSchool">{{ 'search.foundCountAll' | t:{n: totalCount} }}</ng-container>
           </p>
 
-          <!-- No active query/category → recent listings. Only once the URL's
-               parameters and the school are in: before that activeQuery is
-               still empty, and the grid used to fetch "all schools" for a
+          <!-- Nothing searched or filtered → recent listings. Only once the
+               URL's parameters and the school are in: before that activeQuery
+               is still empty, and the grid used to fetch "all schools" for a
                page that turned out to be a search. -->
-          <ng-container *ngIf="paramsReady && !activeQuery && !category">
+          <ng-container *ngIf="paramsReady && !searching">
             <!-- Before a search: the visitor's recent searches and a few
                  popular ones, as a search screen in an app offers. -->
             <section class="suggestions" *ngIf="recentSearches.items().length > 0">
@@ -260,7 +266,7 @@ const CONDITION_NONE = 'none';
               <p>{{ 'search.notFoundDesc' | t }}</p>
             </div>
 
-            <div *ngIf="results.length > 0 && filteredResults.length === 0" class="empty-state">
+            <div *ngIf="filteredResults.length === 0 && (results.length > 0 || (searching && !activeQuery))" class="empty-state">
               <h3>{{ 'search.noFilterMatch' | t }}</h3>
               <p>{{ 'search.adjustFilters' | t }}</p>
             </div>
@@ -387,6 +393,9 @@ export class Search implements OnInit {
   resultsTruncated = false;
   loading = true; fetchError = false;
   filtersOpen = false;
+  /** Whether the URL asks for a list of books — a keyword, category, course
+   *  or listing filter — rather than the search screen's suggestions. */
+  searching = false;
 
   /** How many filters narrow the results, shown on the phone Filters button
    *  so a filtered list isn't mistaken for everything there is. */
@@ -403,8 +412,8 @@ export class Search implements OnInit {
   /** Set once the query parameters and the opening school have both arrived. */
   paramsReady = false;
   private searchSub?: Subscription;
-  /** 上一次真的送進 API 的那組欄位。書況／價格／庫存純前端過濾，現在也會寫進
-   *  網址，若不比對這個 key，每勾一個書況都會多打一次回傳完全相同的請求。 */
+  /** 上一次真的送進 API 的那組欄位。網址變了但這組沒變（例如只換了 engine
+   *  以外的顯示狀態）就不重打一次回傳完全相同的請求。 */
   private lastFetchKey?: string;
 
   get currentSchoolLabel(): string {
@@ -438,10 +447,10 @@ export class Search implements OnInit {
 
   get conditionFacetOptions(): FacetOption[] {
     return [
-      { label: this.i18n.t('cond.new'), value: 'new', selected: this.conditionFilters.new },
-      { label: this.i18n.t('cond.like_new'), value: 'like_new', selected: this.conditionFilters.like_new },
-      { label: this.i18n.t('cond.noted'), value: 'noted', selected: this.conditionFilters.noted },
-      { label: this.i18n.t('cond.damaged'), value: 'damaged', selected: this.conditionFilters.damaged },
+      { label: this.i18n.t('cond.new'), value: 'new', selected: this.shownFilters.conditions.includes('new') },
+      { label: this.i18n.t('cond.like_new'), value: 'like_new', selected: this.shownFilters.conditions.includes('like_new') },
+      { label: this.i18n.t('cond.noted'), value: 'noted', selected: this.shownFilters.conditions.includes('noted') },
+      { label: this.i18n.t('cond.damaged'), value: 'damaged', selected: this.shownFilters.conditions.includes('damaged') },
     ];
   }
 
@@ -450,16 +459,79 @@ export class Search implements OnInit {
     if (!CONDITION_KEYS.includes(key)) return;
     // 刻意不直接改 conditionFilters：勾選狀態一律由網址還原回來，元件自己先
     // 改一份會讓兩邊各有一個真相，重整後又對不起來。
-    const next = { ...this.conditionFilters, [key]: !this.conditionFilters[key] };
-    this.navigateWithState({ conditions: CONDITION_KEYS.filter(k => next[k]) });
+    const shown = this.shownFilters.conditions;
+    const next = shown.includes(key) ? shown.filter(k => k !== key) : [...shown, key];
+    this.changeFilters({ conditions: CONDITION_KEYS.filter(k => next.includes(k)) });
   }
 
   onStockChange(value: 'all' | 'inStock') {
-    this.navigateWithState({ inStock: value === 'inStock' });
+    this.changeFilters({ inStock: value === 'inStock' });
   }
 
-  /** 價格改由 blur / Enter 提交，見樣板中的說明。 */
+  /**
+   * Phones: the filters chosen in the open sheet, not yet applied. While it
+   * is set the filter controls show and change it instead of the URL, so the
+   * results behind the sheet stay as they were until Show results.
+   */
+  filterDraft: FilterDraft | null = null;
+  /** The category whose courses the course filter lists, while a draft
+   *  has picked one the URL doesn't have yet. */
+  private draftCategory$ = new Subject<string>();
+
+  /** What the filter controls show: the sheet's draft, or what is applied. */
+  get shownFilters(): FilterDraft {
+    return this.filterDraft ?? {
+      conditions: CONDITION_KEYS.filter(k => this.conditionFilters[k]),
+      category: this.category,
+      course: this.course,
+      inStock: this.stockFilter === 'inStock',
+      priceMin: this.priceMin,
+      priceMax: this.priceMax,
+    };
+  }
+
+  /** Applies a filter change at once (sidebar), or to the sheet's draft. */
+  private changeFilters(patch: Partial<FilterDraft>) {
+    if (!this.filterDraft) {
+      this.navigateWithState(patch);
+      return;
+    }
+    this.filterDraft = { ...this.filterDraft, ...patch };
+    if (patch.category !== undefined) this.draftCategory$.next(patch.category);
+  }
+
+  openFilters() {
+    this.filterDraft = { ...this.shownFilters };
+    this.filtersOpen = true;
+  }
+
+  applyFilters() {
+    const draft = this.filterDraft;
+    this.filterDraft = null;
+    this.filtersOpen = false;
+    if (!draft) return;
+    this.navigateWithState({
+      ...draft,
+      priceMin: this.normalizePrice(draft.priceMin),
+      priceMax: this.normalizePrice(draft.priceMax),
+    });
+  }
+
+  discardFilters() {
+    if (this.filterDraft && this.filterDraft.category !== this.category) this.draftCategory$.next(this.category);
+    this.filterDraft = null;
+    this.filtersOpen = false;
+  }
+
+  setPrice(field: 'priceMin' | 'priceMax', value: string) {
+    if (this.filterDraft) this.filterDraft = { ...this.filterDraft, [field]: value };
+    else this[field] = value;
+  }
+
+  /** 價格改由 blur / Enter 提交，見樣板中的說明。草稿中的價格則等按下
+   *  Show results 才一起套用。 */
   commitPriceRange() {
+    if (this.filterDraft) return;
     const min = this.normalizePrice(this.priceMin);
     const max = this.normalizePrice(this.priceMax);
     const current = this.route.snapshot.queryParams;
@@ -476,11 +548,11 @@ export class Search implements OnInit {
   }
 
   get categoryFacetOptions(): FacetOption[] {
-    return this.categoryOptions.map(o => ({ label: o.label, value: o.value, selected: o.value === this.category }));
+    return this.categoryOptions.map(o => ({ label: o.label, value: o.value, selected: o.value === this.shownFilters.category }));
   }
 
   get courseFacetOptions(): FacetOption[] {
-    return this.courseOptions.map(o => ({ label: o.label, value: o.value, count: o.count, selected: o.value === this.course }));
+    return this.courseOptions.map(o => ({ label: o.label, value: o.value, count: o.count, selected: o.value === this.shownFilters.course }));
   }
 
   // Template getters run on every change-detection pass (each keystroke,
@@ -518,8 +590,13 @@ export class Search implements OnInit {
     return value;
   }
 
+  /** Books with a copy at the school across every page, as the backend
+   *  counts them; this page's own count only when it doesn't say. Counting
+   *  just the page read "found 20" for every search longer than a page. */
+  private localCount: number | null = null;
+
   get localResultsCount(): number {
-    return this.filteredResults.filter(item => item.localActiveListings > 0).length;
+    return this.localCount ?? this.filteredResults.filter(item => item.localActiveListings > 0).length;
   }
 
   private bookService = inject(BookService);
@@ -557,10 +634,12 @@ export class Search implements OnInit {
       // resolvedSchool$: waits for the opening school rather than asking for
       // "all schools" first and then again for the settled one.
       this.schoolStateService.resolvedSchool$.pipe(distinctUntilChanged()),
-      this.route.queryParams.pipe(
-        map(params => params['category'] || ''),
-        distinctUntilChanged()
-      )
+      // The applied category, or the one picked in the filter sheet's draft,
+      // so its course list matches the category chosen there.
+      merge(
+        this.route.queryParams.pipe(map(params => params['category'] || '')),
+        this.draftCategory$
+      ).pipe(distinctUntilChanged())
     ]).pipe(
       switchMap(([school, category]) => this.bookService.getTopCourses(school, category)),
       takeUntilDestroyed(this.destroyRef)
@@ -580,18 +659,20 @@ export class Search implements OnInit {
       this.restoreStateFromParams(params);
       this.describePage();
 
-      // 書況／價格／庫存只在 filteredResults 裡做前端過濾，重打 API 會拿回
-      // 一模一樣的那頁資料。只有真正送進 searchBooks() 的欄位變了才重查。
+      // 只有真正送進 searchBooks() 的欄位變了才重查（書況／價格／庫存也在
+      // 內：後端在分頁前篩，只在前端篩的話第 2 頁以後都沒篩到，而且沒有關鍵字
+      // 時根本沒有資料可篩）。
       // 用 JSON 而不是 join()：關鍵字本身可能含有分隔字元，"a b" 配沒有分類
       // 和 "a" 配分類 "b" 會串成同一個 key，然後該重查的時候不重查。
-      const fetchKey = JSON.stringify([school, this.activeQuery, this.category, this.course, this.engine, this.currentPage]);
+      const fetchKey = JSON.stringify([school, this.activeQuery, this.category, this.course, this.engine, this.currentPage, this.listingFilterParams]);
+      this.searching = !!(this.activeQuery || this.category || this.course) || Object.keys(this.listingFilterParams).length > 0;
       if (fetchKey === this.lastFetchKey) { this.cdr.markForCheck(); return; }
       this.lastFetchKey = fetchKey;
 
-      if (this.activeQuery || this.category || this.course) {
+      if (this.searching) {
         this.fetchResults();
       } else {
-        this.results = []; this.totalCount = 0; this.loading = false; this.fetchError = false;
+        this.results = []; this.totalCount = 0; this.localCount = null; this.loading = false; this.fetchError = false;
         this.cdr.markForCheck();
       }
     });
@@ -696,6 +777,16 @@ export class Search implements OnInit {
     return params;
   }
 
+  /** The listing filters as the URL carries them, sent on to the API. */
+  private get listingFilterParams(): Record<string, string> {
+    const params = this.serializeState(this.urlState);
+    const filters: Record<string, string> = {};
+    for (const key of ['condition', 'price_min', 'price_max', 'in_stock']) {
+      if (params[key]) filters[key] = params[key];
+    }
+    return filters;
+  }
+
   fetchResults() {
     this.loading = true;
     this.fetchError = false;
@@ -705,10 +796,11 @@ export class Search implements OnInit {
       this.searchSub.unsubscribe();
     }
 
-    this.searchSub = this.bookService.searchBooks(this.activeQuery, this.category, this.course, this.schoolStateService.currentSchool, this.currentPage, this.engine).subscribe({
+    this.searchSub = this.bookService.searchBooks(this.activeQuery, this.category, this.course, this.schoolStateService.currentSchool, this.currentPage, this.engine, this.listingFilterParams).subscribe({
       next: data => {
         this.results = data.results || data;
         this.totalCount = data.count || this.results.length;
+        this.localCount = typeof data.local_count === 'number' ? data.local_count : null;
         this.googleUnavailable = !!data.google_unavailable;
         this.resultsTruncated = !!data.results_truncated;
         this.loading = false;
@@ -784,11 +876,11 @@ export class Search implements OnInit {
   onCategoryChange(cat: string) {
     // course 仍然刻意清掉：課程清單是依 category 重新載入的，換了分類之後
     // 舊課程多半不在新清單裡，留著會變成一個選不掉的隱形條件。
-    this.navigateWithState({ category: cat, course: '' });
+    this.changeFilters({ category: cat, course: '' });
   }
 
   onCourseChange(course: string) {
-    this.navigateWithState({ course });
+    this.changeFilters({ course });
   }
 
   /** Route params for a result tile; the tile's own anchor does the navigating. */
