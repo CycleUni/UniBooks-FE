@@ -7,7 +7,6 @@ import { UiInput } from '../../shared/ui/input.component';
 import { UiBookCover } from '../../shared/ui/book-cover.component';
 import { ListingService } from '../../core/services/listing.service';
 import { OrderService } from '../../core/services/order.service';
-import { MessageService } from '../../core/services/message.service';
 import { GoogleAnalyticsService } from '../../core/services/google-analytics.service';
 import { TPipe, I18nService } from '../../core/i18n.service';
 import { PricePipe } from '../../shared/pipes/price.pipe';
@@ -149,7 +148,6 @@ export class CheckoutComponent implements OnInit {
   private regionLink = inject(RegionLinkService);
   private listingService = inject(ListingService);
   private orderService = inject(OrderService);
-  private messageService = inject(MessageService);
   readonly i18n = inject(I18nService);
   private cdr = inject(ChangeDetectorRef);
   private ga = inject(GoogleAnalyticsService);
@@ -260,14 +258,8 @@ export class CheckoutComponent implements OnInit {
   contactSeller() {
     if (!this.listingId) return;
     this.ga.trackEvent('checkout_to_chat', { listing_id: this.listingId });
-    this.messageService.startConversation(this.listingId).subscribe({
-      next: (conv) => {
-        this.router.navigate(this.regionLink.path(['/messages']), { queryParams: { conversation: conv.id } });
-      },
-      error: () => {
-        // Fallback: navigate to messages page without pre-selected conversation
-        this.router.navigate(this.regionLink.path(['/messages']));
-      }
-    });
+    // As on the listing page: the conversation is created by the first
+    // message, not by opening the chat.
+    this.router.navigate(this.regionLink.path(['/messages']), { queryParams: { listing: this.listingId } });
   }
 }

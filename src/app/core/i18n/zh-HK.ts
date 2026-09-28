@@ -514,7 +514,6 @@ export const zhHK: Record<string, string> = {
   'alert.unsubscribeFailed': '取消求書失敗，請再試一次。',
   'alert.bookNotFound': '找不到書籍',
   'alert.loadingTimeout': '載入超時，請稍後再試。',
-  'alert.conversationFailed': '無法建立對話',
 
   // Checkout & Orders
   'checkout.title': '結帳',
@@ -616,6 +615,10 @@ export const zhHK: Record<string, string> = {
   'msg.errSystemMessageForbidden': '無法發送系統訊息格式。',
   'msg.errImageUrlNotAllowed': '無法傳送呢張圖片，聊天室只可以分享喺呢度上載嘅圖片。',
   'msg.chatOpenFailed': '開啟對話失敗，請再試一次。',
+  'msg.pendingPreview': '未傳送訊息',
+  'msg.pendingHint': '同 {name} 打個招呼啦，傳出第一個訊息之後對方先會見到呢個對話。',
+  'msg.attachAfterFirst': '先傳一個訊息先可以傳相',
+  'msg.cannotMessageSelf': '呢個係你自己嘅刊登',
   'msg.orderActionFailed': '操作失敗：{msg}',
   'msg.reportConversation': '舉報對話',
   'msg.reportTitle': '舉報此對話',

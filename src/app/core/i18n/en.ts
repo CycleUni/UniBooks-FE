@@ -518,7 +518,6 @@ export const en: Record<string, string> = {
   'alert.unsubscribeFailed': 'Failed to cancel the request. Please try again.',
   'alert.bookNotFound': 'Book not found',
   'alert.loadingTimeout': 'Loading timed out. Please try again later.',
-  'alert.conversationFailed': 'Failed to create conversation',
   // Checkout & Orders
   'checkout.title': 'Checkout',
   'checkout.arrangeMeetup': 'Arrange meetup',
@@ -617,6 +616,10 @@ export const en: Record<string, string> = {
   'msg.errSystemMessageForbidden': 'Cannot send system message format.',
   'msg.errImageUrlNotAllowed': 'That image could not be sent — only images uploaded here can be shared in chat.',
   'msg.chatOpenFailed': 'Failed to open conversation. Please try again.',
+  'msg.pendingPreview': 'Not sent yet',
+  'msg.pendingHint': "Say hello to {name}. They'll see this conversation once you send your first message.",
+  'msg.attachAfterFirst': 'Send a message first to share photos',
+  'msg.cannotMessageSelf': 'This is your own listing',
   'msg.orderActionFailed': 'Action failed: {msg}',
   'msg.reportConversation': 'Report conversation',
   'msg.reportTitle': 'Report this conversation',

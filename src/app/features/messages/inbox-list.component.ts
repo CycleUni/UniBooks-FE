@@ -2,6 +2,7 @@ import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { I18nService, TPipe } from '../../core/i18n.service';
 import { UiRoleBadge } from '../../shared/ui/role-badge.component';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { formatInboxTime } from './message-formatting.util';
 
 /**
@@ -17,12 +18,13 @@ import { formatInboxTime } from './message-formatting.util';
 @Component({
   selector: 'messages-inbox-list',
   standalone: true,
-  imports: [CommonModule, TPipe, UiRoleBadge],
+  imports: [CommonModule, TPipe, UiRoleBadge, UiSkeleton],
   template: `
     <div class="sidebar-header">
       <h3>{{ 'msg.inbox' | t }}</h3>
     </div>
     <div class="chat-list">
+      <ui-skeleton *ngIf="loading" variant="chat-list" [count]="6"></ui-skeleton>
       <div
         class="chat-item"
         *ngFor="let chat of chats"
@@ -48,7 +50,7 @@ import { formatInboxTime } from './message-formatting.util';
             </div>
           </div>
           <div class="chat-subject">{{ 'msg.bookPrefix' | t:{title: chat.listing_title} }}</div>
-          <div class="chat-preview">{{ formatPreview(chat.latest_message) }}</div>
+          <div class="chat-preview" [class.pending]="chat.pending">{{ chat.pending ? ('msg.pendingPreview' | t) : formatPreview(chat.latest_message) }}</div>
         </div>
       </div>
     </div>
@@ -184,6 +186,8 @@ import { formatInboxTime } from './message-formatting.util';
     }
     /* The dot alone is 8px of colour that is easy to miss at a glance down a
        long list; darkening the preview text is what most inboxes do too. */
+    /* Not sent yet: only this browser has the chat (PendingChatStore). */
+    .chat-preview.pending { font-style: italic; }
     .chat-item.unread .chat-preview {
       color: var(--ink);
       font-weight: 600;
@@ -193,6 +197,8 @@ import { formatInboxTime } from './message-formatting.util';
 export class MessagesInboxList {
   @Input() chats: any[] = [];
   @Input() activeChatId: string | null = null;
+  /** The conversations are still loading: placeholder rows show. */
+  @Input() loading = false;
   @Output() select = new EventEmitter<any>();
   @Output() remove = new EventEmitter<any>();
 

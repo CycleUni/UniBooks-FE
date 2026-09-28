@@ -93,6 +93,23 @@ import { TPipe } from '../../core/i18n.service';
           </div>
         </ng-container>
 
+        <!-- Mirrors .chat-item in the messages inbox. -->
+        <ng-container *ngSwitchCase="'chat-list'">
+          <div class="s-chat" *ngFor="let i of slots">
+            <div class="s-chat-thumb pulse"></div>
+            <div class="s-chat-info">
+              <div class="s-bar pulse w-40"></div>
+              <div class="s-bar pulse w-60"></div>
+              <div class="s-bar pulse w-80"></div>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Message bubbles, alternating sides as a conversation does. -->
+        <ng-container *ngSwitchCase="'chat-bubbles'">
+          <div class="s-bubble pulse" *ngFor="let i of slots" [class.self]="i % 2 === 1" [style.width.%]="bubbleWidths[i % bubbleWidths.length]"></div>
+        </ng-container>
+
         <!-- One page, not a list: count is ignored. -->
         <ng-container *ngSwitchCase="'detail'">
           <div class="s-detail">
@@ -266,6 +283,22 @@ import { TPipe } from '../../core/i18n.service';
     .s-price { margin-top: var(--space-4); }
     .s-seller { height: 88px; border-radius: 8px; }
 
+    /* chat-list: mirrors .chat-item in inbox-list.component.ts */
+    .s-chat {
+      display: flex;
+      gap: 10px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .s-chat-thumb { width: 40px; height: 52px; flex-shrink: 0; }
+    .s-chat-info { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+    .s-chat .s-bar { height: 12px; }
+
+    /* chat-bubbles: mirrors .msg-bubble in messages.css */
+    .v-chat-bubbles { display: flex; flex-direction: column; gap: 16px; }
+    .s-bubble { height: 40px; border-radius: 12px; align-self: flex-start; }
+    .s-bubble.self { align-self: flex-end; }
+
     @keyframes pulse {
       0% { opacity: 0.75; }
       50% { opacity: 0.5; }
@@ -275,7 +308,9 @@ import { TPipe } from '../../core/i18n.service';
 })
 export class UiSkeleton {
   @Input() count: number = 3;
-  @Input() variant: 'list' | 'row' | 'card-row' | 'discover-grid' | 'report' | 'order' | 'table' | 'detail' = 'list';
+  @Input() variant: 'list' | 'row' | 'card-row' | 'discover-grid' | 'report' | 'order' | 'table' | 'detail' | 'chat-list' | 'chat-bubbles' = 'list';
+
+  readonly bubbleWidths = [55, 40, 65, 35, 50];
 
   get slots(): number[] {
     return Array.from({ length: Math.max(0, this.count) }, (_, i) => i);

@@ -21,19 +21,23 @@ import { GoogleAnalyticsService } from '../../core/services/google-analytics.ser
 import { ChangeDetectorRef, OnDestroy } from '@angular/core';
 import { TPipe, I18nService } from '../../core/i18n.service';
 import { ThemeService } from '../../core/services/theme.service';
-import { Subscription } from 'rxjs';
+import { Subscription, of } from 'rxjs';
+import { tap } from 'rxjs/operators';
 import { MobileLayoutService } from '../../core/services/mobile-layout.service';
 import { formatMessageTime, isMeetupRequest, cleanMeetupBody, IMAGE_PREVIEW_TOKEN } from './message-formatting.util';
 import { PricePipe } from '../../shared/pipes/price.pipe';
 import { RegionLinkService } from '../../core/region-link.service';
 import { ToastService } from '../../core/services/toast.service';
 import { ConfirmService } from '../../core/services/confirm.service';
+import { ListingService } from '../../core/services/listing.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { PendingChatStore, isPendingChat, pendingChatFromListing } from './pending-chats';
 
 
 @Component({
   selector: 'app-messages',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, UiEmpty, UiButton, UiInput, UiMeetupCard, TPipe, UiImageLightbox, UiReportModal, UiRoleBadge, MessagesInboxList, PricePipe, UiVerificationPrompt],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, UiEmpty, UiButton, UiInput, UiMeetupCard, TPipe, UiImageLightbox, UiReportModal, UiRoleBadge, MessagesInboxList, PricePipe, UiVerificationPrompt, UiSkeleton],
   templateUrl: './messages.html',
   styleUrls: ['./messages.css']
 })
@@ -59,6 +63,16 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
   // empty-inbox state doesn't flash for users who do have conversations,
   // just before loadConversations() resolves.
   loadingChats = true;
+  /** The open chat's history is on its way (placeholder bubbles show). */
+  loadingHistory = false;
+  /** A pending chat's conversation is being created by its first message. */
+  creatingChat = false;
+  /**
+   * The first message of a chat that was pending, held until the new
+   * conversation's room socket is open: the conversation had no room to
+   * send it to when it was written.
+   */
+  private queuedFirstMessage: { chatId: string; msg: any } | null = null;
   @ViewChild('scrollMe') private myScrollContainer!: ElementRef;
   @ViewChild('fileInput') private fileInput!: HTMLInputElement;
   @ViewChild('inputArea') private inputArea?: ElementRef<HTMLElement>;
@@ -92,6 +106,8 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
   private http = inject(HttpClient);
   private mobileLayout = inject(MobileLayoutService);
   private ga = inject(GoogleAnalyticsService);
+  private listingService = inject(ListingService);
+  private pendingChats = inject(PendingChatStore);
   private wsSubscription?: Subscription;
   private deletionSubscription?: Subscription;
   private ackSubscription?: Subscription;
@@ -236,6 +252,12 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
     this.connectionSubscription = this.messageService.connectionState$.subscribe(state => {
       this.connectionState = state;
 
+      const queued = this.queuedFirstMessage;
+      if (state === 'connected' && queued && this.activeChat?.id === queued.chatId) {
+        this.queuedFirstMessage = null;
+        this.trySend(queued.msg);
+      }
+
       if (state === 'connected' && this.activeChat && this.chatToken && this.edgeChatUrl) {
         // Already loaded via selectChat's eager fetch; don't overwrite
         if (this.messages.length > 0) {
@@ -355,7 +377,15 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
   loadConversations() {
     this.messageService.getConversations().subscribe({
       next: (data) => {
-        this.chats = data;
+        // Chats opened in this browser but not written in yet, first — unless
+        // the conversation has since been started (on another device).
+        const started = new Set(data.map((c: any) => String(c.listing_id)));
+        const pending = this.pendingChats.list().filter(c => {
+          if (!started.has(String(c.listing_id))) return true;
+          this.pendingChats.remove(c.id);
+          return false;
+        });
+        this.chats = [...pending, ...data];
         // Apply current Hub unread state immediately after loading
         // so re-entering the page shows correct dots without waiting
         // for the next Hub event.
@@ -383,21 +413,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
             if (existingChat) {
               this.router.navigate([], { queryParams: { chat: existingChat.id }, replaceUrl: true });
             } else {
-              this.messageService.startConversation(listingId).subscribe({
-                next: (newChat) => {
-                  this.chats.unshift(newChat);
-                  this.router.navigate([], { queryParams: { chat: newChat.id }, replaceUrl: true });
-                },
-                error: (err) => {
-                  console.error('Failed to start conversation', err);
-                  if (err?.status === 403 || err?.error?.error?.code === 'auth.errNotVerified' || err?.error?.error?.code === 'acct.errUnverified') {
-                    this.showUnverifiedPrompt = true;
-                  } else {
-                    this.toast.error(this.i18n.t('msg.chatOpenFailed') || 'Failed to open chat');
-                  }
-                  this.cdr.markForCheck();
-                }
-              });
+              this.openPendingChat(listingId);
             }
           } else if (this.activeChat) {
             // `?chat=` went away underneath an open chat: the browser's Back
@@ -411,6 +427,35 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
       error: () => {
         this.loadingChats = false;
         this.cdr.markForCheck();
+      }
+    });
+  }
+
+  /**
+   * Contacting a seller about a listing with no conversation yet. Nothing is
+   * created on the server: the chat is kept in this browser (PendingChatStore)
+   * and becomes a conversation when the first message is sent, so the seller
+   * never receives a conversation the buyer left without writing in.
+   */
+  private openPendingChat(listingId: string) {
+    this.loadingChats = true;
+    this.listingService.getListing(listingId).subscribe({
+      next: (listing) => {
+        this.loadingChats = false;
+        if (String(listing.seller) === String(this.authStore.user()?.id)) {
+          this.toast.error(this.i18n.t('msg.cannotMessageSelf'));
+          this.clearChatParam();
+          return;
+        }
+        const chat = pendingChatFromListing(listing);
+        this.pendingChats.save(chat);
+        this.chats = [chat, ...this.chats.filter(c => c.id !== chat.id)];
+        this.router.navigate([], { queryParams: { chat: chat.id }, replaceUrl: true });
+      },
+      error: () => {
+        this.loadingChats = false;
+        this.toast.error(this.i18n.t('msg.chatOpenFailed'));
+        this.clearChatParam();
       }
     });
   }
@@ -495,6 +540,15 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
     this.loadingOlder = false;
     this.oldestTimestamp = null;
     chat._hubUnread = false;
+
+    // Not a conversation yet: no room, token or history to fetch. The last
+    // chat's socket is closed so nothing from it lands here.
+    if (isPendingChat(chat)) {
+      this.loadingHistory = false;
+      this.messageService.disconnectEdgeChat();
+      return;
+    }
+    this.loadingHistory = true;
     // Mark read is handled via CFEdgeChat after we fetch the room token
 
     // Fetch a token scoped to this specific room every time a chat is
@@ -543,6 +597,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
       error: (err) => {
         console.error('Failed to fetch chat token', err);
         if (this.activeChat?.id !== chat.id) return;
+        this.loadingHistory = false;
         this.toast.error(this.i18n.t('msg.chatOpenFailed'));
         this.activeChat = null;
         this.cdr.markForCheck();
@@ -578,6 +633,17 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
   }
 
   sendMessage() {
+    if (isPendingChat(this.activeChat)) {
+      const text = this.newMessage.trim();
+      if (!text || this.creatingChat) return;
+      this.clearDraft(this.activeChat.id);
+      this.newMessage = '';
+      const tempMsg: any = { id: 'temp_' + Date.now(), body: text, is_mine: true, created_at: new Date().toISOString() };
+      this.insertMessageSorted(tempMsg);
+      this.cdr.markForCheck();
+      this.startPendingChat(this.activeChat, tempMsg);
+      return;
+    }
     // Block sending if the WebSocket is not fully open. In 'disconnected'
     // state the socket is still being established (initial connect) — sending
     // at that moment causes sendEdgeMessage() to return false and the message
@@ -608,7 +674,53 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
   retryMessage(msg: any) {
     msg.failed = false;
     this.cdr.markForCheck();
+    if (isPendingChat(this.activeChat)) {
+      this.startPendingChat(this.activeChat, msg);
+      return;
+    }
     this.trySend(msg);
+  }
+
+  /**
+   * The first message of a pending chat: creates the conversation, swaps it
+   * in for the pending chat (inbox row, URL), and sends the message once the
+   * new room's socket is open (see connectionState$ in ngOnInit).
+   */
+  private startPendingChat(pending: any, msg: any) {
+    this.creatingChat = true;
+    this.messageService.startConversation(pending.listing_id).subscribe({
+      next: (conversation) => {
+        this.creatingChat = false;
+        this.pendingChats.remove(pending.id);
+        conversation.latest_message = msg.body;
+        conversation.updated_at = new Date().toISOString();
+        const index = this.chats.indexOf(pending);
+        this.chats = index >= 0
+          ? [...this.chats.slice(0, index), conversation, ...this.chats.slice(index + 1)]
+          : [conversation, ...this.chats];
+        if (this.activeChat !== pending) {
+          this.cdr.markForCheck();
+          return;
+        }
+        this.selectChat(conversation);
+        this.messages = [msg];
+        this.queuedFirstMessage = { chatId: conversation.id, msg };
+        this.touchInboxRow(conversation, msg.body, Date.now());
+        this.router.navigate([], { relativeTo: this.route, queryParams: { chat: conversation.id }, replaceUrl: true });
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.creatingChat = false;
+        msg.failed = true;
+        const code = err?.error?.error?.code;
+        if (err?.status === 403 || code === 'auth.errNotVerified' || code === 'acct.errUnverified') {
+          this.showUnverifiedPrompt = true;
+        } else {
+          this.toast.error(this.i18n.t('msg.chatOpenFailed'));
+        }
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   private trySend(msg: any) {
@@ -872,6 +984,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
     }
 
     const newMessages = this.rawEdgeMsgs.map(m => this.toViewMessage(m));
+    this.loadingHistory = false;
 
     // Preserve any pending optimistic messages that are currently in flight
     const pendingOptimistic = this.messages.filter(m => m.id && String(m.id).startsWith('temp_') && !newMessages.some(nm => nm.body === m.body && nm.is_mine));
@@ -1066,7 +1179,11 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
       confirmLabel: this.i18n.t('common.delete'),
     });
     if (!confirmed) return;
-    this.messageService.deleteConversation(chat.id).subscribe({
+    // Only this browser knows of a pending chat.
+    const removal = isPendingChat(chat)
+      ? of({ status: 'deleted' }).pipe(tap(() => this.pendingChats.remove(chat.id)))
+      : this.messageService.deleteConversation(chat.id);
+    removal.subscribe({
       next: () => {
         // Remove from sidebar
         this.clearDraft(chat.id);

@@ -6,7 +6,6 @@ import { UiBackButton } from '../../shared/ui/back-button.component';
 import { UiBreadcrumb, BreadcrumbItem } from '../../shared/ui/breadcrumb.component';
 import { RegionService } from '../../core/region.service';
 import { BookService, SearchEngine, parseSearchEngine } from '../../core/services/book.service';
-import { MessageService } from '../../core/services/message.service';
 import { AccountService } from '../../core/services/account.service';
 import { AuthStore } from '../../core/auth.store';
 import { ChangeDetectorRef } from '@angular/core';
@@ -353,7 +352,6 @@ export class Book implements OnInit {
   }
 
   private bookService = inject(BookService);
-  private messageService = inject(MessageService);
   private ga = inject(GoogleAnalyticsService);
   /** The book whose view was already sent; pages of its listings are not new views. */
   private viewTracked: string | null = null;
@@ -609,22 +607,10 @@ export class Book implements OnInit {
       return;
     }
 
-    // Get-or-create the conversation for this listing so we navigate with a
-    // real conversation id, not the listing id (they're different UUIDs).
-    this.messageService.startConversation(listingId).subscribe({
-      next: (conv) => {
-        this.ga.trackContactSeller(listingId);
-        this.router.navigate(this.regionLink.path(['/messages']), { queryParams: { chat: conv.id } });
-      },
-      error: (err) => {
-        if (err?.status === 403 || err?.error?.error?.code === 'auth.errNotVerified' || err?.error?.error?.code === 'acct.errUnverified') {
-          this.showUnverifiedPrompt = true;
-          this.cdr.markForCheck();
-        } else {
-          this.toast.error(err.error?.error || this.i18n.t('alert.conversationFailed'));
-        }
-      }
-    });
+    // The messages page opens the chat for this listing, and only creates
+    // the conversation once the buyer sends something (see PendingChatStore).
+    this.ga.trackContactSeller(listingId);
+    this.router.navigate(this.regionLink.path(['/messages']), { queryParams: { listing: listingId } });
   }
 
   openListing(listingId: string) { // navigate to listing detail
