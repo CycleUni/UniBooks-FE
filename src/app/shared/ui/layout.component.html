@@ -1,5 +1,5 @@
     <div class="layout-wrapper" [class.is-full-bleed]="fullBleed">
-      <header class="app-header" [class.hide-on-mobile-chat]="mobileLayout.hideBottomNav()" [class.sub-page]="isSubPage">
+      <header class="app-header" [class.hide-on-mobile-chat]="mobileLayout.hideBottomNav()" [class.sub-page]="isSubPage" [class.app-bar-hidden]="appBarHidden">
         <!-- Phones only, on pages pushed over a tab: back + the page's name,
              in place of the logo header below. -->
         <ui-app-bar *ngIf="isSubPage"></ui-app-bar>

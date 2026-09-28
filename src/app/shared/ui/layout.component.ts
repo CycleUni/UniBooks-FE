@@ -1,6 +1,8 @@
 import { RegionLinkDirective } from '../../core/region-link.directive';
 import { stripRegionPrefix, isSameRegion } from '../../core/region-path';
-import { Component, effect, inject, ChangeDetectorRef, OnDestroy, untracked } from '@angular/core';
+import { isPhoneViewport } from '../../core/viewport';
+import { isBottomSheetOpen } from './bottom-sheet.component';
+import { Component, effect, inject, ChangeDetectorRef, NgZone, OnDestroy, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -37,6 +39,10 @@ export class UiLayout implements OnDestroy {
   unreadCount = 0;
   readonly theme = inject(ThemeService);
   readonly mobileLayout = inject(MobileLayoutService);
+
+  /** Whether the mobile top header is translated offscreen while scrolling down. */
+  appBarHidden = false;
+  private zone = inject(NgZone);
 
   get aboutUrl(): string {
     return aboutSiteUrl(this.i18n.lang());
@@ -171,6 +177,10 @@ export class UiLayout implements OnDestroy {
           this.currentPath = path;
           this.mobileLayout.setHideBottomNav(false);
         }
+        this.setAppBarHidden(false);
+        this.lastScrollY = 0;
+        this.accumulatedUp = 0;
+        this.accumulatedDown = 0;
         this.cdr.markForCheck();
         this.messageService.retryHubIfOwed();
         if (this.metadataOwed) {
@@ -178,8 +188,15 @@ export class UiLayout implements OnDestroy {
         }
       }
     });
+    // Outside the zone: a scroll event inside it runs change detection for
+    // the whole app at every frame of a scroll. setAppBarHidden() comes back
+    // in only when the bar actually changes.
+    if (typeof window !== 'undefined') {
+      this.zone.runOutsideAngular(() => window.addEventListener('scroll', this.onScroll, { passive: true }));
+    }
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibilityChange);
+      document.addEventListener('focusin', this.onFocusIn);
     }
 
     // Runs on init and again whenever the language changes, so school labels
@@ -284,9 +301,103 @@ export class UiLayout implements OnDestroy {
     this.routerSubscription?.unsubscribe();
     this.unreadCountSubscription.unsubscribe();
     this.metadataSubscription?.unsubscribe();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('scroll', this.onScroll);
+    }
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', this.onVisibilityChange);
+      document.removeEventListener('focusin', this.onFocusIn);
     }
+  }
+
+  private lastScrollY = 0;
+  private accumulatedUp = 0;
+  private accumulatedDown = 0;
+  private scrollTicking = false;
+
+  private readonly onScroll = () => {
+    if (!isPhoneViewport()) {
+      if (this.appBarHidden) {
+        this.setAppBarHidden(false);
+      }
+      return;
+    }
+    if (!this.scrollTicking) {
+      this.scrollTicking = true;
+      requestAnimationFrame(() => {
+        this.handleScroll();
+        this.scrollTicking = false;
+      });
+    }
+  };
+
+  private readonly onFocusIn = () => {
+    if (this.hasInputFocus()) {
+      this.setAppBarHidden(false);
+    }
+  };
+
+  private handleScroll() {
+    if (typeof window === 'undefined') return;
+    const currentY = Math.max(0, window.scrollY || document.documentElement?.scrollTop || 0);
+    const headerHeight = 52;
+
+    // Always visible at the very top of the page
+    if (currentY <= 0) {
+      this.setAppBarHidden(false);
+      this.lastScrollY = currentY;
+      this.accumulatedUp = 0;
+      this.accumulatedDown = 0;
+      return;
+    }
+
+    // Always visible while a bottom sheet is open or an input inside the page has focus
+    if (isBottomSheetOpen() || this.hasInputFocus()) {
+      this.setAppBarHidden(false);
+      this.lastScrollY = currentY;
+      this.accumulatedUp = 0;
+      this.accumulatedDown = 0;
+      return;
+    }
+
+    const delta = currentY - this.lastScrollY;
+
+    if (delta > 0) {
+      // Scrolling down
+      this.accumulatedUp = 0;
+      this.accumulatedDown += delta;
+      // After scrolling down past its height, hide it
+      if (currentY > headerHeight && this.accumulatedDown >= 8) {
+        this.setAppBarHidden(true);
+      }
+    } else if (delta < 0) {
+      // Scrolling up
+      this.accumulatedDown = 0;
+      this.accumulatedUp += Math.abs(delta);
+      // Reveal on any upward scroll (small hysteresis ~8px) or back at the top
+      if (this.accumulatedUp >= 8 || currentY <= headerHeight) {
+        this.setAppBarHidden(false);
+      }
+    }
+
+    this.lastScrollY = currentY;
+  }
+
+  private setAppBarHidden(hidden: boolean) {
+    if (this.appBarHidden !== hidden) {
+      this.zone.run(() => {
+        this.appBarHidden = hidden;
+        this.cdr.markForCheck();
+      });
+    }
+  }
+
+  private hasInputFocus(): boolean {
+    if (typeof document === 'undefined') return false;
+    const el = document.activeElement;
+    if (!el) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el as HTMLElement).isContentEditable;
   }
 
   /** A hub that failed to open gets another chance when the visitor returns. */

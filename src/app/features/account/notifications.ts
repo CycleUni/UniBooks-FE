@@ -9,6 +9,7 @@ import { ToastService } from '../../core/services/toast.service';
 import { parseApiError } from '../../core/api-error.util';
 import { UiErrorState } from '../../shared/ui/error-state.component';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
 
 /**
  * /account/notifications — the account page's Notifications section.
@@ -19,9 +20,10 @@ import { UiSkeleton } from '../../shared/ui/skeleton.component';
 @Component({
   selector: 'app-account-notifications',
   standalone: true,
-  imports: [CommonModule, FormsModule, TPipe, UiErrorState, UiSkeleton, UiDropdown],
+  imports: [CommonModule, FormsModule, TPipe, UiErrorState, UiSkeleton, UiDropdown, UiPullToRefresh],
   template: `
-    <h2 class="section-heading">{{ 'acct.notificationsTitle' | t }}</h2>
+    <ui-pull-to-refresh [refreshing]="refreshing" (refresh)="onRefresh()">
+      <h2 class="section-heading">{{ 'acct.notificationsTitle' | t }}</h2>
 
     <ui-skeleton *ngIf="loading()" variant="row" [count]="1"></ui-skeleton>
 
@@ -67,6 +69,7 @@ import { UiSkeleton } from '../../shared/ui/skeleton.component';
         ></ui-dropdown>
       </li>
     </ul>
+    </ui-pull-to-refresh>
   `,
   styles: [`
     .notification-list {
@@ -169,6 +172,7 @@ export class NotificationsComponent implements OnInit {
   readonly loading = signal(true);
   readonly loadFailed = signal(false);
   readonly saving = signal(false);
+  refreshing = false;
 
   @ViewChild('emailLanguageDropdown') private emailLanguageDropdown?: UiDropdown;
 
@@ -189,12 +193,19 @@ export class NotificationsComponent implements OnInit {
       next: (settings) => {
         this.settings.set(settings);
         this.loading.set(false);
+        this.refreshing = false;
       },
       error: () => {
         this.loading.set(false);
         this.loadFailed.set(true);
+        this.refreshing = false;
       },
     });
+  }
+
+  onRefresh() {
+    this.refreshing = true;
+    this.load();
   }
 
   setEmailLanguage(language: EmailLanguage) {

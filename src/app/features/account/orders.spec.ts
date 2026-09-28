@@ -190,4 +190,15 @@ describe('OrdersComponent.approveOrder', () => {
     await component.approveOrder(order);
     expect(component.updateStatus).not.toHaveBeenCalled();
   });
+
+  it('re-fetches orders on onRefresh', () => {
+    const clearProfileCache = vi.fn();
+    (component as any).accountService = { clearProfileCache, getMyProfile: vi.fn().mockReturnValue(of({ id: 'u1' })) };
+    (component as any).orderService = { getOrders: vi.fn().mockReturnValue(of([])), checkUnreadOrders: vi.fn() };
+
+    component.onRefresh();
+
+    expect(clearProfileCache).toHaveBeenCalled();
+    expect(component.refreshing).toBe(false);
+  });
 });

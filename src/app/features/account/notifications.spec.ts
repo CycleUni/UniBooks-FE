@@ -152,5 +152,15 @@ describe('NotificationsComponent', () => {
       expect(toast.error).toHaveBeenCalledWith('acct.notifySaveFailed');
     });
   });
+
+  it('re-fetches settings on onRefresh', () => {
+    create();
+    expect(account.getNotificationSettings).toHaveBeenCalledTimes(1);
+
+    fixture.componentInstance.onRefresh();
+
+    expect(account.getNotificationSettings).toHaveBeenCalledTimes(2);
+    expect(fixture.componentInstance.refreshing).toBe(false);
+  });
 });
 

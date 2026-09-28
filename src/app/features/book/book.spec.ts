@@ -110,4 +110,34 @@ describe('Book page data source footer', () => {
     fixture.destroy();
     expect(render(undefined).querySelector('.data-source')).toBeNull();
   });
+
+  describe('mobile infinite scroll', () => {
+    it('appends listings on onLoadMore on phones', () => {
+      const listing1 = { id: 'l1', price: 100, condition: 'like_new' };
+      const listing2 = { id: 'l2', price: 120, condition: 'new' };
+      getBook.mockReturnValue(of({
+        id: 'b1', isbn13: '9786264140720', title: '微積分', authors: 'Stewart',
+        listings: { count: 2, results: [listing1] },
+      }));
+
+      fixture = TestBed.createComponent(Book);
+      const component = fixture.componentInstance;
+      component.isPhone = true;
+      fixture.detectChanges();
+
+      expect(component.listings.length).toBe(1);
+      expect(component.hasMoreListings).toBe(true);
+
+      getBook.mockReturnValue(of({
+        id: 'b1', isbn13: '9786264140720', title: '微積分', authors: 'Stewart',
+        listings: { count: 2, results: [listing2] },
+      }));
+
+      component.onLoadMore();
+
+      expect(getBook).toHaveBeenCalledWith('9786264140720', 2, '', undefined);
+      expect(component.listings.length).toBe(2);
+      expect(component.hasMoreListings).toBe(false);
+    });
+  });
 });

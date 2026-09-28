@@ -20,6 +20,9 @@ import { UiBookTile } from '../../shared/ui/book-tile.component';
 import { UiRadioGroup } from '../../shared/ui/radio-group.component';
 import { UiBottomSheet } from '../../shared/ui/bottom-sheet.component';
 import { UiBarcodeScanner } from '../../shared/ui/barcode-scanner.component';
+import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
+import { UiInfiniteScroll } from '../../shared/ui/infinite-scroll.component';
+import { isPhoneViewport, watchPhoneViewport } from '../../core/viewport';
 import { isbnFromScan } from '../../core/isbn';
 import { POPULAR_SEARCH_KEYS, RecentSearches } from '../../core/search-suggestions';
 import { UiFacetList, FacetOption } from '../../shared/ui/facet-list.component';
@@ -63,8 +66,9 @@ type FilterDraft = Pick<SearchUrlState, 'conditions' | 'category' | 'course' | '
 @Component({
   selector: 'app-search',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, UiInput, UiButton, UiSkeleton, UiRecentListings, UiPagination, UiBookTile, UiFacetList, UiRadioGroup, UiBottomSheet, UiBarcodeScanner, TPipe],
+  imports: [CommonModule, RouterModule, FormsModule, UiInput, UiButton, UiSkeleton, UiRecentListings, UiPagination, UiBookTile, UiFacetList, UiRadioGroup, UiBottomSheet, UiBarcodeScanner, UiPullToRefresh, UiInfiniteScroll, TPipe],
   template: `
+    <ui-pull-to-refresh [refreshing]="refreshing" (refresh)="onRefresh()">
       <div class="search-header">
         <div class="header-inner container">
           <div class="search-page-input-wrap">
@@ -259,7 +263,8 @@ type FilterDraft = Pick<SearchUrlState, 'conditions' | 'category' | 'course' | '
               </ui-book-tile>
             </div>
 
-            <ui-pagination *ngIf="totalCount > 20" [total]="totalCount" [pageSize]="20" [currentPage]="currentPage" (pageChange)="onPageChange($event)"></ui-pagination>
+            <ui-pagination *ngIf="!isPhone && totalCount > 20" [total]="totalCount" [pageSize]="20" [currentPage]="currentPage" (pageChange)="onPageChange($event)"></ui-pagination>
+            <ui-infinite-scroll *ngIf="isPhone && filteredResults.length > 0" [loading]="loadingMore" [hasMore]="hasMoreResults" [error]="loadMoreError" (loadMore)="onLoadMore()"></ui-infinite-scroll>
 
             <div *ngIf="results.length === 0 && activeQuery" class="empty-state">
               <h3>{{ 'search.notFound' | t }}</h3>
@@ -280,6 +285,7 @@ type FilterDraft = Pick<SearchUrlState, 'conditions' | 'category' | 'course' | '
           </div>
         </main>
       </div>
+    </ui-pull-to-refresh>
   `,
   styles: [`
     /* The band is full-bleed and its inner element carries .container, so the
@@ -409,6 +415,17 @@ export class Search implements OnInit {
     ].filter(Boolean).length;
   }
   results: any[] = []; categories: any[] = []; courses: CourseFacet[] = []; currentSchool = ''; currentPage = 1; totalCount = 0;
+  isPhone = isPhoneViewport();
+  refreshing = false;
+  loadingMore = false;
+  loadMoreError = false;
+  loadedPhonePage = 1;
+  private unwatchPhone?: () => void;
+  private searchMoreSub?: Subscription;
+
+  get hasMoreResults(): boolean {
+    return this.results.length < this.totalCount;
+  }
   /** Set once the query parameters and the opening school have both arrived. */
   paramsReady = false;
   private searchSub?: Subscription;
@@ -626,6 +643,15 @@ export class Search implements OnInit {
   }
 
   ngOnInit() {
+    this.unwatchPhone = watchPhoneViewport(matches => {
+      this.isPhone = matches;
+      this.cdr.markForCheck();
+    });
+    this.destroyRef.onDestroy(() => {
+      this.unwatchPhone?.();
+      this.searchMoreSub?.unsubscribe();
+    });
+
     this.schoolStateService.schools$.subscribe(() => {
       this.cdr.markForCheck();
     });
@@ -729,6 +755,9 @@ export class Search implements OnInit {
     this.priceMin = params['price_min'] || '';
     this.priceMax = params['price_max'] || '';
     this.stockFilter = params['in_stock'] === '1' ? 'inStock' : 'all';
+    this.loadedPhonePage = this.currentPage;
+    this.loadingMore = false;
+    this.loadMoreError = false;
   }
 
   /** 目前畫面上完整的搜尋條件，navigateWithState() 以它為底。 */
@@ -790,6 +819,10 @@ export class Search implements OnInit {
   fetchResults() {
     this.loading = true;
     this.fetchError = false;
+    this.loadedPhonePage = this.currentPage;
+    if (this.searchMoreSub) {
+      this.searchMoreSub.unsubscribe();
+    }
     this.cdr.markForCheck();
 
     if (this.searchSub) {
@@ -805,6 +838,7 @@ export class Search implements OnInit {
         this.resultsTruncated = !!data.results_truncated;
         this.loading = false;
         this.fetchError = false;
+        this.refreshing = false;
         if (this.activeQuery || this.category || this.course) {
           this.ga.trackSearch(this.activeQuery || `${this.category} ${this.course}`.trim(), this.totalCount, this.currentSchool);
         }
@@ -813,7 +847,59 @@ export class Search implements OnInit {
       error: () => {
         this.loading = false;
         this.fetchError = true;
+        this.refreshing = false;
         // Keep any previously-loaded results showing (don't blank them)
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  onRefresh() {
+    this.refreshing = true;
+    this.loadedPhonePage = 1;
+    if (this.searchMoreSub) {
+      this.searchMoreSub.unsubscribe();
+    }
+    if (this.searching) {
+      if (this.isPhone) {
+        this.currentPage = 1;
+      }
+      this.fetchResults();
+    } else {
+      this.loadMetadata();
+      this.refreshing = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  onLoadMore() {
+    if (this.loading || this.loadingMore || !this.hasMoreResults) return;
+    this.loadingMore = true;
+    this.loadMoreError = false;
+    this.cdr.markForCheck();
+
+    const nextPage = this.loadedPhonePage + 1;
+    this.searchMoreSub = this.bookService.searchBooks(
+      this.activeQuery,
+      this.category,
+      this.course,
+      this.schoolStateService.currentSchool,
+      nextPage,
+      this.engine,
+      this.listingFilterParams
+    ).subscribe({
+      next: data => {
+        const newItems = data.results || data || [];
+        this.results = [...this.results, ...newItems];
+        this.totalCount = data.count || this.totalCount;
+        this.loadedPhonePage = nextPage;
+        this.loadingMore = false;
+        this.loadMoreError = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.loadingMore = false;
+        this.loadMoreError = true;
         this.cdr.markForCheck();
       }
     });

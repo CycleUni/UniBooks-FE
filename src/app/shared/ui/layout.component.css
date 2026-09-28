@@ -175,6 +175,7 @@
     }
     @media (prefers-reduced-motion: reduce) {
       .nav-label-pending { animation: none; }
+      .app-header { transition: none !important; }
     }
     .nav-links a.active-link {
       color: var(--ink);
@@ -337,6 +338,15 @@
     }
 
     @media (max-width: 900px) {
+      /* No will-change: it would make the header the containing block of
+         anything position:fixed inside it, as a transform does only while
+         the bar is hidden. */
+      .app-header {
+        transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+      .app-header.app-bar-hidden {
+        transform: translateY(-100%);
+      }
       .header-content {
         padding-block: 12px;
       }

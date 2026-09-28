@@ -1,5 +1,6 @@
 import { onLanguageChange } from '../../core/on-language-change';
-import { Component, OnInit, inject, ChangeDetectorRef, effect, untracked } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef, effect, untracked, DestroyRef } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { SeoService } from '../../core/services/seo.service';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -10,6 +11,8 @@ import { ListingService } from '../../core/services/listing.service';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { UiListingRow } from '../../shared/ui/listing-row.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
+import { UiInfiniteScroll } from '../../shared/ui/infinite-scroll.component';
+import { isPhoneViewport, watchPhoneViewport } from '../../core/viewport';
 import { UiBreadcrumb, BreadcrumbItem } from '../../shared/ui/breadcrumb.component';
 import { TPipe, I18nService } from '../../core/i18n.service';
 import { RegionLinkService } from '../../core/region-link.service';
@@ -19,7 +22,7 @@ import { isUserVerifiedIn } from '../../core/verification';
 @Component({
   selector: 'app-seller-page',
   standalone: true,
-  imports: [CommonModule, UiSkeleton, UiListingRow, UiPagination, UiBreadcrumb, TPipe],
+  imports: [CommonModule, UiSkeleton, UiListingRow, UiPagination, UiInfiniteScroll, UiBreadcrumb, TPipe],
   template: `
     <!-- The profile request gates the whole page; hold its place instead of
          rendering nothing and then snapping the header in. -->
@@ -75,7 +78,8 @@ import { isUserVerifiedIn } from '../../core/verification';
           ></ui-listing-row>
         </div>
         
-        <ui-pagination *ngIf="totalListings > 20" [total]="totalListings" [pageSize]="20" [currentPage]="currentPage" (pageChange)="onPageChange($event)"></ui-pagination>
+        <ui-pagination *ngIf="!isPhone && totalListings > 20" [total]="totalListings" [pageSize]="20" [currentPage]="currentPage" (pageChange)="onPageChange($event)"></ui-pagination>
+        <ui-infinite-scroll *ngIf="isPhone && !loadingListings && listings.length > 0" [loading]="loadingMore" [hasMore]="hasMoreListings" [error]="loadMoreError" (loadMore)="onLoadMore()"></ui-infinite-scroll>
 
         <div class="empty-state" *ngIf="!loadingListings && listings.length === 0">
           <p>{{ 'seller.noListings' | t }}</p>
@@ -207,6 +211,7 @@ export class SellerPageComponent implements OnInit {
   public regionService = inject(RegionService);
   private i18n = inject(I18nService);
   private cdr = inject(ChangeDetectorRef);
+  private destroyRef = inject(DestroyRef);
 
   seller: any = null;
   listings: any[] = [];
@@ -216,6 +221,16 @@ export class SellerPageComponent implements OnInit {
   error = false;
   totalListings = 0;
   currentPage = 1;
+  isPhone = isPhoneViewport();
+  loadingMore = false;
+  loadMoreError = false;
+  loadedPhonePage = 1;
+  private unwatchPhone?: () => void;
+  private loadMoreSub?: Subscription;
+
+  get hasMoreListings(): boolean {
+    return this.listings.length < this.totalListings;
+  }
   averageRating = 0;
   reviewCount = 0;
   noShowCount = 0;
@@ -241,6 +256,15 @@ export class SellerPageComponent implements OnInit {
   }
 
   ngOnInit() {
+    this.unwatchPhone = watchPhoneViewport(matches => {
+      this.isPhone = matches;
+      this.cdr.detectChanges();
+    });
+    this.destroyRef.onDestroy(() => {
+      this.unwatchPhone?.();
+      this.loadMoreSub?.unsubscribe();
+    });
+
     this.route.paramMap.subscribe(params => {
       const id = params.get('id');
       if (id !== this.currentId) {
@@ -250,6 +274,10 @@ export class SellerPageComponent implements OnInit {
         this.loadingListings = true;
         this.error = false;
         this.currentPage = 1;
+        this.loadedPhonePage = 1;
+        this.loadingMore = false;
+        this.loadMoreError = false;
+        this.loadMoreSub?.unsubscribe();
       }
       this.currentId = id;
       if (id) {
@@ -280,6 +308,10 @@ export class SellerPageComponent implements OnInit {
 
   loadListings(sellerId: string) {
     this.loadingListings = true;
+    this.loadedPhonePage = this.currentPage;
+    this.loadingMore = false;
+    this.loadMoreError = false;
+    this.loadMoreSub?.unsubscribe();
     this.cdr.detectChanges();
     this.listingService.getListings(undefined, sellerId, this.currentPage).subscribe({
       next: (data: any) => {
@@ -295,6 +327,31 @@ export class SellerPageComponent implements OnInit {
       },
       error: () => {
         this.loadingListings = false;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  onLoadMore() {
+    if (this.loadingListings || this.loadingMore || !this.hasMoreListings || !this.currentId) return;
+    this.loadingMore = true;
+    this.loadMoreError = false;
+    this.cdr.detectChanges();
+
+    const nextPage = this.loadedPhonePage + 1;
+    this.loadMoreSub = this.listingService.getListings(undefined, this.currentId, nextPage).subscribe({
+      next: (data: any) => {
+        const newItems = data.results || data || [];
+        this.listings = [...this.listings, ...newItems];
+        this.totalListings = data.count || this.totalListings;
+        this.loadedPhonePage = nextPage;
+        this.loadingMore = false;
+        this.loadMoreError = false;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.loadingMore = false;
+        this.loadMoreError = true;
         this.cdr.detectChanges();
       }
     });

@@ -255,4 +255,126 @@ describe('HomeComponent', () => {
     expect(component.waitlistFullyInHero).toBe(false);
     expect(component.waitlistBandEmpty).toBe(true);
   });
+
+  describe('phone home page redesign and gestures', () => {
+    const mockMatchMedia = (matches: boolean) => {
+      vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+        matches,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })));
+    };
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      try {
+        localStorage.clear();
+      } catch {}
+    });
+
+    it('shows marketing hero on first visit on phone and records seenHero in localStorage', () => {
+      mockMatchMedia(true);
+      localStorage.removeItem('unibooks.home.seenHero');
+
+      const testFixture = TestBed.createComponent(Home);
+      const testComp = testFixture.componentInstance;
+      testFixture.detectChanges();
+
+      expect(testComp.isPhone).toBe(true);
+      expect(testComp.seenHero).toBe(false);
+
+      const el = testFixture.nativeElement as HTMLElement;
+      const hero = el.querySelector('app-home-hero');
+      expect(hero).toBeTruthy();
+      expect(hero?.classList.contains('sr-only-phone')).toBe(false);
+      expect(el.querySelector('.phone-home-header')).toBeNull();
+
+      expect(localStorage.getItem('unibooks.home.seenHero')).toBe('true');
+      testFixture.destroy();
+    });
+
+    it('visually hides hero and shows compact search bar and category chips on returning phone visits', () => {
+      mockMatchMedia(true);
+      localStorage.setItem('unibooks.home.seenHero', 'true');
+
+      const testFixture = TestBed.createComponent(Home);
+      const testComp = testFixture.componentInstance;
+      testFixture.detectChanges();
+
+      expect(testComp.isPhone).toBe(true);
+      expect(testComp.seenHero).toBe(true);
+
+      const el = testFixture.nativeElement as HTMLElement;
+      const hero = el.querySelector('app-home-hero');
+      expect(hero).toBeTruthy();
+      expect(hero?.classList.contains('sr-only-phone')).toBe(true);
+
+      // SEO: h1 inside app-home-hero remains in DOM
+      expect(el.querySelector('app-home-hero h1')).toBeTruthy();
+
+      // Compact search bar
+      const searchBar = el.querySelector('.phone-search-bar');
+      expect(searchBar).toBeTruthy();
+
+      // Category chips
+      const chips = el.querySelectorAll('.phone-category-chip');
+      expect(chips.length).toBe(1);
+      expect(chips[0].textContent).toContain('Cat 1');
+
+      // Redundant category rail is hidden on phone redesign
+      const catSection = el.querySelector('.categories-section');
+      expect(catSection?.classList.contains('hide-on-phone-redesign')).toBe(true);
+
+      testFixture.destroy();
+    });
+
+    it('keeps marketing hero visible on desktop even if seenHero is true in localStorage', () => {
+      mockMatchMedia(false);
+      localStorage.setItem('unibooks.home.seenHero', 'true');
+
+      const testFixture = TestBed.createComponent(Home);
+      const testComp = testFixture.componentInstance;
+      testFixture.detectChanges();
+
+      expect(testComp.isPhone).toBe(false);
+
+      const el = testFixture.nativeElement as HTMLElement;
+      const hero = el.querySelector('app-home-hero');
+      expect(hero).toBeTruthy();
+      expect(hero?.classList.contains('sr-only-phone')).toBe(false);
+      expect(el.querySelector('.phone-home-header')).toBeNull();
+
+      testFixture.destroy();
+    });
+
+    it('handles localStorage errors gracefully during initialization', () => {
+      mockMatchMedia(true);
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new Error('Storage access blocked');
+      });
+
+      expect(() => {
+        const testFixture = TestBed.createComponent(Home);
+        testFixture.detectChanges();
+        testFixture.destroy();
+      }).not.toThrow();
+    });
+
+    it('pull to refresh reloads metadata and ads and resets refreshing', () => {
+      component.refreshing = false;
+      const metadataSpy = vi.spyOn(mockMetadataService, 'getMetadata');
+      const adsSpy = vi.spyOn(mockMetadataService, 'getActiveAds');
+
+      component.onRefresh();
+
+      expect(component.refreshing).toBe(false);
+      expect(metadataSpy).toHaveBeenCalled();
+      expect(adsSpy).toHaveBeenCalled();
+    });
+  });
 });

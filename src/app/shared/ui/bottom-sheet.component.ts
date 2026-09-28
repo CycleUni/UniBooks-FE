@@ -6,6 +6,11 @@ let nextId = 0;
 /** Open sheets, so the page scroll lock is released only by the last one. */
 let openCount = 0;
 
+/** Whether any ui-bottom-sheet is currently open in the DOM. */
+export function isBottomSheetOpen(): boolean {
+  return openCount > 0;
+}
+
 /**
  * A panel that slides up from the bottom of the screen: the phone
  * replacement for dropdowns, popovers and side panels (ui-dropdown uses it

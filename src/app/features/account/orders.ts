@@ -20,14 +20,16 @@ import { ToastService } from '../../core/services/toast.service';
 import { scrollBehavior } from '../../core/reduced-motion';
 import { parseApiError } from '../../core/api-error.util';
 import { RegionLinkDirective } from '../../core/region-link.directive';
+import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
 
 
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [CommonModule, RouterModule, UiSkeleton, TPipe, UiButton, UiEmpty, ReviewModalComponent, DateTimeFormatPipe, PricePipe, UiSearchBarComponent, RegionLinkDirective],
+  imports: [CommonModule, RouterModule, UiSkeleton, TPipe, UiButton, UiEmpty, ReviewModalComponent, DateTimeFormatPipe, PricePipe, UiSearchBarComponent, RegionLinkDirective, UiPullToRefresh],
   template: `
-    <h2 class="section-heading">{{ 'acct.myOrders' | t }}</h2>
+    <ui-pull-to-refresh [refreshing]="refreshing" (refresh)="onRefresh()">
+      <h2 class="section-heading">{{ 'acct.myOrders' | t }}</h2>
 
       <div class="tabs">
         <button class="tab" [class.active]="activeTab === 'buying'" (click)="setTab('buying')">{{ 'acct.buying' | t }}</button>
@@ -159,6 +161,7 @@ import { RegionLinkDirective } from '../../core/region-link.directive';
           </div>
         </div>
       </ng-template>
+    </ui-pull-to-refresh>
 
       <app-review-modal *ngIf="reviewingOrderId" [orderId]="reviewingOrderId" (onClosed)="onReviewModalClosed($event)"></app-review-modal>
   `,
@@ -370,6 +373,7 @@ import { RegionLinkDirective } from '../../core/region-link.directive';
 export class OrdersComponent implements OnInit {
   activeTab: 'buying' | 'selling' = 'buying';
   isLoading = true;
+  refreshing = false;
   boughtOrders: Order[] = [];
   soldOrders: Order[] = [];
   reviewingOrderId: string | null = null;
@@ -526,12 +530,14 @@ export class OrdersComponent implements OnInit {
             
             this.markTabAsSeen(userId);
             this.isLoading = false;
+            this.refreshing = false;
             this.cdr.markForCheck();
             this.checkHighlight();
           },
           error: (err) => {
             console.error('Failed to load orders', err);
             this.isLoading = false;
+            this.refreshing = false;
             this.cdr.markForCheck();
           }
         });
@@ -539,9 +545,16 @@ export class OrdersComponent implements OnInit {
       error: (err) => {
         console.error('Failed to load profile', err);
         this.isLoading = false;
+        this.refreshing = false;
         this.cdr.markForCheck();
       }
     });
+  }
+
+  onRefresh() {
+    this.refreshing = true;
+    this.accountService.clearProfileCache();
+    this.loadOrders();
   }
 
   checkHighlight() {

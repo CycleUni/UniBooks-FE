@@ -31,13 +31,14 @@ import { ToastService } from '../../core/services/toast.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { ListingService } from '../../core/services/listing.service';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
 import { PendingChatStore, isPendingChat, pendingChatFromListing } from './pending-chats';
 
 
 @Component({
   selector: 'app-messages',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, UiEmpty, UiButton, UiInput, UiMeetupCard, TPipe, UiImageLightbox, UiReportModal, UiRoleBadge, MessagesInboxList, PricePipe, UiVerificationPrompt, UiSkeleton],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, UiEmpty, UiButton, UiInput, UiMeetupCard, TPipe, UiImageLightbox, UiReportModal, UiRoleBadge, MessagesInboxList, PricePipe, UiVerificationPrompt, UiSkeleton, UiPullToRefresh],
   templateUrl: './messages.html',
   styleUrls: ['./messages.css']
 })
@@ -53,6 +54,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
   connectionState: 'connected' | 'reconnecting' | 'disconnected' = 'disconnected';
   imeComposing = false;
   showReport = false;
+  refreshingInbox = false;
   // Image upload state
   uploadingImage = false;
   uploadProgress = 0;
@@ -394,6 +396,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
           (chat as any)._hubUnread = currentState.get(String(chat.id)) ?? false;
         }
         this.loadingChats = false;
+        this.refreshingInbox = false;
 
         this.queryParamsSubscription?.unsubscribe();
         this.queryParamsSubscription = this.route.queryParams.subscribe(params => {
@@ -426,9 +429,15 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
       },
       error: () => {
         this.loadingChats = false;
+        this.refreshingInbox = false;
         this.cdr.markForCheck();
       }
     });
+  }
+
+  onRefreshInbox() {
+    this.refreshingInbox = true;
+    this.loadConversations();
   }
 
   /**

@@ -154,4 +154,14 @@ describe('Messages ?chat= URL sync', () => {
     expect(component.chats[0].latest_message).toBe('new in B');
     expect(component.chats[0].updated_at).toBe('2026-09-14T15:23:00.000Z');
   });
+
+  it('reloads conversations on pull-to-refresh (onRefreshInbox)', () => {
+    setup();
+    expect(messageService.getConversations).toHaveBeenCalledTimes(1);
+
+    component.onRefreshInbox();
+
+    expect(messageService.getConversations).toHaveBeenCalledTimes(2);
+    expect(component.refreshingInbox).toBe(false);
+  });
 });

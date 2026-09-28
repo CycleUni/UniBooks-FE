@@ -248,4 +248,83 @@ describe('UiLayout', () => {
       expect(metadata.getMetadataWithRetry).not.toHaveBeenCalled();
     });
   });
+
+  describe('phone app bar scroll hide/show', () => {
+    const stubPhone = (isPhone: boolean) => {
+      vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes('max-width: 900px') ? isPhone : false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })));
+    };
+
+    beforeEach(() => {
+      vi.stubGlobal('requestAnimationFrame', (cb: Function) => cb());
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      window.scrollY = 0;
+    });
+
+    it('stays visible on desktop when scrolling down', () => {
+      stubPhone(false);
+      window.scrollY = 150;
+      window.dispatchEvent(new Event('scroll'));
+
+      expect(component.appBarHidden).toBe(false);
+    });
+
+    it('hides after scrolling down past header height on phone', () => {
+      stubPhone(true);
+      window.scrollY = 100;
+      window.dispatchEvent(new Event('scroll'));
+
+      expect(component.appBarHidden).toBe(true);
+    });
+
+    it('reveals on upward scroll with 8px hysteresis on phone', () => {
+      stubPhone(true);
+      window.scrollY = 200;
+      window.dispatchEvent(new Event('scroll'));
+      expect(component.appBarHidden).toBe(true);
+
+      // Scroll up by only 3px (below 8px hysteresis)
+      window.scrollY = 197;
+      window.dispatchEvent(new Event('scroll'));
+      expect(component.appBarHidden).toBe(true);
+
+      // Scroll up by more (at least 8px total)
+      window.scrollY = 185;
+      window.dispatchEvent(new Event('scroll'));
+      expect(component.appBarHidden).toBe(false);
+    });
+
+    it('stays visible at the very top of the page', () => {
+      stubPhone(true);
+      window.scrollY = 200;
+      window.dispatchEvent(new Event('scroll'));
+      expect(component.appBarHidden).toBe(true);
+
+      window.scrollY = 0;
+      window.dispatchEvent(new Event('scroll'));
+      expect(component.appBarHidden).toBe(false);
+    });
+
+    it('reveals when an input inside the page receives focus', () => {
+      stubPhone(true);
+      window.scrollY = 200;
+      window.dispatchEvent(new Event('scroll'));
+      expect(component.appBarHidden).toBe(true);
+
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      input.focus();
+      document.dispatchEvent(new Event('focusin'));
+
+      expect(component.appBarHidden).toBe(false);
+      input.remove();
+    });
+  });
 });

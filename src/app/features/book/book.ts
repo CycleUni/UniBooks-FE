@@ -1,6 +1,7 @@
-import { Component, OnInit, inject, effect, untracked } from '@angular/core';
+import { Component, OnInit, inject, effect, untracked, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule, Router } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { UiButton } from '../../shared/ui/button.component';
 import { UiBackButton } from '../../shared/ui/back-button.component';
 import { UiBreadcrumb, BreadcrumbItem } from '../../shared/ui/breadcrumb.component';
@@ -15,6 +16,8 @@ import { SchoolStateService } from '../../core/services/school-state.service';
 import { UiListingCard } from '../../shared/ui/listing-card.component';
 import { UiBookCover } from '../../shared/ui/book-cover.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
+import { UiInfiniteScroll } from '../../shared/ui/infinite-scroll.component';
+import { isPhoneViewport, watchPhoneViewport } from '../../core/viewport';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { UiEmpty } from '../../shared/ui/empty.component';
 import { UiVerificationPrompt } from '../../shared/ui/verification-prompt.component';
@@ -50,7 +53,7 @@ export function bookSourceLabelKey(source: unknown): string | null {
 @Component({
   selector: 'app-book',
   standalone: true,
-  imports: [CommonModule, RouterModule, UiButton, UiBackButton, UiBreadcrumb, TPipe, UiListingCard, UiBookCover, UiPagination, UiEmpty, UiSkeleton, UiVerificationPrompt],
+  imports: [CommonModule, RouterModule, UiButton, UiBackButton, UiBreadcrumb, TPipe, UiListingCard, UiBookCover, UiPagination, UiInfiniteScroll, UiEmpty, UiSkeleton, UiVerificationPrompt],
   template: `
       <!-- Opened directly (no cached preview to paint first), the page used
            to stay blank until the book request answered. -->
@@ -133,7 +136,8 @@ export function bookSourceLabelKey(source: unknown): string | null {
             ></ui-listing-card>
           </div>
           
-          <ui-pagination *ngIf="!isLoadingListings && totalListings > 20" [total]="totalListings" [pageSize]="20" [currentPage]="currentPage" (pageChange)="onPageChange($event)"></ui-pagination>
+          <ui-pagination *ngIf="!isPhone && !isLoadingListings && totalListings > 20" [total]="totalListings" [pageSize]="20" [currentPage]="currentPage" (pageChange)="onPageChange($event)"></ui-pagination>
+          <ui-infinite-scroll *ngIf="isPhone && !isLoadingListings && listings.length > 0" [loading]="loadingMore" [hasMore]="hasMoreListings" [error]="loadMoreError" (loadMore)="onLoadMore()"></ui-infinite-scroll>
 
           <ui-empty *ngIf="!isLoadingListings && listings.length === 0" [message]="'book.emptyState' | t"></ui-empty>
         </div>
@@ -327,6 +331,16 @@ export class Book implements OnInit {
   isLoadingListings = true;
   isVerified = false;
   showUnverifiedPrompt = false;
+  isPhone = isPhoneViewport();
+  loadingMore = false;
+  loadMoreError = false;
+  loadedPhonePage = 1;
+  private unwatchPhone?: () => void;
+  private loadMoreSub?: Subscription;
+
+  get hasMoreListings(): boolean {
+    return this.listings.length < this.totalListings;
+  }
   private isLocalCache = false;
   // Which external catalogue to query when this ISBN isn't in our own DB
   // yet — defaults to 'googlebooks' server-side. Threaded through from the
@@ -367,6 +381,7 @@ export class Book implements OnInit {
 
   private regionLink = inject(RegionLinkService);
   private seo = inject(SeoService);
+  private destroyRef = inject(DestroyRef);
 
   constructor(private route: ActivatedRoute, private router: Router) {
     onLanguageChange(this.i18n, () => {
@@ -377,6 +392,15 @@ export class Book implements OnInit {
   }
 
   ngOnInit() {
+    this.unwatchPhone = watchPhoneViewport(matches => {
+      this.isPhone = matches;
+      this.cdr.markForCheck();
+    });
+    this.destroyRef.onDestroy(() => {
+      this.unwatchPhone?.();
+      this.loadMoreSub?.unsubscribe();
+    });
+
     // resolvedSchool$, not selectedSchool$: the latter starts as a provisional
     // '' and the page used to fetch the book for "all schools", then again
     // moments later for the school the layout settled on.
@@ -412,6 +436,10 @@ export class Book implements OnInit {
         this.listings = [];
         this.totalListings = 0;
         this.isLoadingListings = true;
+        this.loadedPhonePage = 1;
+        this.loadingMore = false;
+        this.loadMoreError = false;
+        this.loadMoreSub?.unsubscribe();
       }
       this.bookId = nextId;
       this.engine = parseSearchEngine(params.get('engine'));
@@ -486,6 +514,10 @@ export class Book implements OnInit {
 
   private fetchBook(silent = false) {
     this.isLoadingListings = true;
+    this.loadedPhonePage = this.currentPage;
+    this.loadingMore = false;
+    this.loadMoreError = false;
+    this.loadMoreSub?.unsubscribe();
     // A silent refresh of an already-cached preview is only supposed to
     // supplement it with real listing status, not replace it — but when the
     // book has no local DB row, this refetch re-runs the same kind of
@@ -584,6 +616,37 @@ export class Book implements OnInit {
   onPageChange(page: number) {
     this.currentPage = page;
     this.fetchBook();
+  }
+
+  onLoadMore() {
+    if (this.isLoadingListings || this.loadingMore || !this.hasMoreListings || !this.bookId) return;
+    this.loadingMore = true;
+    this.loadMoreError = false;
+    this.cdr.markForCheck();
+
+    const nextPage = this.loadedPhonePage + 1;
+    this.loadMoreSub = this.bookService.getBook(this.bookId, nextPage, this.currentSchool, this.engine ?? undefined).subscribe({
+      next: (data) => {
+        let newItems: any[] = [];
+        if (data.listings && !Array.isArray(data.listings)) {
+          newItems = data.listings.results || [];
+          this.totalListings = data.listings.count || this.totalListings;
+        } else {
+          newItems = data.listings || [];
+        }
+        this.listings = [...this.listings, ...newItems];
+        this.loadedPhonePage = nextPage;
+        this.loadingMore = false;
+        this.loadMoreError = false;
+        this.sortListings();
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.loadingMore = false;
+        this.loadMoreError = true;
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   getConditionLabel(cond: string): string {

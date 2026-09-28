@@ -337,4 +337,48 @@ describe('ListingsComponent edit dialog photos', () => {
     expect(render().querySelector('.photo-upload input[type="file"]')).toBeNull();
     expect(render().querySelector('.photo-count')?.textContent?.trim()).toBe(`${SELL_MAX_PHOTOS}/${SELL_MAX_PHOTOS}`);
   });
+
+  describe('mobile gestures and pagination', () => {
+    let getMyProfile: ReturnType<typeof vi.fn>;
+    let clearProfileCache: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      getMyProfile = vi.fn().mockReturnValue(of({
+        myListings: { count: 30, results: Array.from({ length: 20 }, (_, i) => ({ id: `l${i}`, price: 100 })) },
+        myListingCounts: { all: 30 },
+      }));
+      clearProfileCache = vi.fn();
+      (component as any).accountService = { getMyProfile, clearProfileCache };
+    });
+
+    it('re-fetches page 1 and clears cache on onRefresh', () => {
+      component.isPhone = true;
+      component.onRefresh();
+
+      expect(clearProfileCache).toHaveBeenCalled();
+      expect(getMyProfile).toHaveBeenCalledWith(1, '', { status: '', sort: undefined });
+      expect(component.refreshing).toBe(false);
+    });
+
+    it('appends listings on onLoadMore on phones', () => {
+      component.isPhone = true;
+      component.loading = false;
+      component.currentPage = 1;
+      component.myListings = Array.from({ length: 20 }, (_, i) => ({ id: `l${i}`, price: 100 }));
+      component.totalListings = 30;
+
+      expect(component.hasMoreListings).toBe(true);
+
+      const page2 = Array.from({ length: 10 }, (_, i) => ({ id: `l${20 + i}`, price: 100 }));
+      getMyProfile.mockReturnValue(of({
+        myListings: { count: 30, results: page2 },
+      }));
+
+      component.onLoadMore();
+
+      expect(getMyProfile).toHaveBeenCalledWith(2, '', { status: '', sort: undefined });
+      expect(component.myListings.length).toBe(30);
+      expect(component.hasMoreListings).toBe(false);
+    });
+  });
 });

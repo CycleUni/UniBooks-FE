@@ -1,5 +1,5 @@
 import { RegionLinkDirective } from '../../core/region-link.directive';
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { UiButton } from '../../shared/ui/button.component';
@@ -8,6 +8,8 @@ import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { UiErrorState } from '../../shared/ui/error-state.component';
 import { HomeHero, HeroCover } from './home-hero.component';
 import { UiCategoryRail } from '../../shared/ui/category-rail.component';
+import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
+import { isPhoneViewport, watchPhoneViewport } from '../../core/viewport';
 import { ListingService } from '../../core/services/listing.service';
 import { Subject } from 'rxjs';
 import { takeUntil, distinctUntilChanged } from 'rxjs/operators';
@@ -23,9 +25,46 @@ import { hasCoverFailed, markCoverFailed } from '../../shared/ui/book-cover.comp
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, HomeHero, UiButton, UiRecentListings, UiCategoryRail, UiSkeleton, UiErrorState, TPipe, CountCapPipe, BookCoverPipe],
+  imports: [
+    RegionLinkDirective,
+    CommonModule,
+    RouterModule,
+    HomeHero,
+    UiButton,
+    UiRecentListings,
+    UiCategoryRail,
+    UiSkeleton,
+    UiErrorState,
+    TPipe,
+    CountCapPipe,
+    BookCoverPipe,
+    UiPullToRefresh
+  ],
   template: `
-      <app-home-hero [covers]="heroCovers" [loading]="metadataLoading" (adClick)="onAdClick($event)"></app-home-hero>
+    <ui-pull-to-refresh [refreshing]="refreshing" (refresh)="onRefresh()">
+      <!-- Redesigned header on phone returning visits: compact search bar + category chips -->
+      <div *ngIf="isPhone && seenHero" class="phone-home-header container">
+        <a [regionLink]="['/search']" class="phone-search-bar" [attr.aria-label]="'common.search' | t">
+          <svg class="phone-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="18" height="18" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6.5"/>
+            <line x1="20" y1="20" x2="15.4" y2="15.4"/>
+          </svg>
+          <span class="phone-search-placeholder">{{ 'common.searchPlaceholder' | t }}</span>
+        </a>
+
+        <nav class="phone-category-chips" *ngIf="categories?.length" [attr.aria-label]="'home.categoriesTitle' | t">
+          <a
+            *ngFor="let cat of categories; trackBy: trackBySlug"
+            [regionLink]="['/search']"
+            [queryParams]="{ category: cat.slug }"
+            class="phone-category-chip"
+          >
+            {{ cat.title }}
+          </a>
+        </nav>
+      </div>
+
+      <app-home-hero [class.sr-only-phone]="isPhone && seenHero" [covers]="heroCovers" [loading]="metadataLoading" (adClick)="onAdClick($event)"></app-home-hero>
 
       <!-- Categories: show skeleton during load, then the real content, never blank -->
       <div class="two-cols container" [class.hero-has-covers]="heroCovers.length > 0">
@@ -89,7 +128,7 @@ import { hasCoverFailed, markCoverFailed } from '../../shared/ui/book-cover.comp
         </section>
       </div>
 
-      <section class="section container" aria-labelledby="categories-heading">
+      <section class="section container categories-section" [class.hide-on-phone-redesign]="isPhone && seenHero" aria-labelledby="categories-heading">
         <h2 class="section-heading" id="categories-heading">{{ 'home.categoriesTitle' | t }}</h2>
         <ui-skeleton *ngIf="categoriesLoading && !categoriesError" variant="card-row" [count]="4"></ui-skeleton>
         <ui-error-state
@@ -131,6 +170,7 @@ import { hasCoverFailed, markCoverFailed } from '../../shared/ui/book-cover.comp
           </div>
         </div>
       </section>
+    </ui-pull-to-refresh>
   `,
   styles: [`
     /* ---- sections ---------------------------------------------------- */
@@ -303,18 +343,105 @@ import { hasCoverFailed, markCoverFailed } from '../../shared/ui/book-cover.comp
     /* ---- narrow screens ------------------------------------------------ */
     @media (max-width: 900px) {
       .two-cols { gap: var(--space-6); }
+      app-home-hero.sr-only-phone {
+        position: absolute !important;
+        width: 1px !important;
+        height: 1px !important;
+        padding: 0 !important;
+        margin: -1px !important;
+        overflow: hidden !important;
+        clip: rect(0, 0, 0, 0) !important;
+        white-space: nowrap !important;
+        border: 0 !important;
+      }
+      .hide-on-phone-redesign {
+        display: none !important;
+      }
     }
     @media (max-width: 768px) {
       .steps-grid { grid-template-columns: 1fr; gap: 0; }
       .step-card { border-left: none; border-top: 1px solid var(--line); padding: var(--space-5) 0; }
       .step-card:first-child { border-top: none; padding-top: 0; }
-      
+    }
+
+    /* ---- phone home redesign ------------------------------------------- */
+    .phone-home-header {
+      padding-top: var(--space-3);
+      margin-bottom: var(--space-4);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    .phone-search-bar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      min-height: 48px;
+      background: var(--paper-warm);
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      color: var(--muted);
+      text-decoration: none;
+      box-sizing: border-box;
+      transition: background-color var(--motion-base), border-color var(--motion-base);
+    }
+    .phone-search-bar:active {
+      background: var(--surface-card);
+      border-color: var(--accent);
+    }
+    .phone-search-icon {
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .phone-search-placeholder {
+      font-size: var(--text-base);
+      color: var(--ink-soft);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .phone-category-chips {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding-block: var(--space-1);
+    }
+    .phone-category-chips::-webkit-scrollbar {
+      display: none;
+    }
+    .phone-category-chip {
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+      padding: var(--space-1) var(--space-3);
+      min-height: 36px;
+      background: var(--paper-warm);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--ink-soft);
+      font-size: var(--text-sm);
+      font-weight: 500;
+      text-decoration: none;
+      flex-shrink: 0;
+      transition: background-color var(--motion-base), color var(--motion-base), border-color var(--motion-base);
+    }
+    .phone-category-chip:active {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent);
     }
   `]
 })
 export class Home implements OnInit, OnDestroy {
-  
-  
+  isPhone = isPhoneViewport();
+  seenHero = false;
+  refreshing = false;
+  private unwatchPhone?: () => void;
+  @ViewChild(UiRecentListings) recentListings?: UiRecentListings;
 
   categories: any[] = [];
   waitlist: any[] = [];
@@ -394,7 +521,7 @@ export class Home implements OnInit, OnDestroy {
     });
   }
 
-  loadMetadata() {
+  loadMetadata(onComplete?: () => void) {
     this.categoriesLoading = true;
     this.metadataLoading = true;
     this.metadataError = false;
@@ -404,7 +531,6 @@ export class Home implements OnInit, OnDestroy {
       next: (data) => {
         if (data.categories) {
           this.categories = data.categories;
-          
         }
         if (data.waitlist !== undefined) {
           this.waitlist = (data.waitlist || []).slice(0, Home.WAITLIST_MAX);
@@ -413,6 +539,7 @@ export class Home implements OnInit, OnDestroy {
         this.categoriesLoading = false;
         this.metadataLoading = false;
         this.metadataError = false;
+        onComplete?.();
         this.cdr.markForCheck();
       },
       error: () => {
@@ -423,6 +550,7 @@ export class Home implements OnInit, OnDestroy {
         // gets the retry state instead of a misleading "no categories".
         this.categoriesError = this.categories.length === 0;
         console.error('Failed to load metadata — will retry on next interaction');
+        onComplete?.();
         this.cdr.markForCheck();
       }
     });
@@ -433,6 +561,27 @@ export class Home implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        this.seenHero = localStorage.getItem('unibooks.home.seenHero') === 'true';
+        if (!this.seenHero && this.isPhone) {
+          localStorage.setItem('unibooks.home.seenHero', 'true');
+        }
+      }
+    } catch {
+      // Storage access may fail (private browsing, sandboxed iframes)
+    }
+
+    this.unwatchPhone = watchPhoneViewport((matches) => {
+      this.isPhone = matches;
+      if (matches && !this.seenHero) {
+        try {
+          localStorage.setItem('unibooks.home.seenHero', 'true');
+        } catch {}
+      }
+      this.cdr.markForCheck();
+    });
+
     // resolvedSchool$, not selectedSchool$: the latter starts as a provisional
     // '' and every load here then ran twice, once for all schools and again
     // for the school the layout settled on.
@@ -448,12 +597,31 @@ export class Home implements OnInit, OnDestroy {
     });
   }
 
-  loadAds() {
+  onRefresh(): void {
+    this.refreshing = true;
+    this.cdr.markForCheck();
+    this.recentListings?.reload();
+
+    let pending = 2;
+    const checkDone = () => {
+      pending--;
+      if (pending <= 0) {
+        this.refreshing = false;
+        this.cdr.markForCheck();
+      }
+    };
+
+    this.loadMetadata(checkDone);
+    this.loadAds(checkDone);
+  }
+
+  loadAds(onComplete?: () => void) {
     this.metadataService.getActiveAds('home_banner', this.currentSchool).subscribe({
       next: (resp: any) => {
         // BE returns paginated format { count, results } after adding pagination_class
         this.activeAds = resp?.results ?? (Array.isArray(resp) ? resp : []);
         this.updateHeroCovers();
+        onComplete?.();
         this.cdr.markForCheck();
 
         this.activeAds.forEach(ad => {
@@ -469,6 +637,7 @@ export class Home implements OnInit, OnDestroy {
       error: () => {
         this.activeAds = [];
         this.updateHeroCovers();
+        onComplete?.();
         this.cdr.markForCheck();
       }
     });
@@ -523,12 +692,14 @@ export class Home implements OnInit, OnDestroy {
 
   trackById(idx: number, item: any): any { return item.id || idx; }
   trackByTitle(idx: number, wait: any): string { return wait.title; }
+  trackBySlug(idx: number, item: any): string { return item?.slug || idx; }
 
   /** Shared with ui-book-cover: a cover that failed anywhere is not asked for again. */
   waitCoverFailed(wait: any): boolean { return hasCoverFailed(wait.cover_url, 3); }
   onWaitCoverError(wait: any): void { markCoverFailed(wait.cover_url, 3); }
 
   ngOnDestroy() {
+    this.unwatchPhone?.();
     this.destroy$.next();
     this.destroy$.complete();
   }

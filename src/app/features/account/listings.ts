@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectorRef, DestroyRef } from '@angular/core';
 import { RegionService } from '../../core/region.service';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -10,6 +10,9 @@ import { UiTextarea } from '../../shared/ui/textarea.component';
 import { UiListingRow } from '../../shared/ui/listing-row.component';
 import { UiDropdown, DropdownOption } from '../../shared/ui/dropdown.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
+import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
+import { UiInfiniteScroll } from '../../shared/ui/infinite-scroll.component';
+import { isPhoneViewport, watchPhoneViewport } from '../../core/viewport';
 import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
 import { TPipe, I18nService } from '../../core/i18n.service';
 import { ListingService } from '../../core/services/listing.service';
@@ -21,7 +24,7 @@ import { ToastService } from '../../core/services/toast.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { parseApiError } from '../../core/api-error.util';
 import { SELL_MAX_PHOTOS } from '../sell/sell';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 
 /**
  * The photos an edit starts from: the listing's whole `photos` list, since
@@ -51,10 +54,11 @@ const PAGE_SIZE = 20;
   standalone: true,
   imports: [
     CommonModule, FormsModule, UiButton, UiEmpty, UiInput, UiTextarea, UiListingRow, UiDropdown,
-    UiPagination, UiSearchBarComponent, TPipe,
+    UiPagination, UiPullToRefresh, UiInfiniteScroll, UiSearchBarComponent, TPipe,
   ],
   template: `
-    <div class="section-head-row">
+    <ui-pull-to-refresh [refreshing]="refreshing" (refresh)="onRefresh()">
+      <div class="section-head-row">
       <h2 class="section-heading">{{ 'acct.tabListings' | t }}</h2>
       <div class="section-head-actions">
         <ui-dropdown
@@ -123,12 +127,21 @@ const PAGE_SIZE = 20;
     ></ui-empty>
 
     <ui-pagination
-      *ngIf="totalListings > pageSize"
+      *ngIf="!isPhone && totalListings > pageSize"
       [total]="totalListings"
       [pageSize]="pageSize"
       [currentPage]="currentPage"
       (pageChange)="onPageChange($event)"
     ></ui-pagination>
+
+    <ui-infinite-scroll
+      *ngIf="isPhone && !loading && myListings.length > 0"
+      [loading]="loadingMore"
+      [hasMore]="hasMoreListings"
+      [error]="loadMoreError"
+      (loadMore)="onLoadMore()"
+    ></ui-infinite-scroll>
+    </ui-pull-to-refresh>
 
     <!-- Edit Modal Overlay -->
     <div class="edit-modal" *ngIf="editingListing">
@@ -303,6 +316,18 @@ export class ListingsComponent implements OnInit {
   categoryOptions: any[] = [];
   totalListings = 0;
   currentPage = 1;
+  isPhone = isPhoneViewport();
+  refreshing = false;
+  loadingMore = false;
+  loadMoreError = false;
+  loadedPhonePage = 1;
+  private unwatchPhone?: () => void;
+  private loadMoreSub?: Subscription;
+  private destroyRef = inject(DestroyRef);
+
+  get hasMoreListings(): boolean {
+    return this.myListings.length < this.totalListings;
+  }
   searchQuery = '';
   status: StatusTab = '';
   sort: ListingSort = 'newest';
@@ -344,6 +369,15 @@ export class ListingsComponent implements OnInit {
   }
 
   ngOnInit() {
+    this.unwatchPhone = watchPhoneViewport(matches => {
+      this.isPhone = matches;
+      this.cdr.markForCheck();
+    });
+    this.destroyRef.onDestroy(() => {
+      this.unwatchPhone?.();
+      this.loadMoreSub?.unsubscribe();
+    });
+
     const qp = this.route.snapshot.queryParamMap;
     const status = qp.get('status') as StatusTab;
     if (STATUSES.includes(status)) this.status = status;
@@ -422,6 +456,10 @@ export class ListingsComponent implements OnInit {
 
   loadMyListings() {
     this.loading = true;
+    this.loadedPhonePage = this.currentPage;
+    this.loadingMore = false;
+    this.loadMoreError = false;
+    this.loadMoreSub?.unsubscribe();
     this.accountService
       // The default sort is left out rather than sent: the backend's default is
       // the same, and first page, no search, no filter, no sort is the plain
@@ -440,11 +478,58 @@ export class ListingsComponent implements OnInit {
           }
           this.counts = data.myListingCounts || {};
           this.loading = false;
+          this.refreshing = false;
           this.cdr.markForCheck();
         },
         error: (err) => {
           this.loading = false;
+          this.refreshing = false;
           this.toast.error(parseApiError(err, this.i18n, 'acct.errLoadFailed'));
+          this.cdr.markForCheck();
+        }
+      });
+  }
+
+  onRefresh() {
+    this.refreshing = true;
+    this.loadedPhonePage = 1;
+    this.loadMoreSub?.unsubscribe();
+    if (this.isPhone) {
+      this.currentPage = 1;
+      this.syncUrl();
+    }
+    this.accountService.clearProfileCache();
+    this.loadMyListings();
+  }
+
+  onLoadMore() {
+    if (this.loading || this.loadingMore || !this.hasMoreListings) return;
+    this.loadingMore = true;
+    this.loadMoreError = false;
+    this.cdr.markForCheck();
+
+    const nextPage = this.loadedPhonePage + 1;
+    this.loadMoreSub = this.accountService
+      .getMyProfile(nextPage, this.searchQuery, { status: this.status, sort: this.sort === 'newest' ? undefined : this.sort })
+      .subscribe({
+        next: (data: any) => {
+          let newItems: any[] = [];
+          if (data.myListings && !Array.isArray(data.myListings)) {
+            newItems = data.myListings.results || [];
+            this.totalListings = data.myListings.count || this.totalListings;
+          } else {
+            newItems = data.myListings || [];
+          }
+          this.myListings = [...this.myListings, ...newItems];
+          this.counts = data.myListingCounts || this.counts;
+          this.loadedPhonePage = nextPage;
+          this.loadingMore = false;
+          this.loadMoreError = false;
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.loadingMore = false;
+          this.loadMoreError = true;
           this.cdr.markForCheck();
         }
       });

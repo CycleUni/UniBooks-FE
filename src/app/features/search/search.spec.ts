@@ -166,4 +166,37 @@ describe('Search page', () => {
       expect(text).toContain('Found 45 matching books');
     });
   });
+
+  describe('mobile gestures and pagination', () => {
+    it('appends results on onLoadMore without navigating', async () => {
+      const page1 = Array.from({ length: 20 }, (_, i) => book(i));
+      const page2 = Array.from({ length: 10 }, (_, i) => book(20 + i));
+      await setUp({ q: 'calculus' }, { count: 30, results: page1 });
+
+      component.isPhone = true;
+      searchBooks.mockReturnValue(of({ count: 30, results: page2 }));
+
+      expect(component.results.length).toBe(20);
+      expect(component.hasMoreResults).toBe(true);
+
+      component.onLoadMore();
+
+      expect(searchBooks).toHaveBeenCalledWith('calculus', '', '', 'NTU', 2, null, {});
+      expect(component.results.length).toBe(30);
+      expect(component.hasMoreResults).toBe(false);
+      // Appending pages on phones must not push router navigation
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('re-fetches page 1 on pull-to-refresh', async () => {
+      const page1 = Array.from({ length: 20 }, (_, i) => book(i));
+      await setUp({ q: 'calculus' }, { count: 20, results: page1 });
+
+      component.isPhone = true;
+      component.onRefresh();
+
+      expect(component.refreshing).toBe(false);
+      expect(searchBooks).toHaveBeenLastCalledWith('calculus', '', '', 'NTU', 1, null, {});
+    });
+  });
 });
