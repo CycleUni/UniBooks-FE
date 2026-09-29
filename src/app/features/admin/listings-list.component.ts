@@ -47,7 +47,10 @@ import { RegionService } from '../../core/region.service';
           <td>{{ listing.seller?.email }}</td>
           <td>{{ listing.school?.name }}</td>
           <td>{{ listing.price | price: listing.currency }}</td>
-          <td><span class="admin-status-badge">{{ ('admin.listingStatus.' + listing.status) | t }}</span></td>
+          <td>
+            <span class="admin-status-badge">{{ ('admin.listingStatus.' + listing.status) | t }}</span>
+            <span *ngIf="listing.admin_locked" class="admin-status-badge locked" [attr.title]="listing.admin_lock_reason || null">{{ 'admin.locked' | t }}</span>
+          </td>
         </tr>
         <tr *ngIf="listings.length === 0">
           <td colspan="6" class="empty-note">{{ (hasFilters ? 'common.noMatches' : 'common.noData') | t }}</td>

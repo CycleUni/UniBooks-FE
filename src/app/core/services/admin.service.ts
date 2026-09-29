@@ -66,6 +66,10 @@ export interface AdminListing {
   status: string;
   region?: string;
   created_at: string;
+  admin_locked?: boolean;
+  admin_lock_reason?: string;
+  locked_by?: string | number | null;
+  locked_at?: string | null;
 }
 
 export interface AdminOrder {
@@ -259,8 +263,12 @@ export class AdminService {
     return this.http.get<AdminListing>(`/admin/listings/${id}/`);
   }
 
-  updateListingStatus(id: string, status: string): Observable<AdminListing> {
-    return this.http.patch<AdminListing>(`/admin/listings/${id}/`, { status });
+  updateListingStatus(id: string, data: { status?: string; admin_locked?: boolean; admin_lock_reason?: string }): Observable<AdminListing> {
+    return this.http.patch<AdminListing>(`/admin/listings/${id}/`, data);
+  }
+
+  deleteListing(id: string): Observable<void> {
+    return this.http.delete<void>(`/admin/listings/${id}/`);
   }
 
   getOrders(opts: { page?: number; q?: string; status?: string; region?: string } = {}): Observable<Paginated<AdminOrder>> {

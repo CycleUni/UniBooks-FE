@@ -59,8 +59,9 @@ import { PricePipe } from '../pipes/price.pipe';
              a removed listing cannot be "marked sold", and only a listing
              nobody has reserved is safe to take down or delete. -->
         <div class="manage-actions" *ngIf="isEditable">
+          <span *ngIf="adminLocked" class="locked-text" [attr.title]="adminLockReason || null">{{ 'row.adminLocked' | t }}</span>
           <ui-button variant="ghost" *ngIf="status !== 'removed'" (onClick)="action.emit({type: 'copy_link', id: id})">{{ 'row.copyLink' | t }}</ui-button>
-          <ui-button variant="ghost" (onClick)="action.emit({type: 'edit', id: id})">{{ 'common.edit' | t }}</ui-button>
+          <ui-button variant="ghost" [disabled]="adminLocked" (onClick)="action.emit({type: 'edit', id: id})">{{ 'common.edit' | t }}</ui-button>
         </div>
       </div>
     </div>
@@ -149,6 +150,12 @@ import { PricePipe } from '../pipes/price.pipe';
       word-break: break-word;
       max-width: 260px;
     }
+    .locked-text {
+      align-self: center;
+      font-size: var(--text-xs);
+      font-weight: 500;
+      color: var(--danger);
+    }
     .manage-actions {
       display: flex;
       flex-wrap: wrap;
@@ -228,6 +235,10 @@ export class UiListingRow implements OnChanges {
   @Input() waitlistCount?: number;
   @Input() isEditable = false;
   @Input() variant: 'listing' | 'aggregate' = 'listing';
+  // Taken down by an admin: the backend refuses the seller's edits, so the
+  // row says why instead of offering an Edit that would only fail.
+  @Input() adminLocked = false;
+  @Input() adminLockReason?: string;
 
   @Output() action = new EventEmitter<{ type: string, id: number | string }>();
 

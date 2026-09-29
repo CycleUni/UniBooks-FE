@@ -908,6 +908,7 @@ button:not(:disabled):active {
 .admin-form-control { width: 100%; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 4px; box-sizing: border-box; background: var(--paper); color: var(--ink); }
 
 .admin-status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: var(--text-xs); background: var(--paper-warm); color: var(--muted); }
+.admin-status-badge.locked { margin-left: 4px; background: var(--danger-light); color: var(--danger); }
 .admin-status-badge.active, .admin-status-badge.ok { background: var(--info-bg); color: var(--info-ink); }
 
 @media (prefers-color-scheme: dark) {
