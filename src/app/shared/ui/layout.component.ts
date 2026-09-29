@@ -52,6 +52,10 @@ export class UiLayout implements OnDestroy {
     return aboutSiteUrl(this.i18n.lang(), 'about/terms');
   }
 
+  get privacyUrl(): string {
+    return aboutSiteUrl(this.i18n.lang(), 'about/privacy');
+  }
+
   get themeOptions() {
     return [
       { value: 'system', label: this.i18n.t('nav.themeSystem') || 'System' },
