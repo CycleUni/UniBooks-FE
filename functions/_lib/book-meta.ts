@@ -66,6 +66,7 @@ export const DESCRIPTIONS: Record<'en' | 'zh-TW' | 'zh-HK', { withAuthor: string
 
 /** The regions a book page exists under; langForRegion names their language. */
 const REGIONS = ['tw', 'hk'];
+const DEFAULT_REGION = 'tw';
 
 /** Region codes are ISO 3166-1 alpha-2, as stripRegionPrefix assumes. */
 export function regionFrom(param: unknown): string | null {
@@ -162,11 +163,11 @@ export function metaFor(book: BookFacts, origin: string, region: string): BookMe
     ? `isbn=${encodeURIComponent(book.isbn13)}`
     : `id=${encodeURIComponent(book.id)}`;
 
-  // Every region's copy of this page, plus the bare path as x-default: it
-  // forwards a visitor to their own region (rootRedirectGuard).
+  // Every region's copy of this page, and the default region's as
+  // x-default (DEFAULT_REGION in the app), so every link points both ways.
   const alternates = [
     ...REGIONS.map((r) => ({ href: `${origin}/${r}/book?${query}`, hreflang: langForRegion(r) })),
-    { href: `${origin}/book?${query}`, hreflang: 'x-default' },
+    { href: `${origin}/${DEFAULT_REGION}/book?${query}`, hreflang: 'x-default' },
   ];
 
   return {

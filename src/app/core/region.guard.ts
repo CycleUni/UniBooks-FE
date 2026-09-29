@@ -1,6 +1,7 @@
 import { inject } from '@angular/core';
 import { ActivatedRouteSnapshot, CanActivateFn, PRIMARY_OUTLET, Route, Router, UrlSegment, UrlTree } from '@angular/router';
 import { RegionService } from './region.service';
+import { DEFAULT_REGION } from './i18n';
 
 /**
  * Swap the leading path segment, keeping everything else byte-identical.
@@ -122,7 +123,7 @@ export const rootRedirectGuard: CanActivateFn = (route, state) => {
   const regionService = inject(RegionService);
   const router = inject(Router);
   
-  const code = regionService.region() || 'tw';
+  const code = regionService.region() || DEFAULT_REGION;
 
   // state.url is "/" at the root, and naive concatenation turned that into
   // "/tw/" — a trailing slash that matches no route, so the site's own entry

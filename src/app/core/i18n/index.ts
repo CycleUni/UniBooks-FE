@@ -8,6 +8,12 @@ export const REGION_TO_LANG: Record<string, Lang> = {
  hk: 'zh-HK',
 };
 
+/**
+ * Where the bare origin sends a visitor nothing else places
+ * (rootRedirectGuard), and the x-default of every page's hreflang set.
+ */
+export const DEFAULT_REGION = 'tw';
+
 /** Each language named in itself, the same in every locale. */
 export const LANG_LABELS: Record<Lang, string> = {
   'zh-TW': '中文 (繁體)',

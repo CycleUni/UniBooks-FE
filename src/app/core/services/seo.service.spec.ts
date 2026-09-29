@@ -47,7 +47,7 @@ describe('SeoService', () => {
 
   afterEach(() => {
     localStorage.removeItem('lang');
-    head().querySelectorAll('link[rel="canonical"], meta[name="robots"], meta[property^="og:"], meta[name^="twitter:"]')
+    head().querySelectorAll('link[rel="canonical"], link[rel="alternate"], meta[name="robots"], meta[property^="og:"], meta[name^="twitter:"]')
       .forEach(el => el.remove());
   });
 
@@ -83,6 +83,26 @@ describe('SeoService', () => {
     expect(canonical()).toBe(`${location.origin}/tw/search`);
     expect(meta('property="og:url"')).toBe(`${location.origin}/tw/search`);
     expect(head().querySelectorAll('link[rel="canonical"]').length).toBe(1);
+  });
+
+  it('names each region copy of the page as an hreflang alternate, the default region as x-default', async () => {
+    const alternates = () => [...head().querySelectorAll<HTMLLinkElement>('link[rel="alternate"][hreflang]')]
+      .map(el => [el.getAttribute('hreflang'), el.getAttribute('href')]);
+
+    await visit('/tw/book?isbn=9781449319793');
+    expect(alternates()).toEqual([
+      ['zh-TW', `${location.origin}/tw/book?isbn=9781449319793`],
+      ['zh-HK', `${location.origin}/hk/book?isbn=9781449319793`],
+      ['x-default', `${location.origin}/tw/book?isbn=9781449319793`],
+    ]);
+
+    await visit('/tw');
+    expect(canonical()).toBe(`${location.origin}/tw/`);
+    expect(alternates()).toEqual([
+      ['zh-TW', `${location.origin}/tw/`],
+      ['zh-HK', `${location.origin}/hk/`],
+      ['x-default', `${location.origin}/tw/`],
+    ]);
   });
 
   it('marks the not-found page noindex, and only that page', async () => {

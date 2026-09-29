@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { createHash } from 'crypto';
-import { REGION_TO_LANG, SUPPORTED_LANGS, type Lang } from '../src/app/core/i18n/index';
+import { DEFAULT_REGION, REGION_TO_LANG, SUPPORTED_LANGS, type Lang } from '../src/app/core/i18n/index';
 
 
 const SITE_NAME = 'UniBooks';
@@ -12,13 +12,6 @@ const NGSW_PATH = path.join(DIST_DIR, 'ngsw.json');
 const SITEMAP_PATH = path.join(DIST_DIR, 'sitemap.xml');
 const SITE_ORIGIN = 'https://unibooks.app';
 
-/**
- * The region the bare origin sends a visitor to when nothing says otherwise
- * (rootRedirectGuard in src/app/core/region.guard.ts). "/" never renders a
- * page of its own, so its HTML speaks this region's language: crawlers that
- * read it before the redirect runs were indexing the English copy instead.
- */
-const DEFAULT_REGION = 'tw';
 
 /**
  * The pages every region has and anyone can open, for the static sitemap.
@@ -92,18 +85,6 @@ function regionUrl(region: string, page: string): string {
   return page ? `${SITE_ORIGIN}/${region}${page}` : `${SITE_ORIGIN}/${region}/`;
 }
 
-/**
- * hreflang pairs for one page: each region's copy in its language, and the
- * bare origin as x-default, since it forwards a visitor to their region.
- * There is no "en" entry: English is a display preference, not a URL.
- */
-function alternatesFor(page: string): Array<{ hreflang: string; href: string }> {
-  return [
-    ...Object.entries(REGION_TO_LANG).map(([region, lang]) => ({ hreflang: lang, href: regionUrl(region, page) })),
-    { hreflang: 'x-default', href: `${SITE_ORIGIN}${page || '/'}` },
-  ];
-}
-
 function replaceRequired(html: string, pattern: RegExp, replacement: string, label: string): string {
   if (!pattern.test(html)) {
     throw new Error(`Could not find ${label} in index.html`);
@@ -153,14 +134,11 @@ function buildHtml(
   const ogImage = `${SITE_ORIGIN}/icons/icon-512x512.png`;
   const ogLocale = ogLocaleFor(locale);
 
-  // The root only forwards, so it names no canonical of its own; each region
-  // home is canonical to itself.
-  const alternates = [
-    ...(region ? [`<link rel="canonical" href="${escapeHtml(ogUrl)}">`] : []),
-    ...alternatesFor('').map(
-      (alt) => `<link rel="alternate" hreflang="${alt.hreflang}" href="${escapeHtml(alt.href)}">`,
-    ),
-  ];
+  // No canonical or hreflang here. This file is served for every route of
+  // its region (the /<region>/* rewrite), so a link naming the home page
+  // would be wrong on every other page, and a book page would carry two
+  // canonicals once its Function appends its own. SeoService writes both
+  // for the route in the browser, and the book Function on the server.
 
   // Organization.logo is what Google shows beside the site in results.
   // A data block, not script, so the CSP's script-src does not apply.
@@ -188,7 +166,6 @@ function buildHtml(
   };
 
   const tags = [
-    ...alternates,
     `<meta property="og:site_name" content="${escapeHtml(SITE_NAME)}">`,
     `<meta property="og:type" content="website">`,
     `<meta property="og:title" content="${escapeHtml(title)}">`,
@@ -273,20 +250,15 @@ function injectRedirects(regions: string[]): void {
 /** Write dist/sitemap.xml with each region's fixed public pages. */
 function writeSitemap(regions: string[]): void {
   // Only the region copies are listed: the bare-origin URLs just forward to
-  // one of them. Each entry names every language version of itself.
+  // one of them. hreflang lives in each page's head rather than here: an
+  // xhtml:link in the file makes Chrome render it as a web page instead of
+  // its XML tree.
   const urls = regions.flatMap((region) =>
-    SITEMAP_PAGES.map((page) => [
-      '  <url>',
-      `    <loc>${regionUrl(region, page)}</loc>`,
-      ...alternatesFor(page).map(
-        (alt) => `    <xhtml:link rel="alternate" hreflang="${alt.hreflang}" href="${alt.href}"/>`,
-      ),
-      '  </url>',
-    ].join('\n')),
+    SITEMAP_PAGES.map((page) => `  <url><loc>${regionUrl(region, page)}</loc></url>`),
   );
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ...urls,
     '</urlset>',
     '',
@@ -308,8 +280,9 @@ async function run(): Promise<void> {
 
   const originalHtml = fs.readFileSync(INDEX_HTML_PATH, 'utf-8');
 
-  // Patch the root index.html in the default region's language; see
-  // DEFAULT_REGION.
+  // Patch the root index.html in the default region's language: "/" never
+  // renders a page of its own (rootRedirectGuard forwards it), and crawlers
+  // that read it before the redirect ran were indexing an English copy.
   const defaultLanguage: Lang = REGION_TO_LANG[DEFAULT_REGION];
   const rootHtml = buildHtml(originalHtml, null, defaultLanguage, await loadStrings(defaultLanguage));
   fs.writeFileSync(INDEX_HTML_PATH, rootHtml);

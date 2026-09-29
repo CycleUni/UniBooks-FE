@@ -140,7 +140,7 @@ describe('book link-preview Function', () => {
       expect(metaFor(book, ORIGIN, 'tw').title).toBe('T · UniBooks');
     });
 
-    it('names every region copy as an hreflang alternate, with the bare path as x-default', () => {
+    it('names every region copy as an hreflang alternate, with the default region as x-default', () => {
       const book = { id: '2', isbn13: '9781449319793', title: 'T', authors: '', cover_url: '' };
       const tags = headTags(metaFor(book, ORIGIN, 'hk'));
       expect(tags).toContain(
@@ -150,7 +150,7 @@ describe('book link-preview Function', () => {
         `<link rel="alternate" hreflang="zh-HK" href="${ORIGIN}/hk/book?isbn=9781449319793">`,
       );
       expect(tags).toContain(
-        `<link rel="alternate" hreflang="x-default" href="${ORIGIN}/book?isbn=9781449319793">`,
+        `<link rel="alternate" hreflang="x-default" href="${ORIGIN}/tw/book?isbn=9781449319793">`,
       );
       expect(tags).not.toContain('hreflang="en"');
     });

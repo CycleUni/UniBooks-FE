@@ -2,7 +2,7 @@ import { DOCUMENT, Injectable, computed, effect, inject, signal } from '@angular
 import { Meta, Title } from '@angular/platform-browser';
 import { ActivatedRouteSnapshot, NavigationEnd, ResolveStart, Router } from '@angular/router';
 import { I18nService } from '../i18n.service';
-import { REGION_TO_LANG } from '../i18n';
+import { DEFAULT_REGION, REGION_TO_LANG } from '../i18n';
 
 /**
  * What a page says about itself to the tab, to search engines and to link
@@ -143,8 +143,8 @@ export class SeoService {
 
   /**
    * hreflang links naming this page's copy in every region, so a search
-   * engine can send each visitor to the one in their language. The bare path
-   * is x-default: rootRedirectGuard forwards it to the visitor's region.
+   * engine can send each visitor to the one in their language. x-default is
+   * the default region's copy, so every link in the set points both ways.
    */
   private setAlternates(url: URL): void {
     const head = this.document.head;
@@ -153,13 +153,11 @@ export class SeoService {
     const [, first, ...rest] = url.pathname.split('/');
     if (!(first in REGION_TO_LANG)) return;
     const page = rest.length && rest.join('/') ? `/${rest.join('/')}` : '';
+    // The region home keeps its slash: Pages redirects /tw to /tw/.
+    const hrefFor = (region: string) => `${url.origin}/${region}${page || '/'}`;
     const alternates = [
-      ...Object.entries(REGION_TO_LANG).map(([region, lang]) => ({
-        hreflang: lang,
-        // The region home keeps its slash: Pages redirects /tw to /tw/.
-        href: `${url.origin}/${region}${page || '/'}`,
-      })),
-      { hreflang: 'x-default', href: `${url.origin}${page || '/'}` },
+      ...Object.entries(REGION_TO_LANG).map(([region, lang]) => ({ hreflang: lang, href: hrefFor(region) })),
+      { hreflang: 'x-default', href: hrefFor(DEFAULT_REGION) },
     ];
     for (const alt of alternates) {
       const el = this.document.createElement('link');
