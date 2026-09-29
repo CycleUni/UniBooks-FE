@@ -45,6 +45,7 @@ export interface BookMeta {
   description: string;
   canonical: string;
   image: string | null;
+  alternates: Array<{ href: string; hreflang: string }>;
 }
 
 /** Same wording as the app's seo.bookDescription keys; the spec holds them equal. */
@@ -62,6 +63,9 @@ export const DESCRIPTIONS: Record<'en' | 'zh-TW' | 'zh-HK', { withAuthor: string
     noAuthor: '《{title}》。在 UniBooks 向同學購買二手書。',
   },
 };
+
+/** The regions a book page exists under; langForRegion names their language. */
+const REGIONS = ['tw', 'hk'];
 
 /** Region codes are ISO 3166-1 alpha-2, as stripRegionPrefix assumes. */
 export function regionFrom(param: unknown): string | null {
@@ -157,11 +161,20 @@ export function metaFor(book: BookFacts, origin: string, region: string): BookMe
   const query = book.isbn13
     ? `isbn=${encodeURIComponent(book.isbn13)}`
     : `id=${encodeURIComponent(book.id)}`;
+
+  // Every region's copy of this page, plus the bare path as x-default: it
+  // forwards a visitor to their own region (rootRedirectGuard).
+  const alternates = [
+    ...REGIONS.map((r) => ({ href: `${origin}/${r}/book?${query}`, hreflang: langForRegion(r) })),
+    { href: `${origin}/book?${query}`, hreflang: 'x-default' },
+  ];
+
   return {
     title: `${book.title} · ${SITE_NAME}`,
     description,
     canonical: `${origin}/${region}/book?${query}`,
     image: coverImageUrl(origin, book.cover_url),
+    alternates,
   };
 }
 
@@ -179,8 +192,12 @@ export function escapeHtml(value: string): string {
 export function headTags(meta: BookMeta): string {
   const tag = (attr: 'property' | 'name', key: string, content: string) =>
     `<meta ${attr}="${key}" content="${escapeHtml(content)}">`;
+  const alternateTags = meta.alternates.map(alt =>
+    `<link rel="alternate" hreflang="${escapeHtml(alt.hreflang)}" href="${escapeHtml(alt.href)}">`
+  );
   return [
     `<link rel="canonical" href="${escapeHtml(meta.canonical)}">`,
+    ...alternateTags,
     tag('property', 'og:site_name', SITE_NAME),
     tag('property', 'og:type', 'book'),
     tag('property', 'og:title', meta.title),

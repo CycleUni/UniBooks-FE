@@ -13,6 +13,14 @@ const SITEMAP_PATH = path.join(DIST_DIR, 'sitemap.xml');
 const SITE_ORIGIN = 'https://unibooks.app';
 
 /**
+ * The region the bare origin sends a visitor to when nothing says otherwise
+ * (rootRedirectGuard in src/app/core/region.guard.ts). "/" never renders a
+ * page of its own, so its HTML speaks this region's language: crawlers that
+ * read it before the redirect runs were indexing the English copy instead.
+ */
+const DEFAULT_REGION = 'tw';
+
+/**
  * The pages every region has and anyone can open, for the static sitemap.
  * Book and listing pages come and go with the data, so the backend serves
  * those (UniBooks-BE listings/sitemap.py); robots.txt names both files.
@@ -75,6 +83,27 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;');
 }
 
+/**
+ * A region page's URL. The region home carries its trailing slash because
+ * Pages 308s /tw to /tw/, and a canonical or hreflang target must not
+ * redirect.
+ */
+function regionUrl(region: string, page: string): string {
+  return page ? `${SITE_ORIGIN}/${region}${page}` : `${SITE_ORIGIN}/${region}/`;
+}
+
+/**
+ * hreflang pairs for one page: each region's copy in its language, and the
+ * bare origin as x-default, since it forwards a visitor to their region.
+ * There is no "en" entry: English is a display preference, not a URL.
+ */
+function alternatesFor(page: string): Array<{ hreflang: string; href: string }> {
+  return [
+    ...Object.entries(REGION_TO_LANG).map(([region, lang]) => ({ hreflang: lang, href: regionUrl(region, page) })),
+    { hreflang: 'x-default', href: `${SITE_ORIGIN}${page || '/'}` },
+  ];
+}
+
 function replaceRequired(html: string, pattern: RegExp, replacement: string, label: string): string {
   if (!pattern.test(html)) {
     throw new Error(`Could not find ${label} in index.html`);
@@ -120,11 +149,46 @@ function buildHtml(
     'the description meta tag',
   );
 
-  const ogUrl = region ? `https://unibooks.app/${region}` : 'https://unibooks.app';
-  const ogImage = `https://unibooks.app/icons/icon-512x512.png`;
+  const ogUrl = region ? regionUrl(region, '') : `${SITE_ORIGIN}/`;
+  const ogImage = `${SITE_ORIGIN}/icons/icon-512x512.png`;
   const ogLocale = ogLocaleFor(locale);
 
-  const ogTags = [
+  // The root only forwards, so it names no canonical of its own; each region
+  // home is canonical to itself.
+  const alternates = [
+    ...(region ? [`<link rel="canonical" href="${escapeHtml(ogUrl)}">`] : []),
+    ...alternatesFor('').map(
+      (alt) => `<link rel="alternate" hreflang="${alt.hreflang}" href="${escapeHtml(alt.href)}">`,
+    ),
+  ];
+
+  // Organization.logo is what Google shows beside the site in results.
+  // A data block, not script, so the CSP's script-src does not apply.
+  const searchBase = region ? `${SITE_ORIGIN}/${region}` : `${SITE_ORIGIN}/${DEFAULT_REGION}`;
+  const ldJson = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "name": SITE_NAME,
+        "url": `${SITE_ORIGIN}/`,
+        "logo": ogImage
+      },
+      {
+        "@type": "WebSite",
+        "name": SITE_NAME,
+        "url": ogUrl,
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": `${searchBase}/search?q={search_term_string}`,
+          "query-input": "required name=search_term_string"
+        }
+      }
+    ]
+  };
+
+  const tags = [
+    ...alternates,
     `<meta property="og:site_name" content="${escapeHtml(SITE_NAME)}">`,
     `<meta property="og:type" content="website">`,
     `<meta property="og:title" content="${escapeHtml(title)}">`,
@@ -133,10 +197,12 @@ function buildHtml(
     `<meta property="og:image" content="${escapeHtml(ogImage)}">`,
     `<meta property="og:locale" content="${ogLocale}">`,
     `<meta name="twitter:card" content="summary_large_image">`,
+    // "<" escaped so no string in the block can close the script element.
+    `<script type="application/ld+json">${JSON.stringify(ldJson).replace(/</g, '\\u003c')}</script>`,
   ].join('\n  ');
 
-  // Insert OG tags before </head>
-  html = replaceRequired(html, /<\/head>/i, `  ${ogTags}\n</head>`, 'the closing head tag');
+  // Insert tags before </head>
+  html = replaceRequired(html, /<\/head>/i, `  ${tags}\n</head>`, 'the closing head tag');
   return html;
 }
 
@@ -206,12 +272,21 @@ function injectRedirects(regions: string[]): void {
 
 /** Write dist/sitemap.xml with each region's fixed public pages. */
 function writeSitemap(regions: string[]): void {
+  // Only the region copies are listed: the bare-origin URLs just forward to
+  // one of them. Each entry names every language version of itself.
   const urls = regions.flatMap((region) =>
-    SITEMAP_PAGES.map((page) => `  <url><loc>${SITE_ORIGIN}/${region}${page}</loc></url>`),
+    SITEMAP_PAGES.map((page) => [
+      '  <url>',
+      `    <loc>${regionUrl(region, page)}</loc>`,
+      ...alternatesFor(page).map(
+        (alt) => `    <xhtml:link rel="alternate" hreflang="${alt.hreflang}" href="${alt.href}"/>`,
+      ),
+      '  </url>',
+    ].join('\n')),
   );
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">',
     ...urls,
     '</urlset>',
     '',
@@ -233,12 +308,13 @@ async function run(): Promise<void> {
 
   const originalHtml = fs.readFileSync(INDEX_HTML_PATH, 'utf-8');
 
-  // Patch the root index.html with English og:* tags.
-  const defaultLanguage: Lang = 'en';
+  // Patch the root index.html in the default region's language; see
+  // DEFAULT_REGION.
+  const defaultLanguage: Lang = REGION_TO_LANG[DEFAULT_REGION];
   const rootHtml = buildHtml(originalHtml, null, defaultLanguage, await loadStrings(defaultLanguage));
   fs.writeFileSync(INDEX_HTML_PATH, rootHtml);
   updateServiceWorkerHash(rootHtml);
-  console.log('Patched root index.html (en)');
+  console.log(`Patched root index.html (${defaultLanguage})`);
 
   // Generate per-region index.html files.
   const regions = Object.keys(REGION_TO_LANG);

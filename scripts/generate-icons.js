@@ -60,8 +60,14 @@ async function main() {
     console.log(`  ${icon.src}`);
   }
 
-  fs.writeFileSync(path.join(iconsDir, 'apple-touch-icon.png'), await render(fullBleed, 180));
-  console.log('  icons/apple-touch-icon.png');
+  const appleTouchIconData = await render(fullBleed, 180);
+  fs.writeFileSync(path.join(publicDir, 'apple-touch-icon.png'), appleTouchIconData);
+  fs.writeFileSync(path.join(publicDir, 'apple-touch-icon-precomposed.png'), appleTouchIconData);
+  console.log('  apple-touch-icon.png');
+  console.log('  apple-touch-icon-precomposed.png');
+
+  fs.writeFileSync(path.join(iconsDir, 'favicon-48x48.png'), await render(favicon, 48));
+  console.log('  icons/favicon-48x48.png');
 
   const icoImages = await Promise.all(
     [16, 32, 48].map(async size => ({ size, data: await render(favicon, size) })),

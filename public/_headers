@@ -123,3 +123,9 @@
 
 /sitemap.xml
   Cache-Control: no-cache
+
+/apple-touch-icon.png
+  Cache-Control: public, no-cache
+
+/apple-touch-icon-precomposed.png
+  Cache-Control: public, no-cache

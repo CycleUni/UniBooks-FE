@@ -2,6 +2,7 @@ import { DOCUMENT, Injectable, computed, effect, inject, signal } from '@angular
 import { Meta, Title } from '@angular/platform-browser';
 import { ActivatedRouteSnapshot, NavigationEnd, ResolveStart, Router } from '@angular/router';
 import { I18nService } from '../i18n.service';
+import { REGION_TO_LANG } from '../i18n';
 
 /**
  * What a page says about itself to the tab, to search engines and to link
@@ -95,7 +96,11 @@ export class SeoService {
       ? this.i18n.t(seo.descriptionKey, seo.descriptionParams)
       : this.i18n.t('seo.description');
     const origin = this.document.location?.origin ?? '';
-    const canonical = origin + (seo.canonicalPath || path);
+    let canonicalPath = seo.canonicalPath || path;
+    // A region home is served at /tw/; Pages 308s /tw there, and a canonical
+    // must not point at a redirect.
+    if (/^\/[a-z]{2}$/.test(canonicalPath)) canonicalPath += '/';
+    const canonical = origin + canonicalPath;
 
     this.title.setTitle(fullTitle);
     this.meta.updateTag({ name: 'description', content: description });
@@ -133,6 +138,36 @@ export class SeoService {
       head.appendChild(link);
     }
     link.setAttribute('href', href);
+    this.setAlternates(new URL(href, this.document.location?.href || 'http://localhost/'));
+  }
+
+  /**
+   * hreflang links naming this page's copy in every region, so a search
+   * engine can send each visitor to the one in their language. The bare path
+   * is x-default: rootRedirectGuard forwards it to the visitor's region.
+   */
+  private setAlternates(url: URL): void {
+    const head = this.document.head;
+    head.querySelectorAll('link[rel="alternate"][hreflang]').forEach((el) => el.remove());
+
+    const [, first, ...rest] = url.pathname.split('/');
+    if (!(first in REGION_TO_LANG)) return;
+    const page = rest.length && rest.join('/') ? `/${rest.join('/')}` : '';
+    const alternates = [
+      ...Object.entries(REGION_TO_LANG).map(([region, lang]) => ({
+        hreflang: lang,
+        // The region home keeps its slash: Pages redirects /tw to /tw/.
+        href: `${url.origin}/${region}${page || '/'}`,
+      })),
+      { hreflang: 'x-default', href: `${url.origin}${page || '/'}` },
+    ];
+    for (const alt of alternates) {
+      const el = this.document.createElement('link');
+      el.setAttribute('rel', 'alternate');
+      el.setAttribute('hreflang', alt.hreflang);
+      el.setAttribute('href', alt.href + url.search);
+      head.appendChild(el);
+    }
   }
 }
 

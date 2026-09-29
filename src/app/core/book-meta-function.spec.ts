@@ -1,7 +1,18 @@
 import {
-  BookMeta, BookPageDeps, CacheLike, DESCRIPTIONS, LookupResult,
-  bookApiUrl, bookIdentity, cacheKey, coverImageUrl, handleBookPage, headTags,
-  isLinkPreviewAgent, metaFor, regionFrom,
+  BookMeta,
+  BookPageDeps,
+  CacheLike,
+  DESCRIPTIONS,
+  LookupResult,
+  bookApiUrl,
+  bookIdentity,
+  cacheKey,
+  coverImageUrl,
+  handleBookPage,
+  headTags,
+  isLinkPreviewAgent,
+  metaFor,
+  regionFrom,
 } from '../../../functions/_lib/book-meta';
 import { en } from './i18n/en';
 import { zhTW } from './i18n/zh-TW';
@@ -15,9 +26,18 @@ import { zhHK } from './i18n/zh-HK';
  */
 
 const ORIGIN = 'https://cycleunife.pages.dev';
-const GOOGLE_COVER = 'https://books.google.com/books/content?id=UWlo-c4WEpAC&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api';
-const BOOK = { id: 1, isbn13: '9781449319793', title: 'Python for Data Analysis', authors: 'Wes McKinney', cover_url: GOOGLE_COVER, listings: { results: [{ seller_name: 'someone' }] } };
-const CHROME = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36';
+const GOOGLE_COVER =
+  'https://books.google.com/books/content?id=UWlo-c4WEpAC&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api';
+const BOOK = {
+  id: 1,
+  isbn13: '9781449319793',
+  title: 'Python for Data Analysis',
+  authors: 'Wes McKinney',
+  cover_url: GOOGLE_COVER,
+  listings: { results: [{ seller_name: 'someone' }] },
+};
+const CHROME =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36';
 const LINE_PREVIEW = 'facebookexternalhit/1.1;line-poker/1.0';
 
 describe('book link-preview Function', () => {
@@ -29,8 +49,14 @@ describe('book link-preview Function', () => {
     });
 
     it('identifies a book by a well-formed isbn, else a numeric id', () => {
-      expect(bookIdentity(new URL(`${ORIGIN}/tw/book?id=2&isbn=9781449319793`))).toEqual({ kind: 'isbn', value: '9781449319793' });
-      expect(bookIdentity(new URL(`${ORIGIN}/tw/book?isbn=059652068x`))).toEqual({ kind: 'isbn', value: '059652068X' });
+      expect(bookIdentity(new URL(`${ORIGIN}/tw/book?id=2&isbn=9781449319793`))).toEqual({
+        kind: 'isbn',
+        value: '9781449319793',
+      });
+      expect(bookIdentity(new URL(`${ORIGIN}/tw/book?isbn=059652068x`))).toEqual({
+        kind: 'isbn',
+        value: '059652068X',
+      });
       expect(bookIdentity(new URL(`${ORIGIN}/tw/book?id=2`))).toEqual({ kind: 'id', value: '2' });
       expect(bookIdentity(new URL(`${ORIGIN}/tw/book?isbn=abc`))).toBeNull();
       expect(bookIdentity(new URL(`${ORIGIN}/tw/book?id=2%20OR%201`))).toBeNull();
@@ -45,16 +71,32 @@ describe('book link-preview Function', () => {
     });
 
     it('asks the API the way the app does', () => {
-      expect(bookApiUrl('https://cycle-uni-be.vercel.app/api/v1/', 'tw', { kind: 'isbn', value: '9781449319793' }))
-        .toBe('https://cycle-uni-be.vercel.app/api/v1/books/?isbn=9781449319793&region=tw');
+      expect(
+        bookApiUrl('https://cycle-uni-be.vercel.app/api/v1/', 'tw', {
+          kind: 'isbn',
+          value: '9781449319793',
+        }),
+      ).toBe('https://cycle-uni-be.vercel.app/api/v1/books/?isbn=9781449319793&region=tw');
     });
 
     it('waits for the API only for clients that cannot run the app', () => {
       expect(isLinkPreviewAgent(LINE_PREVIEW)).toBe(true);
-      expect(isLinkPreviewAgent('facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)')).toBe(true);
-      expect(isLinkPreviewAgent('Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)')).toBe(true);
-      expect(isLinkPreviewAgent('Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)')).toBe(true);
-      expect(isLinkPreviewAgent('Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)')).toBe(true);
+      expect(
+        isLinkPreviewAgent(
+          'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+        ),
+      ).toBe(true);
+      expect(
+        isLinkPreviewAgent(
+          'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        ),
+      ).toBe(true);
+      expect(isLinkPreviewAgent('Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)')).toBe(
+        true,
+      );
+      expect(
+        isLinkPreviewAgent('Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)'),
+      ).toBe(true);
       expect(isLinkPreviewAgent('TelegramBot (like TwitterBot)')).toBe(true);
       expect(isLinkPreviewAgent('WhatsApp/2.23.20.0')).toBe(true);
       expect(isLinkPreviewAgent(CHROME)).toBe(false);
@@ -65,21 +107,52 @@ describe('book link-preview Function', () => {
   });
 
   describe('what it writes', () => {
-    it('describes the book in the region\'s language, with the app\'s wording', () => {
-      for (const [lang, table] of [['en', en], ['zh-TW', zhTW], ['zh-HK', zhHK]] as const) {
+    it("describes the book in the region's language, with the app's wording", () => {
+      for (const [lang, table] of [
+        ['en', en],
+        ['zh-TW', zhTW],
+        ['zh-HK', zhHK],
+      ] as const) {
         expect(DESCRIPTIONS[lang].withAuthor).toBe(table['seo.bookDescription']);
         expect(DESCRIPTIONS[lang].noAuthor).toBe(table['seo.bookDescriptionNoAuthor']);
       }
-      const book = { id: '1', isbn13: '9781449319793', title: 'Python for Data Analysis', authors: 'Wes McKinney', cover_url: '' };
-      expect(metaFor(book, ORIGIN, 'tw').description).toBe('《Python for Data Analysis》，Wes McKinney 著。在 UniBooks 向同學購買二手書。');
-      expect(metaFor({ ...book, authors: '' }, ORIGIN, 'sg').description).toBe('Python for Data Analysis. Buy it second-hand from students on UniBooks.');
+      const book = {
+        id: '1',
+        isbn13: '9781449319793',
+        title: 'Python for Data Analysis',
+        authors: 'Wes McKinney',
+        cover_url: '',
+      };
+      expect(metaFor(book, ORIGIN, 'tw').description).toBe(
+        '《Python for Data Analysis》，Wes McKinney 著。在 UniBooks 向同學購買二手書。',
+      );
+      expect(metaFor({ ...book, authors: '' }, ORIGIN, 'sg').description).toBe(
+        'Python for Data Analysis. Buy it second-hand from students on UniBooks.',
+      );
     });
 
     it('points the canonical at the isbn form, falling back to id', () => {
       const book = { id: '2', isbn13: '9781449319793', title: 'T', authors: '', cover_url: '' };
       expect(metaFor(book, ORIGIN, 'tw').canonical).toBe(`${ORIGIN}/tw/book?isbn=9781449319793`);
-      expect(metaFor({ ...book, isbn13: '' }, ORIGIN, 'tw').canonical).toBe(`${ORIGIN}/tw/book?id=2`);
+      expect(metaFor({ ...book, isbn13: '' }, ORIGIN, 'tw').canonical).toBe(
+        `${ORIGIN}/tw/book?id=2`,
+      );
       expect(metaFor(book, ORIGIN, 'tw').title).toBe('T · UniBooks');
+    });
+
+    it('names every region copy as an hreflang alternate, with the bare path as x-default', () => {
+      const book = { id: '2', isbn13: '9781449319793', title: 'T', authors: '', cover_url: '' };
+      const tags = headTags(metaFor(book, ORIGIN, 'hk'));
+      expect(tags).toContain(
+        `<link rel="alternate" hreflang="zh-TW" href="${ORIGIN}/tw/book?isbn=9781449319793">`,
+      );
+      expect(tags).toContain(
+        `<link rel="alternate" hreflang="zh-HK" href="${ORIGIN}/hk/book?isbn=9781449319793">`,
+      );
+      expect(tags).toContain(
+        `<link rel="alternate" hreflang="x-default" href="${ORIGIN}/book?isbn=9781449319793">`,
+      );
+      expect(tags).not.toContain('hreflang="en"');
     });
 
     it('uses the cover proxy at a size preview cards can use', () => {
@@ -88,15 +161,25 @@ describe('book link-preview Function', () => {
       const src = new URL(decodeURIComponent(image.split('src=')[1]));
       expect(src.searchParams.get('zoom')).toBe('2');
       expect(src.searchParams.has('edge')).toBe(false);
-      expect(coverImageUrl(ORIGIN, 'https://covers.openlibrary.org/b/id/1-M.jpg')).toContain('/api/cover?src=');
+      expect(coverImageUrl(ORIGIN, 'https://covers.openlibrary.org/b/id/1-M.jpg')).toContain(
+        '/api/cover?src=',
+      );
       expect(coverImageUrl(ORIGIN, 'http://example.com/x.jpg')).toBeNull();
       expect(coverImageUrl(ORIGIN, '')).toBeNull();
     });
 
     it('escapes book data written into the head', () => {
-      const tags = headTags({ title: '"><script>alert(1)</script> · UniBooks', description: "O'Reilly & <b>", canonical: `${ORIGIN}/tw/book?id=1`, image: null });
+      const tags = headTags({
+        title: '"><script>alert(1)</script> · UniBooks',
+        description: "O'Reilly & <b>",
+        canonical: `${ORIGIN}/tw/book?id=1`,
+        image: null,
+        alternates: [],
+      });
       expect(tags).not.toContain('<script>');
-      expect(tags).toContain('content="&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt; · UniBooks"');
+      expect(tags).toContain(
+        'content="&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt; · UniBooks"',
+      );
       expect(tags).toContain('content="O&#39;Reilly &amp; &lt;b&gt;"');
       expect(tags).toContain('<meta name="twitter:card" content="summary">');
       expect(tags).not.toContain('og:image');
@@ -117,12 +200,30 @@ describe('book link-preview Function', () => {
       }
     }
 
-    function setup(options: { ua?: string; url?: string; method?: string; backendUrl?: string | undefined; api?: (url: string, init: RequestInit) => Promise<Response>; page?: () => Response } = {}) {
+    function setup(
+      options: {
+        ua?: string;
+        url?: string;
+        method?: string;
+        backendUrl?: string | undefined;
+        api?: (url: string, init: RequestInit) => Promise<Response>;
+        page?: () => Response;
+      } = {},
+    ) {
       const cache = new MemoryCache();
       const pending: Promise<unknown>[] = [];
-      const api = vi.fn(options.api ?? (async () => new Response(JSON.stringify(BOOK), { status: 200 })));
+      const api = vi.fn(
+        options.api ?? (async () => new Response(JSON.stringify(BOOK), { status: 200 })),
+      );
       const injected: Array<{ meta: BookMeta; status: number }> = [];
-      const next = vi.fn(async () => options.page?.() ?? new Response(SHELL, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }));
+      const next = vi.fn(
+        async () =>
+          options.page?.() ??
+          new Response(SHELL, {
+            status: 200,
+            headers: { 'Content-Type': 'text/html; charset=utf-8' },
+          }),
+      );
       const deps: BookPageDeps = {
         cache,
         fetch: (url, init) => api(url, init),
@@ -132,16 +233,22 @@ describe('book link-preview Function', () => {
         },
         timeoutMs: 20,
       };
-      const run = () => handleBookPage({
-        request: new Request(options.url ?? `${ORIGIN}/tw/book?isbn=9781449319793`, {
-          method: options.method ?? 'GET',
-          headers: { 'User-Agent': options.ua ?? LINE_PREVIEW },
-        }),
-        backendUrl: 'backendUrl' in options ? options.backendUrl : 'https://api.example/api/v1',
-        region: 'tw',
-        next,
-        waitUntil: p => { pending.push(p); },
-      }, deps);
+      const run = () =>
+        handleBookPage(
+          {
+            request: new Request(options.url ?? `${ORIGIN}/tw/book?isbn=9781449319793`, {
+              method: options.method ?? 'GET',
+              headers: { 'User-Agent': options.ua ?? LINE_PREVIEW },
+            }),
+            backendUrl: 'backendUrl' in options ? options.backendUrl : 'https://api.example/api/v1',
+            region: 'tw',
+            next,
+            waitUntil: (p) => {
+              pending.push(p);
+            },
+          },
+          deps,
+        );
       return { cache, api, injected, next, pending, run };
     }
 
@@ -151,10 +258,16 @@ describe('book link-preview Function', () => {
       expect(await response.text()).toBe('injected');
       expect(response.status).toBe(200);
       expect(t.injected[0].meta.title).toBe('Python for Data Analysis · UniBooks');
-      expect(t.api).toHaveBeenCalledWith('https://api.example/api/v1/books/?isbn=9781449319793&region=tw', expect.anything());
+      expect(t.api).toHaveBeenCalledWith(
+        'https://api.example/api/v1/books/?isbn=9781449319793&region=tw',
+        expect.anything(),
+      );
       const stored = [...t.cache.store.values()][0];
       expect(stored).not.toContain('someone');
-      expect(JSON.parse(stored)).toEqual({ status: 'found', book: expect.objectContaining({ isbn13: '9781449319793' }) });
+      expect(JSON.parse(stored)).toEqual({
+        status: 'found',
+        book: expect.objectContaining({ isbn13: '9781449319793' }),
+      });
     });
 
     it('does not make a person wait on a miss, but warms the cache behind them', async () => {
@@ -177,13 +290,17 @@ describe('book link-preview Function', () => {
       const response = await t.run();
       expect(response.status).toBe(404);
       expect(await response.text()).toBe(SHELL);
-      expect(JSON.parse([...t.cache.store.values()][0])).toEqual({ status: 'missing' } satisfies LookupResult);
+      expect(JSON.parse([...t.cache.store.values()][0])).toEqual({
+        status: 'missing',
+      } satisfies LookupResult);
     });
 
     it('serves the untouched page when the API fails, is slow, or answers nonsense', async () => {
       const failures: Array<(url: string, init: RequestInit) => Promise<Response>> = [
         async () => new Response('boom', { status: 500 }),
-        async () => { throw new TypeError('network'); },
+        async () => {
+          throw new TypeError('network');
+        },
         async () => new Response('not json', { status: 200 }),
         async () => new Response(JSON.stringify({ title: '' }), { status: 200 }),
       ];
@@ -199,9 +316,12 @@ describe('book link-preview Function', () => {
 
       // Never answers; rejects only when lookup() aborts, as fetch does.
       const slow = setup({
-        api: (_url, init) => new Promise<Response>((_, reject) => {
-          init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
-        }),
+        api: (_url, init) =>
+          new Promise<Response>((_, reject) => {
+            init.signal?.addEventListener('abort', () =>
+              reject(new DOMException('aborted', 'AbortError')),
+            );
+          }),
       });
       const response = await slow.run();
       expect(await response.text()).toBe(SHELL);
@@ -221,7 +341,10 @@ describe('book link-preview Function', () => {
         expect(t.next).toHaveBeenCalledTimes(1);
       }
 
-      const notHtml = setup({ page: () => new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }) });
+      const notHtml = setup({
+        page: () =>
+          new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }),
+      });
       expect(await (await notHtml.run()).text()).toBe('{}');
       expect(notHtml.api).not.toHaveBeenCalled();
     });
