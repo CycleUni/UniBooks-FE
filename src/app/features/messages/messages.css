@@ -107,9 +107,23 @@
       font: inherit;
       color: inherit;
       text-align: left;
+      transition: opacity 120ms ease;
     }
     .listing-banner-left:hover .listing-title {
       color: var(--accent);
+    }
+    /* The global button:active scale(0.97) shrinks this full-width banner by
+       a dozen pixels right before the page slides away, which read as a
+       layout glitch rather than feedback. Fade the thumbnail and text instead
+       so nothing changes size. */
+    .listing-banner-left:not(:disabled):active {
+      transform: none;
+      opacity: 0.6;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .listing-banner-left {
+        transition: none;
+      }
     }
     .listing-banner-actions {
       display: flex;

@@ -847,7 +847,15 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  deleteMessage(id: string) {
+  async deleteMessage(id: string) {
+    if (!id.startsWith('temp_')) {
+      const confirmed = await this.confirms.askDanger(
+        this.i18n.t('msg.confirmDeleteMessage'),
+        { confirmLabel: this.i18n.t('common.delete') }
+      );
+      if (!confirmed) return;
+    }
+
     // Hide it locally right away; realTimeDeletions$ (delete_ack) will
     // confirm the same removal, and it becomes a no-op filter by then.
     this.messages = this.messages.filter(m => m.id !== id);

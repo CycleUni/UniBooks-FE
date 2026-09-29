@@ -369,6 +369,7 @@ export const zhHK: Record<string, string> = {
   'msg.delete': '刪除訊息',
   'msg.deleteConversation': '刪除對話',
   'msg.confirmDeleteConversation': '確定要刪除此對話嗎？雙方都刪除後才會從系統中移除。',
+  'msg.confirmDeleteMessage': '只會從你的畫面刪除，對方仍然看得到這則訊息；當雙方都刪除後，訊息才會從伺服器永久刪除。',
   'msg.sendFailed': '傳送失敗',
   'msg.errWebhookSecretInvalid': '聊天服務驗證失敗，請稍後再試。',
   'msg.errWebhookNotConfigured': '聊天服務尚未設定完成，請稍後再試。',

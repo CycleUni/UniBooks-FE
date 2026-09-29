@@ -373,6 +373,7 @@ export const en: Record<string, string> = {
   'msg.delete': 'Delete message',
   'msg.deleteConversation': 'Delete conversation',
   'msg.confirmDeleteConversation': 'Delete this conversation? It will only be permanently removed once both parties have deleted it.',
+  'msg.confirmDeleteMessage': 'It will only be deleted from your view, the other party can still see this message. It will be permanently removed from the server once both parties have deleted it.',
   'msg.sendFailed': 'Failed to send',
   'msg.errWebhookSecretInvalid': 'Chat could not be authenticated. Please try again later.',
   'msg.errWebhookNotConfigured': 'Chat is not configured yet. Please try again later.',
