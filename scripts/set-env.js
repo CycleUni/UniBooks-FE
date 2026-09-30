@@ -99,8 +99,24 @@ const ALWAYS_ENFORCED = [
   "form-action 'self'",
 ].join('; ');
 
-function buildCsp({ backendOrigin, chatOrigin, mediaOrigin }) {
-  const connect = ["'self'", backendOrigin, chatOrigin, chatOrigin && chatOrigin.replace(/^https:/, 'wss:'), 'https://*.r2.cloudflarestorage.com', 'https://accounts.google.com'];
+// Photo uploads PUT straight to a presigned R2 URL. The backend signs them
+// path-style (core/conf.py), so the host is always <account id>.r2.cloudflarestorage.com.
+// A wildcard *.r2.cloudflarestorage.com would admit every Cloudflare account's
+// bucket — an attacker can presign a PUT into their own and use it as an
+// exfiltration channel the CSP allows. R2_ACCOUNT_ID, spelled as in
+// UniBooks-BE, narrows it to ours; without it the wildcard stays so uploads
+// keep working, and the build says so.
+function r2UploadOrigin(rawId) {
+  const id = (rawId || '').trim().toLowerCase();
+  if (!/^[0-9a-f]{32}$/.test(id)) {
+    console.warn(`[set-env] R2_ACCOUNT_ID ${rawId ? `is not a 32-hex account id: ${rawId}` : 'is not set'} — connect-src falls back to *.r2.cloudflarestorage.com`);
+    return 'https://*.r2.cloudflarestorage.com';
+  }
+  return `https://${id}.r2.cloudflarestorage.com`;
+}
+
+function buildCsp({ backendOrigin, chatOrigin, mediaOrigin, uploadOrigin }) {
+  const connect = ["'self'", backendOrigin, chatOrigin, chatOrigin && chatOrigin.replace(/^https:/, 'wss:'), uploadOrigin, 'https://accounts.google.com'];
   const img = ["'self'", 'data:', 'blob:', mediaOrigin, 'https://lh3.googleusercontent.com'];
   return [
     "default-src 'self'",
@@ -123,6 +139,7 @@ const cspOrigins = {
   backendOrigin: originOf(process.env.NG_APP_BACKEND_URL),
   chatOrigin: originOf(process.env.EDGE_CHAT_URL),
   mediaOrigin: originOf(process.env.R2_PUBLIC_URL),
+  uploadOrigin: r2UploadOrigin(process.env.R2_ACCOUNT_ID),
 };
 
 // Only rewrite once every origin the wildcards stand in for is known.
