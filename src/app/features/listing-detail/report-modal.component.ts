@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UiButton } from '../../shared/ui/button.component';
@@ -94,6 +94,7 @@ export class ReportModalComponent {
 
   private listingService = inject(ListingService);
   private i18n = inject(I18nService);
+  private cdr = inject(ChangeDetectorRef);
 
   get reasonOptions() {
     return [
@@ -124,6 +125,9 @@ export class ReportModalComponent {
         } else {
           this.errorMsg = this.i18n.t('moderation.errGeneric');
         }
+        // The answer lands outside any event here; under OnPush (Angular's
+        // default) the error and the re-enabled button stayed unrendered.
+        this.cdr.markForCheck();
       }
     });
   }

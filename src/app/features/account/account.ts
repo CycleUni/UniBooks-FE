@@ -84,7 +84,7 @@ export class Account {
       .pipe(filter(e => e instanceof NavigationEnd), takeUntilDestroyed(inject(DestroyRef)))
       .subscribe(() => { syncAtMenu(); this.cdr.markForCheck(); });
 
-    this.orderService.unreadOrders$.subscribe(unread => {
+    this.orderService.unreadOrders$.pipe(takeUntilDestroyed()).subscribe(unread => {
       this.hasUnreadOrders = unread;
       this.cdr.markForCheck();
     });

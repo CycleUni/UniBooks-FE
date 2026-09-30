@@ -1,4 +1,5 @@
 import { Component, OnInit, inject, effect, untracked, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule, Router } from '@angular/router';
 import { Subscription, of } from 'rxjs';
@@ -424,7 +425,10 @@ export class Book implements OnInit {
     // resolvedSchool$, not selectedSchool$: the latter starts as a provisional
     // '' and the page used to fetch the book for "all schools", then again
     // moments later for the school the layout settled on.
-    this.schoolStateService.resolvedSchool$.subscribe(school => {
+    // Both school streams outlive this page: without the teardown, every
+    // book ever opened refetched itself on a school switch and retitled
+    // whatever page was showing with its own name.
+    this.schoolStateService.resolvedSchool$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(school => {
       const prev = this.currentSchool;
       this.currentSchool = school;
 
@@ -443,7 +447,7 @@ export class Book implements OnInit {
       this.cdr.markForCheck();
     });
 
-    this.schoolStateService.schools$.subscribe(() => {
+    this.schoolStateService.schools$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.cdr.markForCheck();
     });
 

@@ -671,7 +671,7 @@ export class Search implements OnInit {
 
   ngOnInit() {
 
-    this.schoolStateService.schools$.subscribe(() => {
+    this.schoolStateService.schools$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.cdr.markForCheck();
     });
 

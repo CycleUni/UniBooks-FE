@@ -193,6 +193,9 @@ export class AuthFormComponent implements OnInit, AfterViewInit {
       next: () => {
         this.isLoading = false;
         this.authIsError = false;
+        // The leave-effect navigates away, but a slow next page (its code
+        // still downloading) left the button spinning until then.
+        this.cdr.markForCheck();
       },
       error: (err) => {
         this.isLoading = false;

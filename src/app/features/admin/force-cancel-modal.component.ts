@@ -1,5 +1,5 @@
 import { parseAdminError } from '../../core/admin-error.util';
-import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UiButton } from '../../shared/ui/button.component';
@@ -64,6 +64,7 @@ export class ForceCancelModalComponent {
 
   private adminService = inject(AdminService);
   private i18n = inject(I18nService);
+  private cdr = inject(ChangeDetectorRef);
 
   close() {
     this.closed.emit();
@@ -86,6 +87,8 @@ export class ForceCancelModalComponent {
         } else {
           this.errorMsg = parseAdminError(err, this.i18n, 'admin.errGeneric');
         }
+        // As in report-modal: the answer lands outside any event here.
+        this.cdr.markForCheck();
       }
     });
   }
