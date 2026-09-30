@@ -33,4 +33,18 @@ describe('MeetupModalComponent', () => {
     component.onConfirm();
     expect(emitted).toEqual({ time: '', location: '' });
   });
+
+  it('starts an edit from the agreed details', () => {
+    component.initial = { time: new Date(2030, 0, 2, 18, 30).toISOString(), location: 'Library' };
+    component.ngOnInit();
+    expect(component.location).toBe('Library');
+    expect(component.meetupTime).toBe('18:30');
+    expect(component.selectedDate).toBe('2030-01-02');
+
+    let emitted: unknown;
+    component.onConfirmed.subscribe(v => (emitted = v));
+    component.onConfirm();
+    expect(emitted).toEqual({ time: '2030-01-02T18:30', location: 'Library' });
+  });
 });
+

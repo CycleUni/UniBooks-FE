@@ -8,6 +8,8 @@ export interface MeetupDetails {
 export interface MeetupDetailsRequest {
   readonly id: number;
   readonly bookTitle: string;
+  /** Set when editing details already agreed: the form starts from them. */
+  readonly initial: MeetupDetails | null;
   readonly settle: (result: MeetupDetails | null) => void;
 }
 
@@ -29,12 +31,12 @@ export class MeetupDetailsService {
   readonly current = signal<MeetupDetailsRequest | null>(null);
 
   /** Resolves with what the seller entered, or null if they closed the form. */
-  ask(bookTitle: string): Promise<MeetupDetails | null> {
+  ask(bookTitle: string, initial: MeetupDetails | null = null): Promise<MeetupDetails | null> {
     // One form at a time: a second accept while one is open answers the
     // first as closed rather than stacking two forms.
     this.current()?.settle(null);
     return new Promise(resolve => {
-      this.current.set({ id: this.nextId++, bookTitle, settle: resolve });
+      this.current.set({ id: this.nextId++, bookTitle, initial, settle: resolve });
     });
   }
 

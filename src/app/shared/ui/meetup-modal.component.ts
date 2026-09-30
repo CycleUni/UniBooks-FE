@@ -75,7 +75,7 @@ import { UiFocusTrapDirective } from './focus-trap.directive';
             {{ 'common.cancel' | t }}
           </ui-button>
           <ui-button (onClick)="onConfirm()" [disabled]="isSubmitting">
-            {{ (isEmpty ? 'order.meetupSkip' : 'order.meetupConfirm') | t }}
+            {{ (isEmpty && !initial ? 'order.meetupSkip' : 'order.meetupConfirm') | t }}
           </ui-button>
         </div>
       </div>
@@ -219,6 +219,8 @@ import { UiFocusTrapDirective } from './focus-trap.directive';
 })
 export class MeetupModalComponent implements OnInit {
   @Input() bookTitle: string = '';
+  /** Details already agreed, when the seller is editing them. */
+  @Input() initial: { time: string; location: string } | null = null;
   @Output() onConfirmed = new EventEmitter<{ time: string; location: string }>();
   @Output() onClosed = new EventEmitter<void>();
 
@@ -241,6 +243,20 @@ export class MeetupModalComponent implements OnInit {
 
   ngOnInit(): void {
     this.currentMonth = new Date();
+    if (this.initial) this.prefill(this.initial);
+  }
+
+  /** Starts the form from the agreed details (an ISO time, read locally). */
+  private prefill(initial: { time: string; location: string }): void {
+    this.location = initial.location || '';
+    const at = initial.time ? new Date(initial.time) : null;
+    if (!at || isNaN(at.getTime())) return;
+    this.selectedDay = at.getDate();
+    this.selectedMonth = at.getMonth();
+    this.selectedYear = at.getFullYear();
+    this.currentMonth = new Date(this.selectedYear, this.selectedMonth, 1);
+    this.syncNativeDate();
+    this.meetupTime = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
   }
 
   get today(): Date {

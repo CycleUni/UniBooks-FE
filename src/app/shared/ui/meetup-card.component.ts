@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { TPipe } from '../../core/i18n.service';
 import { UiButton } from './button.component';
 
-export type MeetupMessageType = 'REQUEST' | 'ACCEPT' | 'DECLINE' | 'CANCEL' | 'COMPLETE' | 'NONE';
+export type MeetupMessageType = 'REQUEST' | 'ACCEPT' | 'UPDATE' | 'DECLINE' | 'CANCEL' | 'COMPLETE' | 'NONE';
 
 @Component({
   selector: 'ui-meetup-card',
@@ -18,6 +18,25 @@ export type MeetupMessageType = 'REQUEST' | 'ACCEPT' | 'DECLINE' | 'CANCEL' | 'C
       </div>
       
       <p class="meetup-card-body">{{ bodyTextKey | t }}</p>
+
+      <!-- The agreed time/place, on the one card that shows the current
+           details (Messages.showsMeetupDetails). -->
+      <dl class="meetup-details" *ngIf="showDetails">
+        <div class="meetup-detail-row">
+          <dt>{{ 'msg.meetupTimeLabel' | t }}</dt>
+          <dd [class.unset]="!meetupTime">{{ meetupTime ? (meetupTime | date:'yyyy/MM/dd HH:mm') : ('msg.meetupNotSet' | t) }}</dd>
+        </div>
+        <div class="meetup-detail-row">
+          <dt>{{ 'msg.meetupLocationLabel' | t }}</dt>
+          <dd [class.unset]="!meetupLocation">{{ meetupLocation || ('msg.meetupNotSet' | t) }}</dd>
+        </div>
+      </dl>
+
+      <div class="meetup-card-actions" *ngIf="canEdit">
+        <ui-button size="sm" variant="ghost" (onClick)="onEdit.emit()">
+          {{ 'msg.meetupActionEdit' | t }}
+        </ui-button>
+      </div>
 
       <div class="meetup-card-actions" *ngIf="showActions">
         <!-- Seller Actions (Current User is Seller: userRole is 'seller') -->
@@ -123,6 +142,36 @@ export type MeetupMessageType = 'REQUEST' | 'ACCEPT' | 'DECLINE' | 'CANCEL' | 'C
       margin: 0;
       line-height: 1.5;
     }
+    .meetup-details {
+      margin: 10px 0 0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      display: grid;
+      gap: 4px;
+    }
+    .meetup-detail-row {
+      display: flex;
+      gap: 12px;
+      font-size: var(--text-sm);
+      line-height: 1.5;
+    }
+    .meetup-detail-row dt {
+      flex: none;
+      color: var(--muted);
+      min-width: 3em;
+    }
+    .meetup-detail-row dd {
+      margin: 0;
+      color: var(--ink);
+      font-weight: 600;
+      overflow-wrap: anywhere;
+    }
+    .meetup-detail-row dd.unset {
+      color: var(--muted);
+      font-weight: 400;
+    }
     .meetup-card-actions {
       display: flex;
       align-items: center;
@@ -138,7 +187,15 @@ export class UiMeetupCard {
   @Input() userRole: 'buyer' | 'seller' = 'buyer'; // current user's role in transaction
   @Input() isPendingApproval = false; // whether order status is 'awaiting_approval'
 
+  /** The agreed meetup, shown when `showDetails` is set. */
+  @Input() meetupTime: string | null = null;
+  @Input() meetupLocation = '';
+  @Input() showDetails = false;
+  /** Offers the seller an edit of the details shown. */
+  @Input() canEdit = false;
+
   @Output() onAccept = new EventEmitter<void>();
+  @Output() onEdit = new EventEmitter<void>();
   @Output() onDecline = new EventEmitter<void>();
   @Output() onCancel = new EventEmitter<void>();
 
@@ -155,6 +212,7 @@ export class UiMeetupCard {
       this.body.includes('[SYSTEM:order.notify.meetup_cancelled]')
     ) return 'CANCEL';
     if (this.body.includes('[SYSTEM:order.notify.delivered]')) return 'COMPLETE';
+    if (this.body.includes('[SYSTEM:order.notify.meetup_updated]')) return 'UPDATE';
     return 'NONE';
   }
 
@@ -162,6 +220,7 @@ export class UiMeetupCard {
     switch (this.cardType) {
       case 'REQUEST': return 'card-request';
       case 'ACCEPT': return 'card-accept';
+      case 'UPDATE': return 'card-accept';
       case 'DECLINE': return 'card-decline';
       case 'CANCEL': return 'card-cancel';
       case 'COMPLETE': return 'card-complete';
@@ -173,6 +232,7 @@ export class UiMeetupCard {
     switch (this.cardType) {
       case 'REQUEST': return '🤝';
       case 'ACCEPT': return '✅';
+      case 'UPDATE': return '📍';
       case 'DECLINE': return '❌';
       case 'CANCEL': return '🚫';
       case 'COMPLETE': return '📦';
@@ -184,6 +244,7 @@ export class UiMeetupCard {
     switch (this.cardType) {
       case 'REQUEST': return 'msg.meetupRequestTitle';
       case 'ACCEPT': return 'msg.meetupAcceptTitle';
+      case 'UPDATE': return 'msg.meetupUpdateTitle';
       case 'DECLINE': return 'msg.meetupDeclineTitle';
       case 'CANCEL': return 'msg.meetupCancelTitle';
       case 'COMPLETE': return 'msg.meetupCompleteTitle';
@@ -194,7 +255,8 @@ export class UiMeetupCard {
   get bodyTextKey(): string {
     switch (this.cardType) {
       case 'REQUEST': return 'msg.meetupRequestBody';
-      case 'ACCEPT': return 'msg.meetupAcceptBody';
+      case 'ACCEPT': return this.showDetails ? 'msg.meetupAcceptBodyDetails' : 'msg.meetupAcceptBody';
+      case 'UPDATE': return 'msg.meetupUpdateBody';
       case 'DECLINE': return 'msg.meetupDeclineBody';
       case 'CANCEL': return 'msg.meetupCancelBody';
       case 'COMPLETE': return 'msg.meetupCompleteBody';

@@ -111,6 +111,12 @@ export class OrderService {
     return this.http.patch<Order>(this.url + id + '/', body).pipe(tap(() => { this.recentOrders = null; }));
   }
 
+  /** The seller changes the agreed meetup; an empty time clears it. */
+  updateMeetupDetails(id: string, meetupTime: string, meetupLocation: string) {
+    const body = { meetup_time: meetupTime || null, meetup_location: meetupLocation };
+    return this.http.patch<Order>(this.url + id + '/', body).pipe(tap(() => { this.recentOrders = null; }));
+  }
+
   submitReview(orderId: string, rating: number | null, comment: string, isNoShow: boolean = false) {
     const body = {
       order: orderId,

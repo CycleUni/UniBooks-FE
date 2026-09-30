@@ -11,8 +11,12 @@ import { RegionService } from '../../core/region.service';
  * here, in this browser, until its first message: sending it creates the
  * conversation (Messages.sendMessage) and removes it from here.
  *
- * Kept per user and region: the inbox is per region, and a shared browser
- * must not show one account's unsent chats to another.
+ * Kept in memory only, per user and region: the inbox is per region, and a
+ * shared browser must not show one account's unsent chats to another. They
+ * were kept in localStorage, and an unsent chat then sat in the inbox for
+ * days — long after the seller had taken the listing down, leaving a row of
+ * broken cover photos. Closing or reloading the page now drops them; reopening
+ * one by its URL rebuilds it from the listing, which is checked afresh.
  */
 
 /** Ids of pending chats; never a conversation id, which is a bare UUID. */
@@ -52,26 +56,35 @@ export function pendingChatFromListing(listing: any): any {
   };
 }
 
+/** Where earlier versions kept pending chats; cleared on first use. */
+const LEGACY_STORAGE_PREFIX = 'unibooks.chat.pending.';
+
 @Injectable({ providedIn: 'root' })
 export class PendingChatStore {
   private auth = inject(AuthStore);
   private region = inject(RegionService);
+  private readonly chats = new Map<string, any[]>();
+
+  constructor() {
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key?.startsWith(LEGACY_STORAGE_PREFIX)) localStorage.removeItem(key);
+      }
+    } catch {
+      // Storage unavailable: nothing was left in it either.
+    }
+  }
 
   private get key(): string | null {
     const userId = this.auth.user()?.id;
-    return userId ? `unibooks.chat.pending.${this.region.region()}.${userId}` : null;
+    return userId ? `${this.region.region()}.${userId}` : null;
   }
 
   /** This user's pending chats in this region, newest first. */
   list(): any[] {
     const key = this.key;
-    if (!key) return [];
-    try {
-      const parsed = JSON.parse(localStorage.getItem(key) || '[]');
-      return Array.isArray(parsed) ? parsed.filter(isPendingChat) : [];
-    } catch {
-      return [];
-    }
+    return key ? [...(this.chats.get(key) ?? [])] : [];
   }
 
   save(chat: any): void {
@@ -85,11 +98,7 @@ export class PendingChatStore {
   private write(chats: any[]): void {
     const key = this.key;
     if (!key) return;
-    try {
-      if (chats.length) localStorage.setItem(key, JSON.stringify(chats));
-      else localStorage.removeItem(key);
-    } catch {
-      // Storage unavailable: the chat simply lasts until the page closes.
-    }
+    if (chats.length) this.chats.set(key, chats);
+    else this.chats.delete(key);
   }
 }

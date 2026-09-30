@@ -144,5 +144,64 @@ describe('Messages WebSocket ordering & temp-id reconciliation', () => {
       await component.handleAcceptMeetup();
       expect(updateOrderStatus).not.toHaveBeenCalled();
     });
+
+    it('keeps the accepted details for the card', async () => {
+      ask.mockResolvedValue({ time: '2026-10-01T15:00', location: 'Library' });
+      updateOrderStatus.mockReturnValue(of({ meetup_time: '2026-10-01T15:00:00+08:00', meetup_location: 'Library' }));
+      await component.handleAcceptMeetup();
+      expect(component.activeChat.order_meetup_time).toBe('2026-10-01T15:00:00+08:00');
+      expect(component.activeChat.order_meetup_location).toBe('Library');
+    });
+  });
+
+  describe('the agreed meetup on the chat card', () => {
+    const accept = { id: 'm1', body: '[SYSTEM:order.notify.seller_approved] System Notification' };
+    const update = { id: 'm2', body: '[SYSTEM:order.notify.meetup_updated] System Notification' };
+    const text = { id: 'm3', body: 'see you there' };
+
+    beforeEach(() => {
+      component.activeChat = {
+        id: 'c1', order_id: 'o1', order_status: 'accepted', other_party_role: 'buyer', listing_title: 'Calculus',
+        order_meetup_time: '2026-10-01T15:00:00+08:00', order_meetup_location: 'Library',
+      } as any;
+    });
+
+    it('shows on the latest accept or update card only', () => {
+      component.messages = [accept, update, text] as any;
+      expect(component.showsMeetupDetails(accept)).toBe(false);
+      expect(component.showsMeetupDetails(update)).toBe(true);
+      expect(component.showsMeetupDetails(text)).toBe(false);
+    });
+
+    it('is editable by the seller until the handover', () => {
+      component.messages = [accept] as any;
+      expect(component.canEditMeetup(accept)).toBe(true);
+
+      component.activeChat.order_status = 'handed_over';
+      expect(component.showsMeetupDetails(accept)).toBe(true);
+      expect(component.canEditMeetup(accept)).toBe(false);
+
+      component.activeChat.order_status = 'cancelled';
+      expect(component.showsMeetupDetails(accept)).toBe(false);
+    });
+
+    it('is not editable by the buyer', () => {
+      component.messages = [accept] as any;
+      component.activeChat.other_party_role = 'seller';
+      expect(component.canEditMeetup(accept)).toBe(false);
+    });
+
+    it('edits start from the agreed details and save the new ones', async () => {
+      const updateMeetupDetails = vi.fn(() => of({ meetup_time: '2026-10-02T18:00:00+08:00', meetup_location: 'Gate' }));
+      const ask = vi.fn(async () => ({ time: '2026-10-02T18:00', location: 'Gate' }));
+      (component as any).orderService = { updateMeetupDetails };
+      (component as any).meetupDetails = { ask };
+
+      await component.handleEditMeetup();
+
+      expect(ask).toHaveBeenCalledWith('Calculus', { time: '2026-10-01T15:00:00+08:00', location: 'Library' });
+      expect(updateMeetupDetails).toHaveBeenCalledWith('o1', '2026-10-02T18:00', 'Gate');
+      expect(component.activeChat.order_meetup_location).toBe('Gate');
+    });
   });
 });

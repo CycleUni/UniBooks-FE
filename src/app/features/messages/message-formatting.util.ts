@@ -105,7 +105,18 @@ export function isMeetupRequest(body: string): boolean {
     body.includes('[SYSTEM:order.notify.seller_rejected]') ||
     body.includes('[SYSTEM:order.notify.cancelled_by_buyer]') ||
     body.includes('[SYSTEM:order.notify.cancelled_by_seller]') ||
-    body.includes('[SYSTEM:order.notify.delivered]');
+    body.includes('[SYSTEM:order.notify.delivered]') ||
+    body.includes('[SYSTEM:order.notify.meetup_updated]');
+}
+
+/** Whether a message is a card that carries the agreed meetup time/place:
+ * the seller's accept, or a later edit of the details. */
+export function isMeetupDetailsMessage(body: string): boolean {
+  if (!body) return false;
+  return body.includes('[SYSTEM:order.notify.seller_approved]') ||
+    body.includes('[SYSTEM:order.notify.meetup_accepted]') ||
+    body.includes('[MEETUP_ACCEPT]') ||
+    body.includes('[SYSTEM:order.notify.meetup_updated]');
 }
 
 /** Strip the control-message markers, leaving just the human-readable text. */

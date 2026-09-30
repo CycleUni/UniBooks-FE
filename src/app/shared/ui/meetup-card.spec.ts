@@ -35,4 +35,18 @@ describe('UiMeetupCard cardType', () => {
     expect(component.cardType).toBe('NONE');
     expect(component.typeClass).toBe('card-request');
   });
+
+  it('maps [SYSTEM:order.notify.meetup_updated] to UPDATE', () => {
+    component.body = '[SYSTEM:order.notify.meetup_updated] System Notification';
+    expect(component.cardType).toBe('UPDATE');
+    expect(component.headerTitleKey).toBe('msg.meetupUpdateTitle');
+    expect(component.showActions).toBe(false);
+  });
+
+  it('introduces the details on an accept card that shows them', () => {
+    component.body = '[SYSTEM:order.notify.seller_approved]';
+    expect(component.bodyTextKey).toBe('msg.meetupAcceptBody');
+    component.showDetails = true;
+    expect(component.bodyTextKey).toBe('msg.meetupAcceptBodyDetails');
+  });
 });

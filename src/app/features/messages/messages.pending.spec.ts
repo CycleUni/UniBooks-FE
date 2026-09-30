@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Params, Router } from '@angular/router';
 import { Location } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, EMPTY, Subject, of } from 'rxjs';
+import { BehaviorSubject, EMPTY, Subject, of, throwError } from 'rxjs';
 import { Messages } from './messages';
 import { MessageService } from '../../core/services/message.service';
 import { AuthStore } from '../../core/auth.store';
@@ -32,9 +32,8 @@ describe('Messages pending chats', () => {
     id: 'listing-1', seller: 7, seller_name: 'Seller', school_name: 'NTU', book_title: 'Calculus',
     photos: [], book_cover_url: 'cover.jpg', price: 300, condition: 'new', course_name: '',
   };
-  const storageKey = 'unibooks.chat.pending.tw.1';
 
-  function setup(initialParams: Params = {}, conversations: any[] = []) {
+  function setup(initialParams: Params = {}, conversations: any[] = [], beforeInit: () => void = () => {}) {
     queryParams = new BehaviorSubject<Params>(initialParams);
     router = { navigate: vi.fn() };
     connectionState = new Subject<string>();
@@ -79,6 +78,7 @@ describe('Messages pending chats', () => {
 
     fixture = TestBed.createComponent(Messages);
     component = fixture.componentInstance;
+    beforeInit();
     component.ngOnInit();
   }
 
@@ -88,7 +88,9 @@ describe('Messages pending chats', () => {
     queryParams.next({ ...extras.queryParams });
   }
 
-  const stored = () => JSON.parse(localStorage.getItem(storageKey) || '[]');
+  const stored = () => TestBed.inject(PendingChatStore).list();
+  /** A chat left unsent earlier in this page's life. */
+  const keepPending = () => TestBed.inject(PendingChatStore).save(pendingChatFromListing(listing));
 
   beforeEach(() => {
     user = { id: 1 };
@@ -112,27 +114,64 @@ describe('Messages pending chats', () => {
     expect(messageService.getChatToken).not.toHaveBeenCalled();
   });
 
-  it('keeps an unsent chat in the inbox across visits, in this browser only', () => {
-    localStorage.setItem(storageKey, JSON.stringify([pendingChatFromListing(listing)]));
-    setup({}, [{ id: 'conv-A', listing_id: 'other' }]);
+  it('keeps an unsent chat in the inbox while the page stays open', () => {
+    setup({}, [{ id: 'conv-A', listing_id: 'other' }], keepPending);
 
     expect(component.chats.map(c => c.id)).toEqual([pendingChatId('listing-1'), 'conv-A']);
   });
 
   it('drops an unsent chat once its conversation exists', () => {
-    localStorage.setItem(storageKey, JSON.stringify([pendingChatFromListing(listing)]));
-    setup({}, [{ id: 'conv-A', listing_id: 'listing-1' }]);
+    setup({}, [{ id: 'conv-A', listing_id: 'listing-1' }], keepPending);
 
     expect(component.chats.map(c => c.id)).toEqual(['conv-A']);
     expect(stored()).toEqual([]);
   });
 
   it('does not show one account’s unsent chats to another', () => {
-    localStorage.setItem(storageKey, JSON.stringify([pendingChatFromListing(listing)]));
-    user = { id: 2 };
+    setup({}, [], () => { keepPending(); user = { id: 2 }; });
+
+    expect(component.chats).toEqual([]);
+  });
+
+  it('forgets unsent chats kept by earlier versions in localStorage', () => {
+    localStorage.setItem('unibooks.chat.pending.tw.1', JSON.stringify([pendingChatFromListing(listing)]));
     setup();
 
     expect(component.chats).toEqual([]);
+    expect(localStorage.getItem('unibooks.chat.pending.tw.1')).toBeNull();
+  });
+
+  it('rebuilds an unsent chat from its URL after a reload', () => {
+    setup({ chat: pendingChatId('listing-1') });
+
+    expect(getListing).toHaveBeenCalledWith('listing-1');
+    // The URL already names it: navigating there again would not re-emit.
+    expect(router.navigate).not.toHaveBeenCalled();
+    expect(component.activeChat.id).toBe(pendingChatId('listing-1'));
+  });
+
+  it.each(['removed', 'sold'])('will not open a chat on a listing that is %s', (status) => {
+    setup({ listing: 'listing-1' }, [], () => getListing.mockReturnValue(of({ ...listing, status })));
+
+    expect(toast.error).toHaveBeenCalledWith('msg.errListingUnavailable');
+    expect(component.chats).toEqual([]);
+    expect(stored()).toEqual([]);
+  });
+
+  it('drops the unsent chat when the listing was taken down before the first message', () => {
+    setup({ listing: 'listing-1' });
+    applyLastNavigation();
+    messageService.startConversation.mockReturnValue(
+      throwError(() => ({ status: 409, error: { error: { code: 'msg.errListingUnavailable' } } })),
+    );
+
+    component.newMessage = 'Is this still available?';
+    component.sendMessage();
+
+    expect(toast.error).toHaveBeenCalledWith('msg.errListingUnavailable');
+    expect(component.chats).toEqual([]);
+    expect(component.activeChat).toBeNull();
+    expect(stored()).toEqual([]);
   });
 
   it('creates the conversation with the first message and sends it once the room is open', () => {
@@ -174,7 +213,7 @@ describe('Messages pending chats', () => {
 
     expect(toast.error).toHaveBeenCalledWith('msg.cannotMessageSelf');
     expect(component.chats).toEqual([]);
-    expect(localStorage.getItem('unibooks.chat.pending.tw.7')).toBeNull();
+    expect(stored()).toEqual([]);
   });
 
   it('shows placeholders while a conversation’s history loads', () => {
@@ -192,7 +231,6 @@ describe('Messages pending chats', () => {
 
 describe('PendingChatStore', () => {
   it('keeps chats per user and region', () => {
-    localStorage.clear();
     let region = 'tw';
     TestBed.configureTestingModule({
       providers: [

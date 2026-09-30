@@ -24,7 +24,7 @@ import { ThemeService } from '../../core/services/theme.service';
 import { Subscription, of } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { MobileLayoutService } from '../../core/services/mobile-layout.service';
-import { formatMessageTime, isMeetupRequest, cleanMeetupBody, IMAGE_PREVIEW_TOKEN } from './message-formatting.util';
+import { formatMessageTime, isMeetupRequest, isMeetupDetailsMessage, cleanMeetupBody, IMAGE_PREVIEW_TOKEN } from './message-formatting.util';
 import { PricePipe } from '../../shared/pipes/price.pipe';
 import { RegionLinkService } from '../../core/region-link.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -32,7 +32,12 @@ import { ConfirmService } from '../../core/services/confirm.service';
 import { ListingService } from '../../core/services/listing.service';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
-import { PendingChatStore, isPendingChat, pendingChatFromListing } from './pending-chats';
+import { PendingChatStore, PENDING_CHAT_PREFIX, isPendingChat, pendingChatFromListing } from './pending-chats';
+
+/** Listing statuses on which no new conversation can be started. */
+const LISTING_GONE_STATUSES = ['removed', 'sold'];
+/** Order statuses in which the agreed meetup still means something. */
+const MEETUP_DETAIL_STATUSES = ['accepted', 'handed_over'];
 
 
 @Component({
@@ -409,6 +414,10 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
             if (chat && this.activeChat?.id !== chat.id) {
               this.chatEntryPushed = false;
               this.selectChat(chat);
+            } else if (!chat && isPendingChat({ id: params['chat'] })) {
+              // An unsent chat's URL after a reload: pending chats live only
+              // in memory, so rebuild it from the listing (checked afresh).
+              this.openPendingChat(String(params['chat']).slice(PENDING_CHAT_PREFIX.length), true);
             }
           } else if (params['listing']) {
             const listingId = params['listing'];
@@ -446,7 +455,11 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
    * and becomes a conversation when the first message is sent, so the seller
    * never receives a conversation the buyer left without writing in.
    */
-  private openPendingChat(listingId: string) {
+  /**
+   * `fromChatUrl`: the URL already names this pending chat (a reload), so
+   * navigating to it again would not re-emit the query params — select it here.
+   */
+  private openPendingChat(listingId: string, fromChatUrl = false) {
     this.loadingChats = true;
     this.listingService.getListing(listingId).subscribe({
       next: (listing) => {
@@ -456,10 +469,22 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
           this.clearChatParam();
           return;
         }
+        if (LISTING_GONE_STATUSES.includes(listing.status)) {
+          // Taken down or sold: the server would refuse the first message.
+          this.toast.error(this.i18n.t('msg.errListingUnavailable'));
+          this.clearChatParam();
+          return;
+        }
         const chat = pendingChatFromListing(listing);
         this.pendingChats.save(chat);
         this.chats = [chat, ...this.chats.filter(c => c.id !== chat.id)];
-        this.router.navigate([], { queryParams: { chat: chat.id }, replaceUrl: true });
+        if (fromChatUrl) {
+          this.chatEntryPushed = false;
+          this.selectChat(chat);
+          this.cdr.markForCheck();
+        } else {
+          this.router.navigate([], { queryParams: { chat: chat.id }, replaceUrl: true });
+        }
       },
       error: () => {
         this.loadingChats = false;
@@ -722,7 +747,14 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
         this.creatingChat = false;
         msg.failed = true;
         const code = err?.error?.error?.code;
-        if (err?.status === 403 || code === 'auth.errNotVerified' || code === 'acct.errUnverified') {
+        if (code === 'msg.errListingUnavailable') {
+          // The seller took the listing down while this chat sat unsent:
+          // there is nobody to write to about it any more.
+          this.toast.error(this.i18n.t('msg.errListingUnavailable'));
+          this.pendingChats.remove(pending.id);
+          this.chats = this.chats.filter(c => c !== pending);
+          if (this.activeChat === pending) this.closeChat();
+        } else if (err?.status === 403 || code === 'auth.errNotVerified' || code === 'acct.errUnverified') {
           this.showUnverifiedPrompt = true;
         } else {
           this.toast.error(this.i18n.t('msg.chatOpenFailed'));
@@ -1088,6 +1120,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
         if (matching && this.activeChat === chat) {
           chat.order_id = matching.id;
           chat.order_status = matching.status;
+          this.applyMeetupDetails(chat, matching);
           this.cdr.markForCheck();
         }
       },
@@ -1133,9 +1166,12 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
     if (!details) return;
     this.getOrFetchOrderId((orderId) => {
       this.orderService.updateOrderStatus(orderId, 'accepted', undefined, details.time || undefined, details.location || undefined).subscribe({
-        next: () => {
+        next: (order) => {
           this.ga.trackOrderStep(orderId, 'accepted');
-          if (this.activeChat) this.activeChat.order_status = 'accepted';
+          if (this.activeChat) {
+            this.activeChat.order_status = 'accepted';
+            this.applyMeetupDetails(this.activeChat, order);
+          }
           this.cdr.markForCheck();
         },
         error: (err) => {
@@ -1145,6 +1181,53 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
         }
       });
     });
+  }
+
+  /** The seller changes the agreed time/place, from the card showing them. */
+  async handleEditMeetup() {
+    const chat = this.activeChat;
+    if (!chat?.order_id) return;
+    const details = await this.meetupDetails.ask(chat.listing_title || '', {
+      time: chat.order_meetup_time || '',
+      location: chat.order_meetup_location || '',
+    });
+    if (!details) return;
+    this.orderService.updateMeetupDetails(chat.order_id, details.time, details.location).subscribe({
+      next: (order) => {
+        this.applyMeetupDetails(chat, order);
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        const code = err.error?.error?.code;
+        const msg = code ? this.i18n.t(code) : (err.error?.detail || err.message || 'Failed to update meetup');
+        this.toast.error(this.i18n.t('msg.orderActionFailed', { msg }));
+      }
+    });
+  }
+
+  private applyMeetupDetails(chat: any, order: any) {
+    chat.order_meetup_time = order?.meetup_time || null;
+    chat.order_meetup_location = order?.meetup_location || '';
+  }
+
+  /**
+   * The meetup card that shows the agreed time/place: the latest accept (or
+   * details-updated) card, while the order it belongs to is still live.
+   * Earlier cards are history and would show details that no longer apply.
+   */
+  showsMeetupDetails(msg: any): boolean {
+    if (!this.activeChat || !MEETUP_DETAIL_STATUSES.includes(this.activeChat.order_status)) return false;
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      if (isMeetupDetailsMessage(this.messages[i].body)) return this.messages[i] === msg;
+    }
+    return false;
+  }
+
+  /** The seller may still change the details until the handover. */
+  canEditMeetup(msg: any): boolean {
+    return this.activeChat?.other_party_role === 'buyer'
+      && this.activeChat.order_status === 'accepted'
+      && this.showsMeetupDetails(msg);
   }
 
   handleDeclineMeetup() {

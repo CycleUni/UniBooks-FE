@@ -583,6 +583,16 @@ export const en: Record<string, string> = {
 
   // Order notifications
   'order.notify.meetup_requested': 'Buyer placed a meetup order. Waiting for seller confirmation.',
+  'order.notify.meetup_updated': 'Seller updated the meetup time and place',
+  'msg.meetupUpdateTitle': 'Meetup Details Updated',
+  'msg.meetupUpdateBody': 'Seller updated the meetup time and place.',
+  'msg.meetupAcceptBodyDetails': 'Seller accepted the meetup invitation. Meetup details:',
+  'msg.meetupTimeLabel': 'Time',
+  'msg.meetupLocationLabel': 'Place',
+  'msg.meetupNotSet': 'Not set — arrange it in chat',
+  'msg.meetupActionEdit': 'Edit time & place',
+  'order.errMeetupNotEditable': 'The meetup details can no longer be changed.',
+  'msg.errListingUnavailable': 'This listing has been taken down or sold, so you can no longer message about it.',
   'order.notify.seller_approved': 'Seller has accepted the meetup, order status updated to processing',
   'order.notify.delivered': 'Meetup completed. Thank you for using UniBooks!',
   'order.notify.cancelled_by_buyer': 'Buyer cancelled the order.',

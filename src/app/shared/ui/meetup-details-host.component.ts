@@ -19,6 +19,7 @@ import { MeetupModalComponent } from './meetup-modal.component';
       @defer (on immediate) {
         <app-meetup-modal
           [bookTitle]="request.bookTitle"
+          [initial]="request.initial"
           (onConfirmed)="meetupDetails.settle(request.id, $event)"
           (onClosed)="meetupDetails.settle(request.id, null)"
         ></app-meetup-modal>

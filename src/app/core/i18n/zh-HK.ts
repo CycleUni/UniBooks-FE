@@ -582,6 +582,16 @@ export const zhHK: Record<string, string> = {
 
   // Order notifications
   'order.notify.meetup_requested': '買家下單面交，等緊賣家同意',
+  'order.notify.meetup_updated': '賣家更新了面交時間與地點',
+  'msg.meetupUpdateTitle': '面交資訊已更新',
+  'msg.meetupUpdateBody': '賣家更新了面交時間與地點。',
+  'msg.meetupAcceptBodyDetails': '賣家已同意面交邀請，面交資訊如下：',
+  'msg.meetupTimeLabel': '時間',
+  'msg.meetupLocationLabel': '地點',
+  'msg.meetupNotSet': '尚未填寫，請透過私訊約定',
+  'msg.meetupActionEdit': '修改時間地點',
+  'order.errMeetupNotEditable': '面交資訊已無法修改。',
+  'msg.errListingUnavailable': '這本書已下架或售出，無法再傳送訊息。',
   'order.notify.seller_approved': '賣家已同意面交，訂單狀態更新為處理中',
   'order.notify.delivered': '面交完成，多謝你用 UniBooks！',
   'order.notify.cancelled_by_buyer': '買家取消了訂單',
