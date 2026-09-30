@@ -510,7 +510,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.isLoading = false;
-        this.toast.error(err.error?.detail ? this.i18n.t('acct.errUpdate', { msg: err.error.detail }) : this.i18n.t('acct.updateFailed'));
+        this.toast.error(parseApiError(err, this.i18n, 'acct.updateFailed'));
         this.cdr.markForCheck();
       }
     });
@@ -675,7 +675,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.isLoading = false;
-        this.toast.error(err.error?.detail ? this.i18n.t('acct.errUpdate', { msg: err.error.detail }) : this.i18n.t('acct.updateFailed'));
+        this.toast.error(parseApiError(err, this.i18n, 'acct.updateFailed'));
         this.cdr.markForCheck();
       }
     });

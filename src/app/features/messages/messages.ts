@@ -30,6 +30,7 @@ import { RegionLinkService } from '../../core/region-link.service';
 import { ToastService } from '../../core/services/toast.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { ListingService } from '../../core/services/listing.service';
+import { translateApiError } from '../../core/api-error.util';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
 import { PendingChatStore, PENDING_CHAT_PREFIX, isPendingChat, pendingChatFromListing } from './pending-chats';
@@ -1175,8 +1176,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
           this.cdr.markForCheck();
         },
         error: (err) => {
-          const msg = err.error?.detail || err.error?.status || err.message || 'Failed to accept meetup order';
-          this.toast.error(this.i18n.t('msg.orderActionFailed', { msg }));
+          this.toast.error(this.orderActionError(err));
           console.error('Failed to accept meetup order', err);
         }
       });
@@ -1198,11 +1198,20 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
         this.cdr.markForCheck();
       },
       error: (err) => {
-        const code = err.error?.error?.code;
-        const msg = code ? this.i18n.t(code) : (err.error?.detail || err.message || 'Failed to update meetup');
-        this.toast.error(this.i18n.t('msg.orderActionFailed', { msg }));
+        this.toast.error(this.orderActionError(err));
       }
     });
+  }
+
+  /**
+   * The toast for a meetup action the server refused. Only a reason the
+   * locale can render goes after "Action failed:" — `detail` is DRF's English
+   * prose, `status` is an untranslated code array, and `err.message` is
+   * Angular's "Http failure response for …" — none of which a buyer can act on.
+   */
+  private orderActionError(err: any): string {
+    const msg = translateApiError(err, this.i18n);
+    return msg ? this.i18n.t('msg.orderActionFailed', { msg }) : this.i18n.t('msg.orderActionRetry');
   }
 
   private applyMeetupDetails(chat: any, order: any) {
@@ -1239,8 +1248,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
           this.cdr.markForCheck();
         },
         error: (err) => {
-          const msg = err.error?.detail || err.error?.status || err.message || 'Failed to decline meetup order';
-          this.toast.error(this.i18n.t('msg.orderActionFailed', { msg }));
+          this.toast.error(this.orderActionError(err));
           console.error('Failed to decline meetup order', err);
         }
       });
@@ -1256,8 +1264,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
           this.cdr.markForCheck();
         },
         error: (err) => {
-          const msg = err.error?.detail || err.error?.status || err.message || 'Failed to cancel meetup order';
-          this.toast.error(this.i18n.t('msg.orderActionFailed', { msg }));
+          this.toast.error(this.orderActionError(err));
           console.error('Failed to cancel meetup order', err);
         }
       });
