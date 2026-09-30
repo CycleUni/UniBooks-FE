@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { I18nService, TPipe } from '../../core/i18n.service';
 import { UiRoleBadge } from '../../shared/ui/role-badge.component';
@@ -19,6 +19,11 @@ import { formatInboxTime } from './message-formatting.util';
   selector: 'messages-inbox-list',
   standalone: true,
   imports: [CommonModule, TPipe, UiRoleBadge, UiSkeleton],
+  // Checked with its parent, not only on a new `chats` array. The Messages
+  // page updates rows in place — a live message's preview and time, the
+  // unread dot — and under OnPush (Angular's default) those never showed
+  // until a reload: the row already at the top gets no new array.
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="sidebar-header">
       <h3>{{ 'msg.inbox' | t }}</h3>
