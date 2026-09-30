@@ -3,10 +3,11 @@ import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { I18nService } from './i18n.service';
 import { SchoolStateService } from './services/school-state.service';
-import { tap, catchError } from 'rxjs/operators';
-import { of } from 'rxjs';
+import { tap, catchError, map } from 'rxjs/operators';
+import { firstValueFrom, of } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { regionSwitchUrl } from './region-path';
+import { detectRegion, fetchTrace } from './geo-region';
 
 export interface Currency {
   code: string;
@@ -29,6 +30,9 @@ export interface Region {
 
 const STORAGE_KEY = 'region';
 
+/** How long a first visit waits on IP detection before the timezone guess stands. */
+const GEO_TIMEOUT_MS = 800;
+
 function translationLanguagesOf(region: Region | null): string[] {
   if (!region) return [];
   const langs = [region.default_language, ...(region.languages || [])]
@@ -42,6 +46,10 @@ export class RegionService {
   private router = inject(Router);
   private i18n = inject(I18nService);
   private schoolState = inject(SchoolStateService);
+
+  /** Whether a region was saved by an earlier visit (or picked by hand). */
+  private hasStoredRegion = false;
+  private detection: Promise<void> | null = null;
 
   readonly region = signal<string>(this.initialRegion());
   readonly regions = signal<Region[]>([]);
@@ -88,14 +96,53 @@ export class RegionService {
   private initialRegion(): string {
     if (typeof localStorage !== 'undefined') {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) return stored.toLowerCase();
+      if (stored) {
+        this.hasStoredRegion = true;
+        return stored.toLowerCase();
+      }
     }
+    // The timezone is only the offline guess; detectInitialRegion() replaces
+    // it with the IP's answer when there is one.
     if (typeof navigator !== 'undefined') {
       if (Intl.DateTimeFormat().resolvedOptions().timeZone === 'Asia/Hong_Kong') {
         return 'hk';
       }
     }
     return 'tw';
+  }
+
+  /**
+   * On a first visit, move the region to the one the visitor's IP places
+   * them in. Resolves once that is settled either way — never rejects — so
+   * the entry redirect can wait on it. A saved region is left alone: it is
+   * either what IP detection found last time or what the visitor picked.
+   */
+  detectInitialRegion(): Promise<void> {
+    if (this.hasStoredRegion) return Promise.resolve();
+    if (!this.detection) {
+      this.detection = detectRegion(
+        {
+          backend: () => firstValueFrom(
+            this.http.get<{ region: string | null }>('/core/geo/')
+              .pipe(map(res => res?.region ?? null)),
+          ),
+          trace: () => fetchTrace(),
+        },
+        code => this.isKnownRegion(code),
+        GEO_TIMEOUT_MS,
+      ).then(code => {
+        if (code && code !== this.region()) this.setRegion(code, true);
+      }).catch(() => undefined);
+    }
+    return this.detection;
+  }
+
+  /** Same test as regionGuard: the loaded list, or the two built-in regions before it arrives. */
+  private isKnownRegion(code: string): boolean {
+    const regs = this.regions();
+    return regs.length > 0
+      ? regs.some(r => r.code.toLowerCase() === code)
+      : code === 'tw' || code === 'hk';
   }
 
   private lastFetchedLang: string | null = null;

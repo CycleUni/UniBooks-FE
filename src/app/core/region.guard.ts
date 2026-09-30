@@ -119,10 +119,14 @@ export const regionGuard: CanActivateFn = (route, state) => {
   return true;
 };
 
-export const rootRedirectGuard: CanActivateFn = (route, state) => {
+export const rootRedirectGuard: CanActivateFn = async (route, state) => {
   const regionService = inject(RegionService);
   const router = inject(Router);
-  
+
+  // A first visit waits (briefly, capped inside) for IP detection so it lands
+  // on the right region instead of being bounced there by a reload later.
+  await regionService.detectInitialRegion();
+
   const code = regionService.region() || DEFAULT_REGION;
 
   // state.url is "/" at the root, and naive concatenation turned that into

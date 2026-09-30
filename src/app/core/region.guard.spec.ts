@@ -143,27 +143,37 @@ describe('regionGuard', () => {
 describe('rootRedirectGuard', () => {
   let mockRegionService: any;
 
-  const run = (url: string) =>
-    TestBed.runInInjectionContext(() => rootRedirectGuard({} as any, stateWith(url))) as UrlTree;
+  const run = async (url: string) =>
+    (await TestBed.runInInjectionContext(() => rootRedirectGuard({} as any, stateWith(url)))) as UrlTree;
 
   beforeEach(() => {
-    mockRegionService = { region: vi.fn(() => 'hk') };
+    mockRegionService = {
+      region: vi.fn(() => 'hk'),
+      detectInitialRegion: vi.fn(() => Promise.resolve()),
+    };
     TestBed.configureTestingModule({
       providers: [{ provide: RegionService, useValue: mockRegionService }],
     });
     TestBed.inject(Router);
   });
 
-  it('prefixes the current region onto a bare path', () => {
-    expect(run('/search').toString()).toBe('/hk/search');
+  it('prefixes the current region onto a bare path', async () => {
+    expect((await run('/search')).toString()).toBe('/hk/search');
   });
 
-  it('does not leave a trailing slash at the root', () => {
-    expect(run('/').toString()).toBe('/hk');
+  it('does not leave a trailing slash at the root', async () => {
+    expect((await run('/')).toString()).toBe('/hk');
   });
 
-  it('defaults to tw when the service has no region yet', () => {
+  it('defaults to tw when the service has no region yet', async () => {
     mockRegionService.region.mockReturnValue('');
-    expect(run('/search').toString()).toBe('/tw/search');
+    expect((await run('/search')).toString()).toBe('/tw/search');
+  });
+
+  it('redirects to the region IP detection settled on', async () => {
+    let region = 'tw';
+    mockRegionService.region.mockImplementation(() => region);
+    mockRegionService.detectInitialRegion.mockImplementation(async () => { region = 'hk'; });
+    expect((await run('/')).toString()).toBe('/hk');
   });
 });
