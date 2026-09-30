@@ -89,11 +89,11 @@ import { UiPagination } from '../../shared/ui/pagination.component';
       background: var(--paper-warm);
     }
     .btn-toggle.revoke {
-      border-color: rgba(220,38,38,0.3);
+      border-color: color-mix(in srgb, var(--danger) 30%, transparent);
       color: var(--danger);
     }
     .btn-toggle.revoke:hover {
-      background: rgba(220,38,38,0.05);
+      background: var(--danger-light);
     }
     .btn-toggle:disabled {
       opacity: 0.5;

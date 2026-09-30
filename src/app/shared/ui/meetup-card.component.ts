@@ -67,7 +67,7 @@ export type MeetupMessageType = 'REQUEST' | 'ACCEPT' | 'UPDATE' | 'DECLINE' | 'C
     .meetup-card {
       border-radius: 10px;
       padding: 14px 16px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      box-shadow: var(--shadow-card);
       /* Enumerated, not 'all': the card's height changes when the status line
          wraps, and 'all' animated that as a resize. */
       transition: background-color var(--motion-base) ease, border-color var(--motion-base) ease;
@@ -132,7 +132,9 @@ export type MeetupMessageType = 'REQUEST' | 'ACCEPT' | 'UPDATE' | 'DECLINE' | 'C
       font-size: var(--text-xs);
       padding: 2px 8px;
       border-radius: 12px;
-      background: rgba(0, 0, 0, 0.06);
+      /* A wash of the ink colour rather than black: the badge sits on each
+         status tint, and a black wash vanishes on the dark palette. */
+      background: color-mix(in srgb, var(--ink) 8%, transparent);
       color: var(--ink);
       font-weight: 500;
     }
@@ -178,7 +180,7 @@ export type MeetupMessageType = 'REQUEST' | 'ACCEPT' | 'UPDATE' | 'DECLINE' | 'C
       gap: 8px;
       margin-top: 12px;
       padding-top: 10px;
-      border-top: 1px dashed rgba(0, 0, 0, 0.08);
+      border-top: 1px dashed var(--line);
     }
   `]
 })
