@@ -46,13 +46,17 @@
        Loaded synchronously on purpose — deferring it brings back the flash
        of the wrong theme it exists to prevent. -->
   <script src="/theme-init.js"></script>
+  <!-- theme-init.js adds the "js" class, so only visitors that can't run
+       the app see the crawler summary; everyone else would otherwise catch
+       it for a moment before Angular replaces it. -->
+  <style>html.js .crawler-summary{display:none}</style>
 </head>
 <body>
   <app-root>
     <!-- Crawler-readable summary for visitors without JavaScript (and for
          Google's OAuth verification). Angular replaces the contents of
          <app-root> as soon as it boots. -->
-    <main style="max-width:640px;margin:0 auto;padding:48px 20px;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.6">
+    <main class="crawler-summary" style="max-width:640px;margin:0 auto;padding:48px 20px;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.6">
       <h1>UniBooks</h1>
       <p>UniBooks is a second-hand textbook search and matching platform for university students in Taiwan. Students find the textbooks they need by ISBN, title or course, list books they no longer use, and arrange on-campus meetups with classmates through in-app chat. The platform only matches people and never handles payments.</p>
       <p>Browsing books needs no account. Listing, ordering and chat require signing in with a school email or a Google account. With Sign in with Google, UniBooks receives only your email address, name and profile picture, used solely to create and identify your account.</p>
@@ -64,8 +68,11 @@
         <a href="https://about.unibooks.app/about/terms">服務條款</a> ·
         <a href="https://about.unibooks.app/en/">About UniBooks</a>
       </p>
+      <noscript>
+        <p><strong>請啟用 JavaScript 以使用 UniBooks。</strong><br>
+        Please enable JavaScript to use UniBooks.</p>
+      </noscript>
     </main>
   </app-root>
-  <noscript>Please enable JavaScript to continue using this application.</noscript>
 </body>
 </html>

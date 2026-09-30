@@ -3,9 +3,14 @@
 // logic/storage key (src/app/core/services/theme.service.ts) — keep
 // both in sync if that key or the light/dark values ever change.
 //
+// Also tags <html> with the "js" class so index.html can hide its
+// crawler-only summary inside <app-root>; without it that summary flashed
+// on screen for the moment before Angular booted and replaced it.
+//
 // Served as its own file rather than inline in index.html so the
 // Content-Security-Policy can keep script-src to 'self'.
 (function () {
+  document.documentElement.classList.add('js');
   try {
     var stored = localStorage.getItem('unibooks_theme');
     if (stored === 'light' || stored === 'dark') {
