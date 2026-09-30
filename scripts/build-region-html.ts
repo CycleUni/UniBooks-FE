@@ -14,6 +14,7 @@ const SITEMAP_PATH = path.join(DIST_DIR, 'sitemap.xml');
 const STATS_PATH = path.join(DIST_DIR, '../stats.json');
 const ENV_PROD_PATH = path.join(__dirname, '../src/environments/environment.prod.ts');
 const SITE_ORIGIN = 'https://unibooks.app';
+const ORGANIZATION_ID = `${SITE_ORIGIN}/#organization`;
 
 
 /**
@@ -199,20 +200,27 @@ function buildHtml(
 
   // Organization.logo is what Google shows beside the site in results.
   // A data block, not script, so the CSP's script-src does not apply.
+  // The @id is shared with about.unibooks.app, whose pages name this
+  // Organization as publisher, so both hosts resolve to one entity and the
+  // brand query lands here rather than on the help site.
   const searchBase = region ? `${SITE_ORIGIN}/${region}` : `${SITE_ORIGIN}/${DEFAULT_REGION}`;
   const ldJson = {
     "@context": "https://schema.org",
     "@graph": [
       {
         "@type": "Organization",
+        "@id": ORGANIZATION_ID,
         "name": SITE_NAME,
         "url": `${SITE_ORIGIN}/`,
-        "logo": ogImage
+        "logo": ogImage,
+        "description": description,
+        "sameAs": ["https://github.com/CycleUni"]
       },
       {
         "@type": "WebSite",
         "name": SITE_NAME,
         "url": ogUrl,
+        "publisher": { "@id": ORGANIZATION_ID },
         "potentialAction": {
           "@type": "SearchAction",
           "target": `${searchBase}/search?q={search_term_string}`,
