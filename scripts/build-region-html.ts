@@ -10,6 +10,9 @@ const INDEX_HTML_PATH = path.join(DIST_DIR, 'index.html');
 const REDIRECTS_PATH = path.join(DIST_DIR, '_redirects');
 const NGSW_PATH = path.join(DIST_DIR, 'ngsw.json');
 const SITEMAP_PATH = path.join(DIST_DIR, 'sitemap.xml');
+/** esbuild's metafile, written by `ng build --stats-json` beside browser/. */
+const STATS_PATH = path.join(DIST_DIR, '../stats.json');
+const ENV_PROD_PATH = path.join(__dirname, '../src/environments/environment.prod.ts');
 const SITE_ORIGIN = 'https://unibooks.app';
 
 
@@ -85,6 +88,59 @@ function regionUrl(region: string, page: string): string {
   return page ? `${SITE_ORIGIN}/${region}${page}` : `${SITE_ORIGIN}/${region}/`;
 }
 
+/**
+ * The origin every API request goes to, for a preconnect hint: the first
+ * request only leaves once the app has booted, and on a phone the DNS, TCP
+ * and TLS set-up it would otherwise start then is a few hundred
+ * milliseconds. Taken from the env var set-env.js reads, else from the file
+ * it wrote. Null when neither names a usable URL — the hint is only a hint.
+ */
+function apiOrigin(): string | null {
+  let url = process.env['NG_APP_BACKEND_URL'];
+  if (!url && fs.existsSync(ENV_PROD_PATH)) {
+    url = /backendUrl:\s*'([^']*)'/.exec(fs.readFileSync(ENV_PROD_PATH, 'utf-8'))?.[1];
+  }
+  try {
+    const origin = url ? new URL(url).origin : null;
+    return origin && /^https?:/.test(origin) && origin !== SITE_ORIGIN ? origin : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Each language's translation chunk, by language. The app waits for its
+ * language's table before it bootstraps (APP_INITIALIZER), and that import
+ * only starts once main.js has run: one more round trip in series before
+ * anything is on screen. The map goes into the page for theme-init.js, which
+ * preloads the one the visitor's language needs so it downloads alongside
+ * main.js instead. The language is the visitor's (stored choice, else the
+ * browser's), not the region's, and the service worker serves one index.html
+ * to every region — hence choosing it in the browser rather than here.
+ *
+ * Read off the build's metafile, the only place the hashed name is tied to
+ * its source; an empty map (no stats file) leaves the pages without the
+ * hint rather than failing the build.
+ */
+function languageChunks(): Partial<Record<Lang, string>> {
+  if (!fs.existsSync(STATS_PATH)) {
+    console.warn('stats.json not found; skipping the translation preload hint');
+    return {};
+  }
+  const stats = JSON.parse(fs.readFileSync(STATS_PATH, 'utf-8')) as {
+    outputs?: Record<string, { entryPoint?: string }>;
+  };
+  const chunks: Partial<Record<Lang, string>> = {};
+  for (const [file, output] of Object.entries(stats.outputs ?? {})) {
+    const match = /^src\/app\/core\/i18n\/([\w-]+)\.ts$/.exec(output.entryPoint ?? '');
+    const lang = match?.[1] as Lang | undefined;
+    if (lang && SUPPORTED_LANGS.includes(lang) && /^[\w-]+\.js$/.test(file)) {
+      chunks[lang] = file;
+    }
+  }
+  return chunks;
+}
+
 function replaceRequired(html: string, pattern: RegExp, replacement: string, label: string): string {
   if (!pattern.test(html)) {
     throw new Error(`Could not find ${label} in index.html`);
@@ -101,6 +157,7 @@ function buildHtml(
   region: string | null,
   locale: Lang,
   strings: Strings,
+  hints: { apiOrigin: string | null; languageChunks: Partial<Record<Lang, string>> },
 ): string {
   let html = originalHtml;
 
@@ -164,6 +221,18 @@ function buildHtml(
       }
     ]
   };
+
+  // Resource hints go first in <head>, ahead of the stylesheets and scripts
+  // the browser would otherwise queue before reading them.
+  const hintTags = [
+    hints.apiOrigin ? `<link rel="preconnect" href="${escapeHtml(hints.apiOrigin)}" crossorigin>` : '',
+    Object.keys(hints.languageChunks).length > 0
+      ? `<meta name="unibooks-i18n-chunks" content="${escapeHtml(JSON.stringify(hints.languageChunks))}">`
+      : '',
+  ].filter(Boolean);
+  if (hintTags.length > 0) {
+    html = replaceRequired(html, /(<meta charset=[^>]*>)/i, `$1\n  ${hintTags.join('\n  ')}`, 'the charset meta tag');
+  }
 
   const tags = [
     `<meta property="og:site_name" content="${escapeHtml(SITE_NAME)}">`,
@@ -279,12 +348,13 @@ async function run(): Promise<void> {
   }
 
   const originalHtml = fs.readFileSync(INDEX_HTML_PATH, 'utf-8');
+  const hints = { apiOrigin: apiOrigin(), languageChunks: languageChunks() };
 
   // Patch the root index.html in the default region's language: "/" never
   // renders a page of its own (rootRedirectGuard forwards it), and crawlers
   // that read it before the redirect ran were indexing an English copy.
   const defaultLanguage: Lang = REGION_TO_LANG[DEFAULT_REGION];
-  const rootHtml = buildHtml(originalHtml, null, defaultLanguage, await loadStrings(defaultLanguage));
+  const rootHtml = buildHtml(originalHtml, null, defaultLanguage, await loadStrings(defaultLanguage), hints);
   fs.writeFileSync(INDEX_HTML_PATH, rootHtml);
   updateServiceWorkerHash(rootHtml);
   console.log(`Patched root index.html (${defaultLanguage})`);
@@ -300,7 +370,7 @@ async function run(): Promise<void> {
 
     const strings = await loadStrings(lang);
 
-    const regionHtml = buildHtml(originalHtml, region, lang, strings);
+    const regionHtml = buildHtml(originalHtml, region, lang, strings, hints);
     fs.writeFileSync(path.join(regionDir, 'index.html'), regionHtml);
     console.log(`Generated ${region}/index.html (${lang})`);
   }

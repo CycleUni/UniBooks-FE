@@ -430,6 +430,19 @@ export class UiLayout implements OnDestroy {
   private schoolReadyTimer: ReturnType<typeof setTimeout> | null = null;
 
   private loadMetadata() {
+    // A signed-out visitor who has picked no school (or only "all schools")
+    // opens on '' whatever the list says: there is no profile to name a
+    // school and no saved code to check. Settling now lets the home page
+    // start its requests alongside this one instead of a round trip after
+    // it — the difference a phone on a slow link notices most.
+    if (
+      !this.schoolStateService.ready &&
+      !this.authStore.isAuthenticated() &&
+      !this.schoolStateService.hasManualPick()
+    ) {
+      this.schoolStateService.setSchool('');
+      this.schoolStateService.markReady();
+    }
     if (!this.schoolReadyTimer && !this.schoolStateService.ready) {
       this.schoolReadyTimer = setTimeout(() => this.schoolStateService.markReady(), UiLayout.SCHOOL_READY_TIMEOUT_MS);
     }

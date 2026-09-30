@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Component, signal } from '@angular/core';
 import { UiLayout } from './layout.component';
 import { Router, provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MetadataService } from '../../core/services/metadata.service';
 import { AuthStore } from '../../core/auth.store';
@@ -40,7 +40,7 @@ describe('UiLayout', () => {
         { provide: MetadataService, useValue: { getMetadata: () => of({ schools: [] }), getMetadataWithRetry: vi.fn(() => of({ schools: [] })) } },
         { provide: AuthStore, useValue: { isAuthenticated: signal(false), user: signal(null) } },
         { provide: AccountService, useValue: {} },
-        { provide: SchoolStateService, useValue: { currentSchool: '', hasInitialized: false, ready: false, markReady: vi.fn(), getManualSchool: () => null, setSchools: vi.fn(), setSchool: vi.fn(), clearManualSchool: vi.fn() } },
+        { provide: SchoolStateService, useValue: { currentSchool: '', hasInitialized: false, ready: false, markReady: vi.fn(), getManualSchool: () => null, hasManualPick: () => false, setSchools: vi.fn(), setSchool: vi.fn(), clearManualSchool: vi.fn() } },
         { provide: MessageService, useValue: { unreadCount$: of(0), openHub: vi.fn(), closeHub: vi.fn(), retryHubIfOwed: vi.fn() } },
         { provide: I18nService, useValue: { t: (k: string) => k, lang: signal('zh-TW') } },
         { provide: ThemeService, useValue: { mode: signal('system'), resolved: signal('light'), setMode: vi.fn() } },
@@ -246,6 +246,38 @@ describe('UiLayout', () => {
       metadata.getMetadataWithRetry.mockClear();
       await router.navigateByUrl('/sell');
       expect(metadata.getMetadataWithRetry).not.toHaveBeenCalled();
+    });
+
+    describe('settling the opening school before the list arrives', () => {
+      let school: any;
+
+      beforeEach(() => {
+        school = TestBed.inject(SchoolStateService) as any;
+        // The list never arrives, so any markReady comes from before it.
+        metadata.getMetadataWithRetry.mockReturnValue(NEVER);
+        school.markReady.mockClear();
+        school.setSchool.mockClear();
+      });
+
+      afterEach(() => (component as any).metadataSubscription?.unsubscribe());
+
+      it('settles on all schools at once for a signed-out visitor with no pick', () => {
+        (component as any).loadMetadata();
+        expect(school.setSchool).toHaveBeenCalledWith('');
+        expect(school.markReady).toHaveBeenCalled();
+      });
+
+      it('waits for the list when a school was picked by hand', () => {
+        school.hasManualPick = () => true;
+        (component as any).loadMetadata();
+        expect(school.markReady).not.toHaveBeenCalled();
+      });
+
+      it('waits for the list when signed in, since the profile may name a school', () => {
+        (TestBed.inject(AuthStore) as any).isAuthenticated.set(true);
+        (component as any).loadMetadata();
+        expect(school.markReady).not.toHaveBeenCalled();
+      });
     });
   });
 

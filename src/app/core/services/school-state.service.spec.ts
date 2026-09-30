@@ -149,6 +149,25 @@ describe('SchoolStateService', () => {
     expect(sessionStorage.getItem(`${MANUAL_SCHOOL_KEY}_hk`)).toBeNull();
     expect(sessionStorage.getItem('unrelated')).toBe('kept');
   });
+  describe('hasManualPick', () => {
+    it('is false with nothing picked, or only "all schools"', () => {
+      expect(service.hasManualPick()).toBe(false);
+      sessionStorage.setItem(`${MANUAL_SCHOOL_KEY}_tw`, '');
+      expect(service.hasManualPick()).toBe(false);
+    });
+
+    it('sees a pick made in another region than the current one', () => {
+      // At start-up the region is the remembered one; the URL may be /hk.
+      sessionStorage.setItem(`${MANUAL_SCHOOL_KEY}_hk`, 'HKU');
+      expect(service.hasManualPick()).toBe(true);
+    });
+
+    it('sees a full name saved before codes existed', () => {
+      sessionStorage.setItem(MANUAL_SCHOOL_KEY, 'National Taiwan University');
+      expect(service.hasManualPick()).toBe(true);
+    });
+  });
+
   describe('resolvedSchool$', () => {
     it('holds back the provisional school until the opening school is settled', () => {
       // Consumers used to load for the provisional '' and then again for the

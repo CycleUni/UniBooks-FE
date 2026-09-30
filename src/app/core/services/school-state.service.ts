@@ -149,21 +149,36 @@ export class SchoolStateService {
     return code;
   }
 
+  /**
+   * Whether a school other than "all schools" was picked by hand in any
+   * region. Asked before the region is settled — at start-up it is still the
+   * one remembered from last time, not necessarily the one in the URL — so
+   * it looks at every region's choice rather than the current one's.
+   */
+  hasManualPick(): boolean {
+    return this.manualSchoolKeys().some(key => !!this.read(key));
+  }
+
   /** Forget the hand-picked school in every region (on logout). */
   clearManualSchool() {
-    if (typeof sessionStorage === 'undefined') return;
+    this.manualSchoolKeys().forEach(key => this.remove(key));
+  }
+
+  /** The storage keys of every region's hand-picked school, legacy one included. */
+  private manualSchoolKeys(): string[] {
+    if (typeof sessionStorage === 'undefined') return [];
+    const keys: string[] = [];
     try {
-      const keys: string[] = [];
       for (let i = 0; i < sessionStorage.length; i++) {
         const key = sessionStorage.key(i);
         if (key !== null && (key === MANUAL_SCHOOL_KEY || key.startsWith(`${MANUAL_SCHOOL_KEY}_`))) {
           keys.push(key);
         }
       }
-      keys.forEach(key => sessionStorage.removeItem(key));
     } catch (err) {
-      console.error('Failed to clear manual school selection', err);
+      console.error('Failed to read manual school selection', err);
     }
+    return keys;
   }
 
   get currentSchool(): string {
