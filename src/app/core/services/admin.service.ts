@@ -76,7 +76,8 @@ export interface AdminOrder {
   id: string;
   buyer: { id: string | number; email: string };
   seller: { id: string | number; email: string };
-  listing: { id: string; book_title: string };
+  /** `deleted`: the seller deleted the listing; the order keeps its title. */
+  listing: { id: string; book_title: string; deleted?: boolean };
   status: string;
   total_amount: number;
   currency?: string;
@@ -127,7 +128,7 @@ export interface AdminAd {
 export interface AdminReport {
   id: string;
   reporter: { id: string | number; email: string };
-  listing: { id: string; title?: string };
+  listing: { id: string; title?: string; deleted?: boolean };
   reason: string;
   detail?: string;
   status: 'open' | 'actioned' | 'dismissed';
@@ -267,8 +268,10 @@ export class AdminService {
     return this.http.patch<AdminListing>(`/admin/listings/${id}/`, data);
   }
 
-  deleteListing(id: string): Observable<void> {
-    return this.http.delete<void>(`/admin/listings/${id}/`);
+  /** `reason` is required when the listing still has open orders: the
+   *  server cancels them on the platform's behalf before deleting it. */
+  deleteListing(id: string, reason?: string): Observable<void> {
+    return this.http.delete<void>(`/admin/listings/${id}/`, reason ? { body: { reason } } : {});
   }
 
   getOrders(opts: { page?: number; q?: string; status?: string; region?: string } = {}): Observable<Paginated<AdminOrder>> {

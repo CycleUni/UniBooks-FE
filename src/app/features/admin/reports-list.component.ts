@@ -39,11 +39,16 @@ import { UiPagination } from '../../shared/ui/pagination.component';
         <tr *ngFor="let report of reports">
           <td>{{ getRegionName(report.region) }}</td>
           <td>{{ report.reporter?.email }}</td>
-          <td><a [regionLink]="['/listing', report.listing?.id]">{{ report.listing?.title || report.listing?.id }}</a></td>
+          <td>
+            <a *ngIf="!report.listing?.deleted" [regionLink]="['/listing', report.listing?.id]">{{ report.listing?.title || report.listing?.id }}</a>
+            <span *ngIf="report.listing?.deleted">{{ report.listing?.title }} <span class="text-muted">· {{ 'common.listingDeleted' | t }}</span></span>
+          </td>
           <td>{{ ('moderation.reason' + reasonSuffix(report.reason)) | t }}</td>
           <td><span class="admin-status-badge" [class.warn]="report.status === 'open'">{{ ('admin.reportStatus.' + report.status) | t }}</span></td>
           <td *ngIf="report.status === 'open'" class="actions-cell">
-            <ui-button (onClick)="action(report, 'actioned')" [disabled]="actingId === report.id">{{ 'admin.reportActionRemove' | t }}</ui-button>
+            <!-- Nothing left to take down once the seller deleted it; the
+                 same action then only records the report as handled. -->
+            <ui-button (onClick)="action(report, 'actioned')" [disabled]="actingId === report.id">{{ (report.listing?.deleted ? 'admin.reportActionFlag' : 'admin.reportActionRemove') | t }}</ui-button>
             <ui-button variant="ghost" (onClick)="action(report, 'dismissed')" [disabled]="actingId === report.id">{{ 'admin.reportActionDismiss' | t }}</ui-button>
           </td>
         </tr>

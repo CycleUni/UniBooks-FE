@@ -119,6 +119,13 @@ export function isMeetupDetailsMessage(body: string): boolean {
     body.includes('[SYSTEM:order.notify.meetup_updated]');
 }
 
+/** The i18n key of a `[SYSTEM:<key>] …` message, or null for any other body. */
+export function systemMessageKey(body: string): string | null {
+  if (!body || !body.startsWith('[SYSTEM:')) return null;
+  const match = body.match(/^\[SYSTEM:([^\]]+)\]/);
+  return match ? match[1] : null;
+}
+
 /** Strip the control-message markers, leaving just the human-readable text. */
 export function cleanMeetupBody(body: string): string {
   if (!body) return '';

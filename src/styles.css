@@ -701,6 +701,12 @@ button:not(:disabled):active {
   margin: 0;
 }
 
+/* Secondary text beside a value, e.g. "· 商品已刪除". Two pages declared
+   this same rule locally; it is shared now that several more use it. */
+.text-muted {
+  color: var(--muted);
+}
+
 /*
  * Shared empty-state utility: consolidates the dashed-border placeholder box
  * used for "nothing here yet" states (search no-results, account listings,

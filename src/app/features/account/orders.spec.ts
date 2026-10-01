@@ -202,3 +202,25 @@ describe('OrdersComponent.approveOrder', () => {
     expect(component.refreshing).toBe(false);
   });
 });
+
+describe('OrdersComponent platform cancels', () => {
+  let component: OrdersComponent;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({ imports: [OrdersComponent, HttpClientTestingModule, RouterTestingModule] });
+    component = TestBed.createComponent(OrdersComponent).componentInstance;
+  });
+
+  it('labels a platform cancel instead of looking its reason up as a key', () => {
+    expect(component.cancelReasonKey('admin_override: counterfeit')).toBe('order.cancel_reason.admin_override');
+    expect(component.cancelReasonKey('buyer_cancelled')).toBe('order.cancel_reason.buyer_cancelled');
+    expect(en['order.cancel_reason.admin_override']).toBeTruthy();
+  });
+
+  it('shows the reason staff gave, only on a platform cancel', () => {
+    const order = (o: any) => ({ listing: 'l1', ...o });
+    expect(component.platformCancelReason(order({ status: 'cancelled', cancel_reason: 'admin_override: counterfeit' }))).toBe('counterfeit');
+    expect(component.platformCancelReason(order({ status: 'cancelled', cancel_reason: 'buyer_cancelled' }))).toBe('');
+    expect(component.platformCancelReason(order({ status: 'completed', cancel_reason: 'admin_override: x' }))).toBe('');
+  });
+});

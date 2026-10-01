@@ -98,12 +98,15 @@ import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
               </span>
             </span>
             <span class="order-status badge" [ngClass]="order.status">
-              {{ order.status === 'cancelled' && order.cancel_reason ? ('order.cancel_reason.' + order.cancel_reason | t) : (('order.status.' + order.status) | t) }}
+              {{ order.status === 'cancelled' && order.cancel_reason ? (cancelReasonKey(order.cancel_reason) | t) : (('order.status.' + order.status) | t) }}
             </span>
           </div>
           <div class="order-body">
             <div class="info">
-              <h3 class="book-title-serif">{{ order.listing_title }}</h3>
+              <h3 class="book-title-serif">
+                {{ order.listing_title }}
+                <span *ngIf="order.listing_deleted" class="deleted-tag">{{ 'common.listingDeleted' | t }}</span>
+              </h3>
               <p class="party">
                 <img *ngIf="partyAvatar(order, role)" [src]="partyAvatar(order, role)" alt="" class="party-avatar" referrerpolicy="no-referrer" />
                 <span *ngIf="!partyAvatar(order, role)" class="party-avatar party-initial" aria-hidden="true">{{ partyName(order, role).charAt(0) }}</span>
@@ -146,6 +149,12 @@ import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
               <dt>{{ 'order.updatedAt' | t }}</dt>
               <dd>{{ order.updated_at | dateTimeFormat }}</dd>
             </div>
+            <!-- The admin console tells staff this reason is shown to both
+                 sides, so show it. -->
+            <div class="detail-row" *ngIf="platformCancelReason(order) as reason">
+              <dt>{{ 'order.platformCancelReason' | t }}</dt>
+              <dd>{{ reason }}</dd>
+            </div>
             <div class="detail-row">
               <dt>{{ 'order.meetupTimeLabel' | t }}</dt>
               <dd>{{ order.meetup_time ? (order.meetup_time | dateTimeFormat) : ('order.notArrangedYet' | t) }}</dd>
@@ -156,7 +165,8 @@ import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
             </div>
           </dl>
           <div class="detail-links">
-            <a [regionLink]="['/listing', order.listing]">{{ 'order.viewListing' | t }}</a>
+            <a *ngIf="!order.listing_deleted" [regionLink]="['/listing', order.listing]">{{ 'order.viewListing' | t }}</a>
+            <span *ngIf="order.listing_deleted" class="text-muted">{{ 'common.listingDeleted' | t }}</span>
             <a *ngIf="order.conversation_id" [regionLink]="['/messages']" [queryParams]="{ chat: order.conversation_id }">{{ 'order.openConversation' | t }}</a>
           </div>
         </div>
@@ -283,6 +293,18 @@ import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
       border-radius: 12px;
       font-size: var(--text-xs);
       font-weight: 700;
+    }
+    .deleted-tag {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 8px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--line-strong);
+      color: var(--muted);
+      font-family: inherit;
+      font-size: var(--text-xs);
+      font-weight: 500;
+      vertical-align: middle;
     }
     .badge.pending { background: var(--paper-warm); color: var(--ink); border: 1px solid var(--line); }
     .badge.accepted { background: var(--warn-bg); color: var(--warn-ink); border: 1px solid color-mix(in srgb, var(--warn-ink) 40%, transparent); }
@@ -624,6 +646,20 @@ export class OrdersComponent implements OnInit {
     const details = await this.meetupDetails.ask(order.listing_title || '');
     if (!details) return;
     this.updateStatus(order, 'accepted', undefined, details.time || undefined, details.location || undefined);
+  }
+
+  /**
+   * A platform cancel stores `admin_override: <the staff member's reason>`,
+   * which is no i18n key — looked up as one, the raw key was shown. Collapse
+   * it to its own label; the reason itself is for the audit trail.
+   */
+  cancelReasonKey(reason: string): string {
+    return reason.startsWith('admin_override') ? 'order.cancel_reason.admin_override' : `order.cancel_reason.${reason}`;
+  }
+
+  platformCancelReason(order: Order): string {
+    const reason = order.status === 'cancelled' ? order.cancel_reason || '' : '';
+    return reason.startsWith('admin_override:') ? reason.slice('admin_override:'.length).trim() : '';
   }
 
   hasExclusiveConflict(order: Order): boolean {

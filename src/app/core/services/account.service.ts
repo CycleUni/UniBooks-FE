@@ -32,6 +32,7 @@ export interface ListingReportItem {
   listing?: {
     id: string;
     title?: string;
+    deleted?: boolean;
   };
   reporter?: {
     id: string;

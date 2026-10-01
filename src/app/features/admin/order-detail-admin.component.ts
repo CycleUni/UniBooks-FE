@@ -20,7 +20,7 @@ import { PricePipe } from '../../shared/pipes/price.pipe';
     <div *ngIf="loading" class="empty-note">{{ 'common.loading' | t }}</div>
 
     <div class="detail-card" *ngIf="!loading && order">
-      <h2>{{ order.listing?.book_title }}</h2>
+      <h2>{{ order.listing?.book_title }}<span *ngIf="order.listing?.deleted" class="text-muted"> · {{ 'common.listingDeleted' | t }}</span></h2>
 
       <div class="field-grid">
         <div class="field"><label>{{ 'order.buyer' | t }}</label><span>{{ order.buyer?.email }}</span></div>

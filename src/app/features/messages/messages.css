@@ -651,3 +651,12 @@
       color: var(--muted);
       font-size: var(--text-sm);
     }
+
+    .read-only-note {
+      flex: 1;
+      margin: 0;
+      padding: 10px 0;
+      color: var(--muted);
+      font-size: var(--text-sm);
+      text-align: center;
+    }

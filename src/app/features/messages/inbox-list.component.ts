@@ -54,7 +54,7 @@ import { formatInboxTime } from './message-formatting.util';
                       (click)="$event.stopPropagation(); remove.emit(chat)">×</button>
             </div>
           </div>
-          <div class="chat-subject">{{ 'msg.bookPrefix' | t:{title: chat.listing_title} }}</div>
+          <div class="chat-subject">{{ 'msg.bookPrefix' | t:{title: chat.listing_title} }}<span *ngIf="chat.listing_deleted"> · {{ 'common.listingDeleted' | t }}</span></div>
           <div class="chat-preview" [class.pending]="chat.pending">{{ chat.pending ? ('msg.pendingPreview' | t) : formatPreview(chat.latest_message) }}</div>
         </div>
       </div>

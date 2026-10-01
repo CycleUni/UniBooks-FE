@@ -180,4 +180,12 @@
       </div>
 
       <ui-error-state *ngIf="errorMsg" [message]="errorMsg" [retryable]="false"></ui-error-state>
+      <ui-empty
+        *ngIf="notFound"
+        [fullPage]="true"
+        [message]="'listing.notFoundTitle' | t"
+        [description]="'listing.notFoundBody' | t"
+        [actionText]="'listing.notFoundAction' | t"
+        (onAction)="goSearch()"
+      ></ui-empty>
     </main>

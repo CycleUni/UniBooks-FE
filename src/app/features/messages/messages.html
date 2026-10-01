@@ -38,12 +38,17 @@
                    unreachable by keyboard and announced as nothing at all.
                    Everything inside is phrasing content (span) because a
                    button may not contain flow content. -->
-              <button type="button" class="listing-banner-left" (click)="goToListing(activeChat.listing_id)">
+              <!-- Disabled once the seller deletes the listing: there is no
+                   page to go back to, only this conversation's history. -->
+              <button type="button" class="listing-banner-left" (click)="goToListing(activeChat.listing_id)" [disabled]="activeChat.listing_deleted">
                 <img *ngIf="activeChat.listing_photo" [src]="activeChat.listing_photo" [attr.alt]="activeChat.listing_title || ('common.bookCover' | t)" class="listing-thumb">
                 <span class="placeholder-thumb" *ngIf="!activeChat.listing_photo"></span>
                 <span class="listing-details">
                   <span class="listing-title">{{ activeChat.listing_title }}</span>
-                  <span class="listing-meta">
+                  <span class="listing-meta" *ngIf="activeChat.listing_deleted">
+                    <span class="condition badge">{{ 'common.listingDeleted' | t }}</span>
+                  </span>
+                  <span class="listing-meta" *ngIf="!activeChat.listing_deleted">
                     <span class="price">{{ activeChat.listing_price | price }}</span>
                     <span class="condition badge">{{ ('cond.' + activeChat.listing_condition) | t }}</span>
                     <span class="course" *ngIf="activeChat.listing_course">{{ activeChat.listing_course }}</span>
@@ -58,7 +63,7 @@
                   </ui-button>
                 </ng-container>
 
-                <ng-container *ngIf="!activeChat.order_id">
+                <ng-container *ngIf="!activeChat.order_id && !activeChat.listing_deleted">
                   <ng-container *ngIf="activeChat.other_party_role === 'seller'">
                     <ui-button variant="ghost" (onClick)="goToListing(activeChat.listing_id)">
                       {{ 'msg.viewListing' | t }}
@@ -128,7 +133,7 @@
                 </ng-container>
                 <ng-template #textMsg>
                   <div class="msg-content">
-                    {{ msg.body }}
+                    {{ messageText(msg.body) }}
                     <button
                       class="msg-delete-btn"
                       type="button"
@@ -146,7 +151,13 @@
             </div>
           </div>
 
-          <div class="message-input-area" #inputArea>
+          <!-- The listing is gone: the history stays readable, but there is
+               nothing left to arrange, and the chat token is read-only. -->
+          <div class="message-input-area" #inputArea *ngIf="activeChat.listing_deleted">
+            <p class="read-only-note">{{ 'msg.listingDeletedReadOnly' | t }}</p>
+          </div>
+
+          <div class="message-input-area" #inputArea *ngIf="!activeChat.listing_deleted">
             <div class="input-wrapper">
               <input
                 type="file"

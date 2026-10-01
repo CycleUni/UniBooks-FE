@@ -20,10 +20,13 @@ export interface UserReportItem {
   listing?: {
     id: string;
     title?: string;
+    /** The seller deleted the listing; the report keeps its title. */
+    deleted?: boolean;
   };
   conversation?: {
     id: string;
     listing_title?: string;
+    listing_deleted?: boolean;
   };
 }
 
@@ -69,11 +72,11 @@ export interface UserReportItem {
           <div class="report-body">
             <div class="report-field" *ngIf="report.type === 'listing' && report.listing?.title">
               <span class="field-label">{{ 'acct.reportListing' | t }}:</span>
-              <span class="field-value">{{ report.listing?.title }}</span>
+              <span class="field-value">{{ report.listing?.title }}<span *ngIf="report.listing?.deleted" class="text-muted"> · {{ 'common.listingDeleted' | t }}</span></span>
             </div>
             <div class="report-field" *ngIf="report.type === 'chat' && report.conversation?.listing_title">
               <span class="field-label">{{ 'acct.reportConversation' | t }}:</span>
-              <span class="field-value">{{ report.conversation?.listing_title }}</span>
+              <span class="field-value">{{ report.conversation?.listing_title }}<span *ngIf="report.conversation?.listing_deleted" class="text-muted"> · {{ 'common.listingDeleted' | t }}</span></span>
             </div>
             <div class="report-field" *ngIf="report.detail">
               <span class="field-label">{{ 'acct.reportDetail' | t }}:</span>

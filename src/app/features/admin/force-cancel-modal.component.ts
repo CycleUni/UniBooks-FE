@@ -1,5 +1,6 @@
 import { parseAdminError } from '../../core/admin-error.util';
 import { ChangeDetectorRef, Component, EventEmitter, Input, Output, inject } from '@angular/core';
+import { Observable } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UiButton } from '../../shared/ui/button.component';
@@ -16,9 +17,10 @@ import { I18nService, TPipe } from '../../core/i18n.service';
   template: `
     <div class="app-modal-overlay" (click)="close()">
       <div class="app-modal w-full"  style="max-width: 400px;" (click)="$event.stopPropagation()" uiFocusTrap="force-cancel-title" (escape)="close()">
-        <h3 id="force-cancel-title" class="app-modal-title">{{ 'admin.forceCancelTitle' | t }}</h3>
+        <h3 id="force-cancel-title" class="app-modal-title">{{ (listingId ? 'admin.deleteWithOrdersTitle' : 'admin.forceCancelTitle') | t }}</h3>
 
         <div class="app-modal-body">
+          <p *ngIf="listingId" class="hint">{{ 'admin.deleteWithOrdersHint' | t:{count: openOrders} }}</p>
           <div class="textarea-wrapper">
             <label>{{ 'admin.forceCancelReasonLabel' | t }}</label>
             <ui-textarea [(ngModel)]="reason" [placeholder]="'admin.forceCancelReasonPlaceholder' | t"></ui-textarea>
@@ -32,7 +34,7 @@ import { I18nService, TPipe } from '../../core/i18n.service';
         <div class="app-modal-actions">
           <ui-button variant="ghost" (onClick)="close()" [disabled]="isSubmitting">{{ 'common.cancel' | t }}</ui-button>
           <ui-button (onClick)="submit()" [disabled]="isSubmitting || reason.trim().length < 3">
-            {{ isSubmitting ? ('admin.saving' | t) : ('admin.forceCancelSubmit' | t) }}
+            {{ isSubmitting ? ('admin.saving' | t) : ((listingId ? 'common.delete' : 'admin.forceCancelSubmit') | t) }}
           </ui-button>
         </div>
       </div>
@@ -40,6 +42,7 @@ import { I18nService, TPipe } from '../../core/i18n.service';
   `,
   styles: [`
     h3 { margin-top: 0; margin-bottom: 12px; }
+    .hint { margin: 0 0 12px; color: var(--ink-soft); font-size: var(--text-sm); }
     .textarea-wrapper {
       display: flex;
       flex-direction: column;
@@ -54,7 +57,14 @@ import { I18nService, TPipe } from '../../core/i18n.service';
   `]
 })
 export class ForceCancelModalComponent {
-  @Input() orderId!: string;
+  @Input() orderId?: string;
+  /**
+   * Deleting a listing that still has open orders: the platform cancels them
+   * first, with the same written reason a force-cancel takes, so this modal
+   * collects it and sends the delete instead.
+   */
+  @Input() listingId?: string;
+  @Input() openOrders = 0;
   @Output() closed = new EventEmitter<void>();
   @Output() submitted = new EventEmitter<void>();
 
@@ -74,7 +84,10 @@ export class ForceCancelModalComponent {
     this.isSubmitting = true;
     this.errorMsg = '';
 
-    this.adminService.forceCancelOrder(this.orderId, this.reason.trim()).subscribe({
+    const request: Observable<unknown> = this.listingId
+      ? this.adminService.deleteListing(this.listingId, this.reason.trim())
+      : this.adminService.forceCancelOrder(this.orderId!, this.reason.trim());
+    request.subscribe({
       next: () => {
         this.isSubmitting = false;
         this.submitted.emit();

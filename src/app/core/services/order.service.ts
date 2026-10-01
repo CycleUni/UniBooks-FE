@@ -17,7 +17,11 @@ export interface Order {
   /** The chat this order was arranged in; null if the viewer deleted it. */
   conversation_id?: string | null;
   listing_title?: string;
-  listing: string;
+  /** Null once the seller deletes the listing; the order keeps its snapshot. */
+  listing: string | null;
+  listing_ref?: string;
+  book_isbn?: string;
+  listing_deleted?: boolean;
   status?: string;
   cancel_reason?: string;
   total_amount?: number;

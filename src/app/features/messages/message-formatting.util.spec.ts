@@ -1,4 +1,4 @@
-import { formatInboxTime } from './message-formatting.util';
+import { formatInboxTime, systemMessageKey } from './message-formatting.util';
 
 describe('formatInboxTime', () => {
   // Local-time constructors throughout, so the day boundaries these check are
@@ -28,5 +28,17 @@ describe('formatInboxTime', () => {
     expect(formatInboxTime('', 'en-US', now)).toBe('');
     expect(formatInboxTime(null, 'en-US', now)).toBe('');
     expect(formatInboxTime('not a date', 'en-US', now)).toBe('');
+  });
+});
+
+describe('systemMessageKey', () => {
+  it('reads the key of a system notice', () => {
+    expect(systemMessageKey('[SYSTEM:order.notify.admin_cancelled] System Notification')).toBe('order.notify.admin_cancelled');
+  });
+
+  it('ignores ordinary text, even text that mentions a marker', () => {
+    expect(systemMessageKey('hello')).toBeNull();
+    expect(systemMessageKey('see [SYSTEM:x] later')).toBeNull();
+    expect(systemMessageKey('')).toBeNull();
   });
 });

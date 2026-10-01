@@ -7,6 +7,7 @@ import { ListingService } from '../../core/services/listing.service';
 import { BookService } from '../../core/services/book.service';
 import { UiButton } from '../../shared/ui/button.component';
 import { UiErrorState } from '../../shared/ui/error-state.component';
+import { UiEmpty } from '../../shared/ui/empty.component';
 import { UiBackButton } from '../../shared/ui/back-button.component';
 import { UiBreadcrumb, BreadcrumbItem } from '../../shared/ui/breadcrumb.component';
 import { UiListingCard } from '../../shared/ui/listing-card.component';
@@ -32,7 +33,7 @@ import { SeoService } from '../../core/services/seo.service';
 @Component({
   selector: 'app-listing-detail',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, UiButton, UiActionBar, UiSkeleton, UiErrorState, UiBackButton, UiBreadcrumb, UiListingCard, UiSellerReputation, TPipe, PricePipe, ReportModalComponent, UiVerificationPrompt],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, UiButton, UiActionBar, UiSkeleton, UiErrorState, UiEmpty, UiBackButton, UiBreadcrumb, UiListingCard, UiSellerReputation, TPipe, PricePipe, ReportModalComponent, UiVerificationPrompt],
   templateUrl: './listing-detail.html',
   styleUrls: ['./listing-detail.css']
 })
@@ -42,6 +43,9 @@ export class ListingDetail implements OnInit, OnDestroy {
   listing: any = null;
   isLoading = true;
   errorMsg = '';
+  /** The listing is gone (sold and deleted, or never existed) — a link from
+   *  an old order or chat lands here. Not an error: say so and offer a way on. */
+  notFound = false;
   showUnverifiedPrompt = false;
   
   allPhotos: string[] = [];
@@ -143,6 +147,7 @@ export class ListingDetail implements OnInit, OnDestroy {
         this.isLoading = true;
         this.otherListings = [];
         this.errorMsg = '';
+        this.notFound = false;
         this.firedScrollThresholds.clear(); // reset thresholds for new listing
         this.cdr.markForCheck();
         this.loadListing(newId);
@@ -232,10 +237,18 @@ export class ListingDetail implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.isLoading = false;
-        this.errorMsg = this.i18n.t('alert.bookNotFound');
+        if (err?.status === 404) {
+          this.notFound = true;
+        } else {
+          this.errorMsg = this.i18n.t('alert.bookNotFound');
+        }
         this.cdr.markForCheck();
       }
     });
+  }
+
+  goSearch() {
+    this.router.navigate(this.regionLink.path(['/search']));
   }
 
   /** Both checkout entrances and contactSeller() share this gate. Only

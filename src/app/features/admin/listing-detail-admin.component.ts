@@ -11,11 +11,12 @@ import { UiDropdown } from '../../shared/ui/dropdown.component';
 import { UiCheckbox } from '../../shared/ui/checkbox.component';
 import { UiInput } from '../../shared/ui/input.component';
 import { PricePipe } from '../../shared/pipes/price.pipe';
+import { ForceCancelModalComponent } from './force-cancel-modal.component';
 
 @Component({
   selector: 'app-admin-listing-detail',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiButton, UiDropdown, UiCheckbox, UiInput, PricePipe],
+  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiButton, UiDropdown, UiCheckbox, UiInput, PricePipe, ForceCancelModalComponent],
   template: `
     <a routerLink="../.." class="back-link">&larr; {{ 'admin.backToList' | t }}</a>
 
@@ -48,6 +49,14 @@ import { PricePipe } from '../../shared/pipes/price.pipe';
         <ui-button variant="danger" (onClick)="deleteListing()" [disabled]="saving || deleting">{{ 'common.delete' | t }}</ui-button>
       </div>
     </div>
+
+    <app-force-cancel-modal
+      *ngIf="openOrdersToCancel && listing"
+      [listingId]="listing.id"
+      [openOrders]="openOrdersToCancel"
+      (closed)="openOrdersToCancel = 0"
+      (submitted)="onDeleted()"
+    ></app-force-cancel-modal>
   `,
   styles: [`
 
@@ -139,9 +148,15 @@ export class AdminListingDetailComponent implements OnInit {
     });
   }
 
+  /** Open orders the server will cancel if the delete goes ahead; non-zero
+   *  shows the modal that asks for the reason it needs for that. */
+  openOrdersToCancel = 0;
+
   // The seller cannot delete a listing an admin has locked (the record is
-  // kept), so removing it for good is done here. The backend refuses a
-  // listing that has orders, since they would be deleted along with it.
+  // kept), so removing it for good is done here. Finished orders keep their
+  // own record; open ones are cancelled on the platform's behalf, which the
+  // server only does with a written reason — it answers the first attempt
+  // with how many there are, and the modal collects the reason.
   async deleteListing() {
     if (!this.listing) return;
     const confirmed = await this.confirms.askDanger(this.i18n.t('admin.confirmDeleteListing'), {
@@ -153,12 +168,22 @@ export class AdminListingDetailComponent implements OnInit {
     this.savedMsg = '';
     this.cdr.markForCheck();
     this.adminService.deleteListing(this.listing.id).subscribe({
-      next: () => this.router.navigate(['..', '..'], { relativeTo: this.route }),
+      next: () => this.onDeleted(),
       error: (err) => {
         this.deleting = false;
-        this.errorMsg = parseAdminError(err, this.i18n, 'admin.errDeleteFailed');
+        const openOrders = err?.error?.open_orders;
+        if (err?.error?.error?.code === 'admin.errInvalidReason' && openOrders > 0) {
+          this.openOrdersToCancel = openOrders;
+        } else {
+          this.errorMsg = parseAdminError(err, this.i18n, 'admin.errDeleteFailed');
+        }
         this.cdr.markForCheck();
       },
     });
+  }
+
+  onDeleted() {
+    this.openOrdersToCancel = 0;
+    this.router.navigate(['..', '..'], { relativeTo: this.route });
   }
 }

@@ -24,7 +24,7 @@ import { ThemeService } from '../../core/services/theme.service';
 import { Subscription, of } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { MobileLayoutService } from '../../core/services/mobile-layout.service';
-import { formatMessageTime, isMeetupRequest, isMeetupDetailsMessage, cleanMeetupBody, IMAGE_PREVIEW_TOKEN } from './message-formatting.util';
+import { formatMessageTime, isMeetupRequest, isMeetupDetailsMessage, cleanMeetupBody, IMAGE_PREVIEW_TOKEN, systemMessageKey } from './message-formatting.util';
 import { PricePipe } from '../../shared/pipes/price.pipe';
 import { RegionLinkService } from '../../core/region-link.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -874,6 +874,16 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
     const svg = `<svg width="200" height="150" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="${bg}" rx="8"/><text x="50%" y="50%" font-family="sans-serif" font-size="14" fill="${ink}" text-anchor="middle" dominant-baseline="middle">${fallbackMsg}</text></svg>`;
     return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
   });
+
+  /**
+   * A plain chat bubble's text. Order notices that are not meetup cards (a
+   * platform cancel, say) arrive as `[SYSTEM:<key>] System Notification` and
+   * were printed as exactly that; show the translated notice instead.
+   */
+  messageText(body: string): string {
+    const key = systemMessageKey(body);
+    return key ? (this.i18n.tOrNull(key) ?? body) : body;
+  }
 
   onImageError(msg: any) {
     msg._expired = true;

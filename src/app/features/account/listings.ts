@@ -609,6 +609,9 @@ export class ListingsComponent implements OnInit {
 
   closeEdit() {
     this.editingListing = null;
+    // onDelete closes the sheet from inside an awaited confirm; without this
+    // the sheet stayed drawn whenever the delete then failed or was refused.
+    this.cdr.markForCheck();
   }
 
   /**

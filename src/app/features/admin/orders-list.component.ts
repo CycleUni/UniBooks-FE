@@ -43,7 +43,7 @@ import { RegionService } from '../../core/region.service';
       <tbody>
         <tr *ngFor="let order of orders" [regionLink]="[order.id]">
           <td>{{ getRegionName(order.region) }}</td>
-          <td>{{ order.listing?.book_title }}</td>
+          <td>{{ order.listing?.book_title }}<span *ngIf="order.listing?.deleted" class="text-muted"> · {{ 'common.listingDeleted' | t }}</span></td>
           <td>{{ order.buyer?.email }}</td>
           <td>{{ order.seller?.email }}</td>
           <td>{{ order.total_amount | price: order.currency }}</td>
