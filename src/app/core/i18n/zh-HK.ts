@@ -812,11 +812,11 @@ export const zhHK: Record<string, string> = {
   'admin.no': '否',
   'admin.lockListing': '鎖定商品',
   'admin.lockReason': '鎖定原因',
-  'row.adminLocked': '已被管理員下架，無法編輯',
+  'row.adminLocked': '已經被平台下架，改唔到',
   'admin.confirmDeleteListing': '確定要永久刪除此商品嗎？刪除後無法復原。',
   'admin.errListingHasOrders': '此商品已有訂單紀錄，無法刪除，請改用下架。',
   'admin.locked': '已鎖定',
-  'listing.errAdminLocked': '此商品已被管理員鎖定，無法修改。',
+  'listing.errAdminLocked': '呢件商品已經被平台鎖定，改唔到。',
   'admin.noSchool': '無學校',
   'admin.staffBadge': '管理員',
   'admin.save': '儲存',
@@ -896,7 +896,7 @@ export const zhHK: Record<string, string> = {
   'admin.forceCancelSubmit': '取消訂單',
   'admin.forceCancelSuccess': '訂單已取消。',
   'admin.errOrderAlreadyFinal': '此訂單已是取消或完成狀態。',
-  'order.notify.admin_cancelled': '管理員已取消此訂單。',
+  'order.notify.admin_cancelled': '呢張訂單已經被平台取消。',
 
   // Verify page（註冊帳戶啟用 + 教育電郵綁定）
   'verify.title': '電郵驗證',

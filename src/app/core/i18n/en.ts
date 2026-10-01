@@ -810,11 +810,11 @@ export const en: Record<string, string> = {
   'admin.no': 'No',
   'admin.lockListing': 'Lock Listing',
   'admin.lockReason': 'Reason for locking',
-  'row.adminLocked': 'Taken down by an admin · editing is disabled',
+  'row.adminLocked': 'Taken down by UniBooks · editing is disabled',
   'admin.confirmDeleteListing': 'This listing will be permanently deleted and cannot be restored. Continue?',
   'admin.errListingHasOrders': 'This listing has orders and cannot be deleted. Take it down instead.',
   'admin.locked': 'Locked',
-  'listing.errAdminLocked': 'This listing has been locked by an administrator and cannot be modified.',
+  'listing.errAdminLocked': 'This listing has been locked by UniBooks and cannot be modified.',
   'admin.noSchool': 'No school',
   'admin.staffBadge': 'Staff',
   'admin.save': 'Save',
@@ -894,7 +894,7 @@ export const en: Record<string, string> = {
   'admin.forceCancelSubmit': 'Cancel order',
   'admin.forceCancelSuccess': 'Order cancelled.',
   'admin.errOrderAlreadyFinal': 'This order is already cancelled or completed.',
-  'order.notify.admin_cancelled': 'An admin has cancelled this order.',
+  'order.notify.admin_cancelled': 'This order has been cancelled by UniBooks.',
 
   // Verify page (registration activation + edu-email binding)
   'verify.title': 'Email Verification',
