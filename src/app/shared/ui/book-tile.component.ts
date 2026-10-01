@@ -60,6 +60,7 @@ import { UiBookCover } from './book-cover.component';
             [author]="author"
             [isbn]="isbn"
             [zoom]="3"
+            [priority]="priority"
           ></ui-book-cover>
 
           <span class="price-tag stamp-tag" *ngIf="mode === 'sellers'" [class.unpriced]="!hasPrice">
@@ -207,6 +208,8 @@ export class UiBookTile {
   @Input() author?: string;
   @Input() isbn?: string;
   @Input() feature: boolean = false;
+  /** Passed to the cover; see UiBookCover.priority. */
+  @Input() priority = false;
   @Input() mode: 'sellers' | 'waitlist' = 'sellers';
 
   /**

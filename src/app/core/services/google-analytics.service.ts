@@ -1,9 +1,10 @@
-import { Injectable, Injector, inject, PLATFORM_ID } from '@angular/core';
+import { ApplicationRef, Injectable, Injector, inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { RegionService } from '../region.service';
+import { whenPageSettled } from '../page-settled';
 
 @Injectable({
   providedIn: 'root'
@@ -14,6 +15,7 @@ export class GoogleAnalyticsService {
   // Looked up on use, not injected: RegionService's own dependencies lead back
   // to AuthStore, which injects this service.
   private injector = inject(Injector);
+  private appRef = inject(ApplicationRef);
   private initialized = false;
   private gaId: string | null = null;
 
@@ -29,11 +31,15 @@ export class GoogleAnalyticsService {
 
     this.gaId = gaId;
 
-    // Load Google Analytics script dynamically
-    const script = document.createElement('script');
-    script.async = true;
-    script.src = `https://www.googletagmanager.com/gtag/js?id=${gaId}`;
-    document.head.appendChild(script);
+    // Load Google Analytics script once the first page is up (see
+    // whenPageSettled). Until then gtag() only queues onto dataLayer, which
+    // the script replays when it arrives, so nothing tracked is lost.
+    whenPageSettled(this.appRef).then(() => {
+      const script = document.createElement('script');
+      script.async = true;
+      script.src = `https://www.googletagmanager.com/gtag/js?id=${gaId}`;
+      document.head.appendChild(script);
+    });
 
     // Initialize dataLayer and gtag function
     (window as any).dataLayer = (window as any).dataLayer || [];

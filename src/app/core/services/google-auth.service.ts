@@ -1,10 +1,11 @@
-import { Injectable, inject, PLATFORM_ID, effect } from '@angular/core';
+import { ApplicationRef, Injectable, inject, PLATFORM_ID, effect } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { AuthStore } from '../auth.store';
 import { I18nService } from '../i18n.service';
 import { ThemeService } from './theme.service';
 import { ToastService } from './toast.service';
 import { parseApiError } from '../api-error.util';
+import { whenPageSettled } from '../page-settled';
 
 
 @Injectable({
@@ -16,6 +17,7 @@ export class GoogleAuthService {
   private themeService = inject(ThemeService);
   private toast = inject(ToastService);
   private platformId = inject(PLATFORM_ID);
+  private appRef = inject(ApplicationRef);
   
   private googleClientId = '';
   private isScriptLoaded = false;
@@ -38,8 +40,11 @@ export class GoogleAuthService {
         }
       }
       
+      // One Tap waits for the first page to be up (see whenPageSettled): it
+      // fetches the auth config and Google's script, and a prompt a moment
+      // later costs nothing. initializeGoogleAuth checks the session again.
       if (!isAuth && isPlatformBrowser(this.platformId)) {
-        this.initializeGoogleAuth();
+        whenPageSettled(this.appRef).then(() => this.initializeGoogleAuth());
       }
     });
   }

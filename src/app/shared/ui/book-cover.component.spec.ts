@@ -41,6 +41,23 @@ describe('UiBookCover', () => {
     expect(fixture.debugElement.query(By.css('.book-placeholder'))).toBeNull();
   });
 
+  it('loads lazily by default', () => {
+    fixture.componentRef.setInput('coverUrl', 'https://books.google.com/books?id=123');
+    fixture.detectChanges();
+    const img = fixture.nativeElement.querySelector('img') as HTMLImageElement;
+    expect(img.getAttribute('loading')).toBe('lazy');
+    expect(img.hasAttribute('fetchpriority')).toBe(false);
+  });
+
+  it('loads a priority cover at once and ahead of other images', () => {
+    fixture.componentRef.setInput('coverUrl', 'https://books.google.com/books?id=123');
+    fixture.componentRef.setInput('priority', true);
+    fixture.detectChanges();
+    const img = fixture.nativeElement.querySelector('img') as HTMLImageElement;
+    expect(img.getAttribute('loading')).toBe('eager');
+    expect(img.getAttribute('fetchpriority')).toBe('high');
+  });
+
   it('passes the zoom level to the bookCover pipe', () => {
     fixture.componentRef.setInput('coverUrl', 'https://books.google.com/books?id=123');
     fixture.componentRef.setInput('zoom', 2);

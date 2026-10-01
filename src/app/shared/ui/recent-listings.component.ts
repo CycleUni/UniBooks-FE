@@ -46,6 +46,7 @@ export const RECENT_BOOKS_PAGE_SIZE = 20;
           <ng-container *ngIf="item.type === 'book'">
             <ui-book-tile
               [feature]="showFeatureTile && i === 0"
+              [priority]="i < 2"
               [title]="item.data.title || ('home.unknownBook' | t)"
               [author]="item.data.authors"
               [isbn]="item.data.isbn"

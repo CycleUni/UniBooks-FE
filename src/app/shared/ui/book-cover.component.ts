@@ -47,7 +47,8 @@ export function markCoverFailed(coverUrl: string | null | undefined, zoom: 1 | 2
       *ngIf="coverUrl && !imageBroken"
       [src]="coverUrl | bookCover: zoom"
       [alt]="alt || title || ('home.unknownBook' | t)"
-      loading="lazy"
+      [attr.loading]="priority ? 'eager' : 'lazy'"
+      [attr.fetchpriority]="priority ? 'high' : null"
       (error)="onImageError()"
     />
     <span class="placeholder book-placeholder" *ngIf="!coverUrl || imageBroken" aria-hidden="true">
@@ -81,6 +82,12 @@ export class UiBookCover implements OnChanges {
   @Input() isbn?: string;
   @Input() alt?: string;
   @Input() zoom: 1 | 2 | 3 = 3;
+  /**
+   * A cover on screen when the page opens — the first row of the home grid,
+   * usually the page's largest paint. Loaded at once and ahead of other
+   * images; lazy, it waited for layout before its download even started.
+   */
+  @Input() priority = false;
 
   imageBroken = false;
 
