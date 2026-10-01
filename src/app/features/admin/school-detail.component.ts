@@ -19,7 +19,7 @@ import { TranslationEditorComponent, TranslationField } from './translation-edit
     <div class="section-head-row">
       <div>
         <h2>{{ 'common.edit' | t }}: {{ school?.name }} <code *ngIf="school?.code">{{ school?.code }}</code></h2>
-        <ui-button size="sm" variant="outline" regionLink="..">‹ {{ 'admin.backToList' | t }}</ui-button>
+        <ui-button size="sm" variant="outline" [regionLink]="['/admin', 'schools']">‹ {{ 'admin.backToList' | t }}</ui-button>
       </div>
     </div>
 

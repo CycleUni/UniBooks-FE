@@ -6,6 +6,7 @@ import { AdminService, AdminCurrency } from '../../core/services/admin.service';
 import { TPipe, I18nService } from '../../core/i18n.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { RegionLinkDirective } from '../../core/region-link.directive';
+import { RegionLinkService } from '../../core/region-link.service';
 import { UiDropdown } from '../../shared/ui/dropdown.component';
 import { UiCheckbox } from '../../shared/ui/checkbox.component';
 import { UiInput } from '../../shared/ui/input.component';
@@ -17,7 +18,7 @@ import { UiButton } from '../../shared/ui/button.component';
   imports: [CommonModule, RouterModule, FormsModule, TPipe, RegionLinkDirective, UiDropdown, UiInput, UiButton, UiCheckbox],
   template: `
     <div class="admin-detail-header" *ngIf="item">
-      <a regionLink="../.." class="back-link">&larr; {{ 'admin.backToList' | t }}</a>
+      <a [regionLink]="['/admin', 'currencies']" class="back-link">&larr; {{ 'admin.backToList' | t }}</a>
       <h2>{{ 'admin.editCurrency' | t }} - {{ item.code }}</h2>
     </div>
 
@@ -76,6 +77,7 @@ export class AdminCurrencyDetailComponent implements OnInit {
   private cdr = inject(ChangeDetectorRef);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  private regionLink = inject(RegionLinkService);
   private i18n = inject(I18nService);
 
   item?: AdminCurrency;
@@ -96,7 +98,7 @@ export class AdminCurrencyDetailComponent implements OnInit {
           this.item = res;
           this.cdr.markForCheck();
         },
-        error: () => this.router.navigate(['..'], { relativeTo: this.route })
+        error: () => this.router.navigate(this.regionLink.path(['/admin', 'currencies']))
       });
     }
   }

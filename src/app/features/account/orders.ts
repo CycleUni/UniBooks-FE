@@ -477,8 +477,12 @@ export class OrdersComponent implements OnInit {
   }
 
   ngOnInit() {
+    // authGuard keeps signed-out visitors off this route. Signed out here
+    // means the session ended while the page was opening (a refused token
+    // refresh), and AuthStore.endSession() is already sending them to
+    // /login with a returnUrl; a bare navigate from here raced it and won,
+    // dropping the returnUrl.
     if (!this.authStore.isLoggedIn()) {
-      this.router.navigate(this.regionLink.path(['/login']));
       return;
     }
     this.route.queryParams.subscribe(params => {

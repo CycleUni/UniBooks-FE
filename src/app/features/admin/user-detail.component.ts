@@ -22,7 +22,7 @@ import { UiDropdown } from '../../shared/ui/dropdown.component';
   standalone: true,
   imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, UiButton, UiDropdown, UiCheckbox],
   template: `
-    <a regionLink="../.." class="back-link">&larr; {{ 'admin.backToList' | t }}</a>
+    <a [regionLink]="['/admin', 'users']" class="back-link">&larr; {{ 'admin.backToList' | t }}</a>
 
     <div *ngIf="loading" class="empty-note">{{ 'common.loading' | t }}</div>
 

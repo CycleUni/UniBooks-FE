@@ -21,7 +21,7 @@ import { AdminStatsPeriodComponent, AdminStatusBarComponent, STATS_PAGE_STYLES, 
     AdminTrendChartComponent, AdminStatsPeriodComponent, AdminStatusBarComponent, BookCoverPipe,
   ],
   template: `
-    <a regionLink=".." [queryParams]="{ days: days }" class="back-link">&larr; {{ 'admin.stats.backToBooks' | t }}</a>
+    <a [regionLink]="['/admin', 'stats', 'books']" [queryParams]="{ days: days }" class="back-link">&larr; {{ 'admin.stats.backToBooks' | t }}</a>
 
     <div *ngIf="!data && loading" class="empty-note">{{ 'common.loading' | t }}</div>
     <div *ngIf="!data && !loading" class="empty-note">{{ 'admin.errLoadFailed' | t }}</div>

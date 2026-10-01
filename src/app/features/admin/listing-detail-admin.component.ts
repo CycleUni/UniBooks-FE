@@ -12,13 +12,15 @@ import { UiCheckbox } from '../../shared/ui/checkbox.component';
 import { UiInput } from '../../shared/ui/input.component';
 import { PricePipe } from '../../shared/pipes/price.pipe';
 import { ForceCancelModalComponent } from './force-cancel-modal.component';
+import { RegionLinkDirective } from '../../core/region-link.directive';
+import { RegionLinkService } from '../../core/region-link.service';
 
 @Component({
   selector: 'app-admin-listing-detail',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiButton, UiDropdown, UiCheckbox, UiInput, PricePipe, ForceCancelModalComponent],
+  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiButton, UiDropdown, UiCheckbox, UiInput, PricePipe, ForceCancelModalComponent, RegionLinkDirective],
   template: `
-    <a routerLink="../.." class="back-link">&larr; {{ 'admin.backToList' | t }}</a>
+    <a [regionLink]="['/admin', 'listings']" class="back-link">&larr; {{ 'admin.backToList' | t }}</a>
 
     <div *ngIf="loading" class="empty-note">{{ 'common.loading' | t }}</div>
 
@@ -77,6 +79,7 @@ export class AdminListingDetailComponent implements OnInit {
   private i18n = inject(I18nService);
   private cdr = inject(ChangeDetectorRef);
   private router = inject(Router);
+  private regionLink = inject(RegionLinkService);
   private confirms = inject(ConfirmService);
 
   listing: AdminListing | null = null;
@@ -184,6 +187,6 @@ export class AdminListingDetailComponent implements OnInit {
 
   onDeleted() {
     this.openOrdersToCancel = 0;
-    this.router.navigate(['..', '..'], { relativeTo: this.route });
+    this.router.navigate(this.regionLink.path(['/admin', 'listings']));
   }
 }

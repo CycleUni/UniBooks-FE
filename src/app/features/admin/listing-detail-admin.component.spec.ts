@@ -41,10 +41,13 @@ describe('AdminListingDetailComponent.deleteListing', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  it('leaves the page once the listing is deleted', async () => {
+  it('goes back to the listings list once the listing is deleted', async () => {
     deleteListing.mockReturnValue(of(undefined));
     await component.deleteListing();
-    expect(navigate).toHaveBeenCalled();
+    // An absolute path: '../..' from the 'listings/:id' route landed on the
+    // admin root with this page still rendered.
+    const [commands] = navigate.mock.calls[0];
+    expect(commands.slice(-2)).toEqual(['admin', 'listings']);
     expect(component.openOrdersToCancel).toBe(0);
   });
 });

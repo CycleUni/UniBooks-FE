@@ -203,6 +203,22 @@ describe('OrdersComponent.approveOrder', () => {
   });
 });
 
+describe('OrdersComponent when the session ended while opening', () => {
+  it('leaves the redirect to AuthStore, which keeps the returnUrl', () => {
+    TestBed.configureTestingModule({ imports: [OrdersComponent, HttpClientTestingModule, RouterTestingModule] });
+    const component = TestBed.createComponent(OrdersComponent).componentInstance;
+    const navigate = vi.fn();
+    (component as any).router = { navigate };
+    (component as any).authStore = { isLoggedIn: () => false };
+    component.loadOrders = vi.fn();
+
+    component.ngOnInit();
+
+    expect(navigate).not.toHaveBeenCalled();
+    expect(component.loadOrders).not.toHaveBeenCalled();
+  });
+});
+
 describe('OrdersComponent platform cancels', () => {
   let component: OrdersComponent;
 

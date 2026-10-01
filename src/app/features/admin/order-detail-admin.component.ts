@@ -15,7 +15,7 @@ import { PricePipe } from '../../shared/pipes/price.pipe';
   standalone: true,
   imports: [RegionLinkDirective, CommonModule, RouterModule, TPipe, UiButton, ForceCancelModalComponent, PricePipe],
   template: `
-    <a regionLink="../.." class="back-link">&larr; {{ 'admin.backToList' | t }}</a>
+    <a [regionLink]="['/admin', 'orders']" class="back-link">&larr; {{ 'admin.backToList' | t }}</a>
 
     <div *ngIf="loading" class="empty-note">{{ 'common.loading' | t }}</div>
 
