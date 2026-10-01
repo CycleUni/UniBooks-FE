@@ -428,6 +428,21 @@ describe('AuthStore session expiry', () => {
     expect(endSession).not.toHaveBeenCalled();
   });
 
+  it('drops its deferred profile fetch once its injector is destroyed', () => {
+    // The bootstrap fetch waits one macrotask after construction. If the
+    // injector goes first (a test ending, an app torn down) that callback used
+    // to run anyway and throw NG0205 from runInInjectionContext.
+    vi.useFakeTimers();
+    try {
+      localStorage.setItem('access_token', 'live');
+      build();
+      TestBed.resetTestingModule();
+      expect(() => vi.runOnlyPendingTimers()).not.toThrow();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not bring the user back when their profile lands after they signed out', async () => {
     localStorage.setItem('access_token', 'live');     // no refresh token: logout() signs out locally
     const store = build();

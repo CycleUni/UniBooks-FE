@@ -57,6 +57,11 @@ export class AuthStore {
 
   private fetchedForToken: string | null = null;
 
+  /** The deferred bootstrap profile fetch, until it runs. */
+  private bootstrapTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Set when the injector is destroyed; deferred work then does nothing. */
+  private destroyed = false;
+
   constructor() {
     if (typeof localStorage !== 'undefined') {
       const token = localStorage.getItem('access_token');
@@ -72,7 +77,10 @@ export class AuthStore {
         // without an explicit context the nested first-time DI resolution
         // inside fetchUserProfile() (HttpClient + interceptors) can race
         // Angular's internal "current injector" tracking and throw NG0203.
-        setTimeout(() => runInInjectionContext(this.injector, () => untracked(() => this.fetchUserProfile())), 0);
+        this.bootstrapTimer = setTimeout(() => {
+          this.bootstrapTimer = null;
+          runInInjectionContext(this.injector, () => untracked(() => this.fetchUserProfile()));
+        }, 0);
       }
     }
 
@@ -112,6 +120,14 @@ export class AuthStore {
       // but a destroyed store still listening would act on a dead injector
       // (NG0205) the next time another tab touches the tokens.
       inject(DestroyRef).onDestroy(() => {
+        // The deferred bootstrap fetch and navigation re-check would
+        // otherwise still run, and each reaches for this.injector or the
+        // router: NG0205.
+        this.destroyed = true;
+        if (this.bootstrapTimer !== null) {
+          clearTimeout(this.bootstrapTimer);
+          this.bootstrapTimer = null;
+        }
         window.removeEventListener('storage', onStorage);
         document.removeEventListener('visibilitychange', onVisible);
         navigations.unsubscribe();
@@ -398,7 +414,9 @@ export class AuthStore {
         e instanceof NavigationSkipped
       ),
       take(1)
-    ).subscribe(() => setTimeout(() => this.afterNavigationSettles(decide), 0));
+    ).subscribe(() => setTimeout(() => {
+      if (!this.destroyed) this.afterNavigationSettles(decide);
+    }, 0));
   }
 
   private leaveIfUnwelcome(): void {
