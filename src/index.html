@@ -30,7 +30,9 @@
   <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <!-- fonts.gstatic.com only: the build inlines the fonts.googleapis.com
+       sheets below, so the page never asks that origin for anything and a
+       preconnect to it was a wasted connection on every load. -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Chinese faces on wider screens only. On a phone a page could pull in
        well over half a megabyte of them — every few characters fall in
