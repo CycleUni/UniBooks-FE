@@ -213,11 +213,20 @@ function buildHtml(
   const ogImage = `${SITE_ORIGIN}/icons/icon-512x512.png`;
   const ogLocale = ogLocaleFor(locale);
 
-  // No canonical or hreflang here. This file is served for every route of
-  // its region (the /<region>/* rewrite), so a link naming the home page
-  // would be wrong on every other page, and a book page would carry two
+  // No canonical or hreflang in a region's file. It is served for every
+  // route of its region (the /<region>/* rewrite), so a link naming the home
+  // page would be wrong on every other page, and a book page would carry two
   // canonicals once its Function appends its own. SeoService writes both
   // for the route in the browser, and the book Function on the server.
+  //
+  // The root file does get a canonical, to the default region's home. "/"
+  // has no page of its own: rootRedirectGuard forwards it in the browser,
+  // which a crawler reading the HTML never sees, so the bare origin looked
+  // like a second copy of /tw/. The other paths this file is served for are
+  // the unprefixed ones (/listing/…, /verify?…), which the app also forwards
+  // into a region, and whose canonical SeoService then replaces in place.
+  // No hreflang: /tw/ and /hk/ do not name "/" back, so it would be ignored.
+  const canonicalTag = region ? '' : `<link rel="canonical" href="${escapeHtml(regionUrl(DEFAULT_REGION, ''))}">`;
 
   // Organization.logo is what Google shows beside the site in results.
   // A data block, not script, so the CSP's script-src does not apply.
@@ -264,6 +273,7 @@ function buildHtml(
   }
 
   const tags = [
+    canonicalTag,
     `<meta property="og:site_name" content="${escapeHtml(SITE_NAME)}">`,
     `<meta property="og:type" content="website">`,
     `<meta property="og:title" content="${escapeHtml(title)}">`,
@@ -274,7 +284,7 @@ function buildHtml(
     `<meta name="twitter:card" content="summary_large_image">`,
     // "<" escaped so no string in the block can close the script element.
     `<script type="application/ld+json">${JSON.stringify(ldJson).replace(/</g, '\\u003c')}</script>`,
-  ].join('\n  ');
+  ].filter(Boolean).join('\n  ');
 
   // Insert tags before </head>
   html = replaceRequired(html, /<\/head>/i, `  ${tags}\n</head>`, 'the closing head tag');
