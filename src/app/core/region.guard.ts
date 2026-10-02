@@ -129,10 +129,18 @@ export const rootRedirectGuard: CanActivateFn = async (route, state) => {
 
   const code = regionService.region() || DEFAULT_REGION;
 
-  // state.url is "/" at the root, and naive concatenation turned that into
-  // "/tw/" — a trailing slash that matches no route, so the site's own entry
-  // point 404'd. Strip it before prefixing; "/search" and friends are
-  // unaffected.
-  const rest = state.url === '/' ? '' : state.url;
-  return router.parseUrl(`/${code}${rest}`);
+  // Prefix the parsed tree rather than the string. Concatenating turned "/"
+  // into "/tw/", a trailing slash that matches no route; stripping it only
+  // when the URL was exactly "/" still left "/?fbclid=…" — every link from
+  // Facebook or Instagram — and campaign "?utm_…" links landing on a 404.
+  const tree = router.parseUrl(state.url);
+  const primary = tree.root.children[PRIMARY_OUTLET];
+  if (primary && primary.segments.length > 0) {
+    primary.segments.unshift(new UrlSegment(code, {}));
+    return tree;
+  }
+  return router.createUrlTree(['/', code], {
+    queryParams: tree.queryParams,
+    fragment: tree.fragment ?? undefined,
+  });
 };

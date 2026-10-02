@@ -165,6 +165,17 @@ describe('rootRedirectGuard', () => {
     expect((await run('/')).toString()).toBe('/hk');
   });
 
+  it('keeps the query string at the root', async () => {
+    // Facebook and Instagram add ?fbclid=… to every outbound link, campaign
+    // links carry ?utm_…; "/tw/?fbclid=…" matched no route and showed a 404.
+    expect((await run('/?fbclid=abc')).toString()).toBe('/hk?fbclid=abc');
+    expect((await run('/?utm_source=line&utm_medium=social')).toString()).toBe('/hk?utm_source=line&utm_medium=social');
+  });
+
+  it('keeps the query string and fragment on a bare path', async () => {
+    expect((await run('/search?q=calculus#results')).toString()).toBe('/hk/search?q=calculus#results');
+  });
+
   it('defaults to tw when the service has no region yet', async () => {
     mockRegionService.region.mockReturnValue('');
     expect((await run('/search')).toString()).toBe('/tw/search');
