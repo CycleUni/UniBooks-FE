@@ -1,4 +1,4 @@
-import { detectRegion, parseTraceCountry } from './geo-region';
+import { detectRegion, parseTraceCountry, regionFromTimezone } from './geo-region';
 
 const known = (code: string) => code === 'tw' || code === 'hk';
 const never = () => new Promise<never>(() => {});
@@ -65,6 +65,19 @@ describe('detectRegion', () => {
       expect(await pending).toBeNull();
     } finally {
       vi.useRealTimers();
+    }
+  });
+});
+
+describe('regionFromTimezone', () => {
+  it('settles the two timezones that name one region', () => {
+    expect(regionFromTimezone('Asia/Taipei')).toBe('tw');
+    expect(regionFromTimezone('Asia/Hong_Kong')).toBe('hk');
+  });
+
+  it('leaves every other timezone to the IP lookup', () => {
+    for (const tz of ['Asia/Macau', 'Asia/Shanghai', 'Asia/Tokyo', 'America/Los_Angeles', 'UTC', '', null, undefined]) {
+      expect(regionFromTimezone(tz)).toBeNull();
     }
   });
 });

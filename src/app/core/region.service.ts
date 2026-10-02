@@ -7,7 +7,7 @@ import { tap, catchError, map } from 'rxjs/operators';
 import { firstValueFrom, of } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { regionSwitchUrl } from './region-path';
-import { detectRegion, fetchTrace } from './geo-region';
+import { detectRegion, fetchTrace, regionFromTimezone } from './geo-region';
 
 export interface Currency {
   code: string;
@@ -32,6 +32,14 @@ const STORAGE_KEY = 'region';
 
 /** How long a first visit waits on IP detection before the timezone guess stands. */
 const GEO_TIMEOUT_MS = 800;
+
+function browserTimezone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return undefined;
+  }
+}
 
 function translationLanguagesOf(region: Region | null): string[] {
   if (!region) return [];
@@ -101,14 +109,10 @@ export class RegionService {
         return stored.toLowerCase();
       }
     }
-    // The timezone is only the offline guess; detectInitialRegion() replaces
-    // it with the IP's answer when there is one.
-    if (typeof navigator !== 'undefined') {
-      if (Intl.DateTimeFormat().resolvedOptions().timeZone === 'Asia/Hong_Kong') {
-        return 'hk';
-      }
-    }
-    return 'tw';
+    // A Taipei or Hong Kong timezone settles it (see regionFromTimezone);
+    // otherwise this is only the offline guess, and detectInitialRegion()
+    // replaces it with the IP's answer when there is one.
+    return regionFromTimezone(browserTimezone()) ?? 'tw';
   }
 
   /**
@@ -118,7 +122,7 @@ export class RegionService {
    * either what IP detection found last time or what the visitor picked.
    */
   detectInitialRegion(): Promise<void> {
-    if (this.hasStoredRegion) return Promise.resolve();
+    if (this.hasStoredRegion || regionFromTimezone(browserTimezone())) return Promise.resolve();
     if (!this.detection) {
       this.detection = detectRegion(
         {

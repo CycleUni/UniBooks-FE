@@ -23,6 +23,26 @@ export interface GeoSources {
   trace: () => Promise<string | null>;
 }
 
+/**
+ * The region a browser timezone settles without asking the IP, or null.
+ *
+ * Only the two timezones that name one region outright. A first visit from
+ * either used to wait (up to the lookup's cap) for IP detection before the
+ * entry redirect, almost always to be told the same thing — on a slow phone
+ * link a visible delay before anything rendered. Every other timezone still
+ * waits for the IP, which the timezone alone cannot place.
+ */
+export function regionFromTimezone(timeZone: string | null | undefined): 'tw' | 'hk' | null {
+  switch (timeZone) {
+    case 'Asia/Taipei':
+      return 'tw';
+    case 'Asia/Hong_Kong':
+      return 'hk';
+    default:
+      return null;
+  }
+}
+
 /** `loc=HK` out of a /cdn-cgi/trace body, upper-cased, or null. */
 export function parseTraceCountry(body: string | null | undefined): string | null {
   const match = /^loc=([A-Za-z]{2})\s*$/m.exec(body || '');
