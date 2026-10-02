@@ -33,6 +33,10 @@
       lang = localStorage.getItem('lang');
     } catch (e) {}
     if (lang !== 'en' && lang !== 'zh-TW' && lang !== 'zh-HK') {
+      var region = (location.pathname.split('/')[1] || '').toLowerCase();
+      lang = region === 'tw' ? 'zh-TW' : region === 'hk' ? 'zh-HK' : null;
+    }
+    if (lang !== 'en' && lang !== 'zh-TW' && lang !== 'zh-HK') {
       var tag = (navigator.language || '').toLowerCase().replace(/_/g, '-');
       if (tag.indexOf('yue') === 0) lang = 'zh-HK';
       else if (tag.indexOf('zh') === 0) lang = tag.indexOf('hk') !== -1 || tag.indexOf('yue') !== -1 ? 'zh-HK' : 'zh-TW';

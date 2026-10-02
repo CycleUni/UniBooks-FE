@@ -33,12 +33,13 @@ describe('translation preload in theme-init.js', () => {
   afterEach(() => {
     meta.remove();
     document.head.querySelectorAll('link[rel="modulepreload"]').forEach((l) => l.remove());
+    history.replaceState(null, '', '/');
     localStorage.clear();
     vi.restoreAllMocks();
     TestBed.resetTestingModule();
   });
 
-  const cases: { stored: string | null; browser: string }[] = [
+  const cases: { stored: string | null; browser: string; path?: string }[] = [
     { stored: null, browser: 'zh-TW' },
     { stored: null, browser: 'zh-HK' },
     { stored: null, browser: 'zh_hk' },
@@ -51,10 +52,15 @@ describe('translation preload in theme-init.js', () => {
     { stored: 'en', browser: 'zh-TW' },
     { stored: 'zh-HK', browser: 'en-US' },
     { stored: 'fr', browser: 'zh-TW' },
+    { stored: null, browser: 'en-US', path: '/tw/' },
+    { stored: null, browser: 'zh-TW', path: '/hk/search' },
+    { stored: null, browser: 'en-US', path: '/messages' },
+    { stored: 'en', browser: 'en-US', path: '/tw/' },
   ];
 
-  for (const { stored, browser } of cases) {
-    it(`preloads the language the app picks (stored ${stored}, browser "${browser}")`, () => {
+  for (const { stored, browser, path: at = '/' } of cases) {
+    it(`preloads the language the app picks (stored ${stored}, browser "${browser}", at ${at})`, () => {
+      history.replaceState(null, '', at);
       if (stored !== null) localStorage.setItem('lang', stored);
       vi.spyOn(navigator, 'language', 'get').mockReturnValue(browser);
 

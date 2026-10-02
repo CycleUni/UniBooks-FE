@@ -1,5 +1,5 @@
 import { Injectable, Pipe, PipeTransform, inject, signal, effect } from '@angular/core';
-import { Lang, TRANSLATIONS, SUPPORTED_LANGS } from './i18n/index';
+import { Lang, TRANSLATIONS, SUPPORTED_LANGS, REGION_TO_LANG } from './i18n/index';
 
 const STORAGE_KEY = 'lang';
 
@@ -18,8 +18,22 @@ export function langFromBrowserTag(tag: string | undefined | null): Lang {
   return 'en';
 }
 
+/**
+ * The language of the region a URL path is under — `/tw/…` is zh-TW,
+ * `/hk/…` zh-HK — or null for a path without a region prefix.
+ *
+ * A first visit that lands on a region page reads it in that region's
+ * language, whatever the browser says. Search crawlers render with an
+ * English browser and no stored choice, so going by the browser alone had
+ * Google index /tw/ in English while its hreflang called it zh-TW.
+ */
+export function langFromPath(pathname: string | undefined | null): Lang | null {
+  const first = (pathname || '').split('/')[1]?.toLowerCase() ?? '';
+  return Object.prototype.hasOwnProperty.call(REGION_TO_LANG, first) ? REGION_TO_LANG[first] : null;
+}
+
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class I18nService {
   readonly lang = signal<Lang>(this.initialLang());
@@ -42,7 +56,19 @@ export class I18nService {
         return stored;
       }
     }
-    return langFromBrowserTag(typeof navigator !== 'undefined' ? navigator.language : '');
+    const lang =
+      langFromPath(typeof location !== 'undefined' ? location.pathname : '') ??
+      langFromBrowserTag(typeof navigator !== 'undefined' ? navigator.language : '');
+    // Kept, so the language a first visit opened in survives the next load.
+    // Without it a visitor who entered at the bare origin (browser language)
+    // and was redirected to /tw/ would reload into the region's language.
+    // A failed write must not take the constructor down with it.
+    try {
+      localStorage.setItem(STORAGE_KEY, lang);
+    } catch {
+      // Storage blocked or full: this visit still opens in `lang`.
+    }
+    return lang;
   }
 
   async loadLang(lang: Lang): Promise<void> {
@@ -68,7 +94,7 @@ export class I18nService {
         console.error('Failed to load i18n dict for', lang, e);
       }
     })();
-    
+
     this.loadPromises.set(lang, promise);
     await promise;
   }
@@ -114,7 +140,7 @@ export class I18nService {
 @Pipe({
   name: 't',
   standalone: true,
-  pure: false
+  pure: false,
 })
 export class TPipe implements PipeTransform {
   private i18n = inject(I18nService);
