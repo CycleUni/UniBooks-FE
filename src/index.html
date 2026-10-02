@@ -32,7 +32,14 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet">
+  <!-- Chinese faces on wider screens only. On a phone a page could pull in
+       well over half a megabyte of them — every few characters fall in
+       another slice — which a slow link takes seconds to deliver, ahead of
+       the app's own code. There every 'Noto Sans TC' / 'Noto Serif TC' in
+       the styles falls through to the system fonts listed after it (Android's
+       own Noto Sans CJK, PingFang on iOS). The build inlines this sheet and
+       drops the media attribute; scripts/build-region-html.ts puts it back. -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet" media="(min-width: 901px)">
   <!-- Wordmark face, subset to the letters of the brand name (text=) so it
        costs a few hundred bytes instead of the whole family. -->
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&text=UniBooks&display=swap" rel="stylesheet">

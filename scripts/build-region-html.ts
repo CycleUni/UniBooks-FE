@@ -142,6 +142,27 @@ function languageChunks(): Partial<Record<Lang, string>> {
   return chunks;
 }
 
+/** Where the Chinese web fonts apply; see the stylesheet link in src/index.html. */
+const CHINESE_FONTS_MEDIA = '(min-width: 901px)';
+
+/**
+ * Put the media query back on the inlined Chinese font faces. Angular's font
+ * inlining turns the Google Fonts <link media=…> into a bare <style>, which
+ * applies everywhere and sends phones to download the faces after all. A
+ * <style media> keeps the inlining (no extra request on desktop) and the
+ * restriction. Without inlining the link keeps its own attribute.
+ */
+function gateChineseFonts(html: string): string {
+  const gated = html.replace(
+    /<style>((?:(?!<\/style>)[\s\S])*?font-family:\s*'Noto S(?:ans|erif) TC'[\s\S]*?)<\/style>/g,
+    `<style media="${CHINESE_FONTS_MEDIA}">$1</style>`,
+  );
+  if (/<style>(?:(?!<\/style>)[\s\S])*?font-family:\s*'Noto S(?:ans|erif) TC'/.test(gated)) {
+    throw new Error('Chinese font faces left without their media query');
+  }
+  return gated;
+}
+
 function replaceRequired(html: string, pattern: RegExp, replacement: string, label: string): string {
   if (!pattern.test(html)) {
     throw new Error(`Could not find ${label} in index.html`);
@@ -160,7 +181,7 @@ function buildHtml(
   strings: Strings,
   hints: { apiOrigin: string | null; languageChunks: Partial<Record<Lang, string>> },
 ): string {
-  let html = originalHtml;
+  let html = gateChineseFonts(originalHtml);
 
   const title = strings['seo.homeTitle'] ?? SITE_NAME;
   const description = strings['seo.description'] ?? '';

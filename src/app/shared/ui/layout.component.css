@@ -221,6 +221,11 @@
       width: 100%;
       overflow-x: hidden; /* Prevent horizontal overflow from content */
       box-sizing: border-box;
+      /* At least a screen tall, so the footer starts below the fold. Shorter,
+         it sat on screen while a page waited for its data and was pushed off
+         once that arrived — most of the layout-shift score.
+         (.main-content.full-bleed's min-height:0 outranks this.) */
+      min-height: 100svh;
     }
     /* A route that owns the viewport: min-height:0 is what actually lets a
        flex child shrink below its content size, so the page itself stops
@@ -393,11 +398,6 @@
       .main-content {
         /* Reserve space so page content doesn't end up under the fixed tab bar */
         padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
-        /* At least a screen tall, so the footer starts below the fold. Shorter,
-           it sat on screen while a page waited for its data and was pushed
-           off once that arrived — nearly all of the phone layout-shift score.
-           (.main-content.full-bleed's min-height:0 outranks this.) */
-        min-height: 100svh;
       }
       .main-content.hide-bottom-nav {
         padding-bottom: 0;
