@@ -124,7 +124,7 @@ function buildCsp({ backendOrigin, chatOrigin, mediaOrigin, uploadOrigin }) {
     "object-src 'none'",
     "frame-ancestors 'none'",
     "form-action 'self'",
-    "script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com https://www.googletagmanager.com",
+    "script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com https://www.googletagmanager.com https://static.cloudflareinsights.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style",
     "font-src 'self' https://fonts.gstatic.com data:",
     `img-src ${img.filter(Boolean).join(' ')}`,
