@@ -74,10 +74,10 @@ export const RECENT_BOOKS_PAGE_SIZE = 20;
         </ng-container>
 
         <!-- Cold start: a grid with two books in it reads as "nobody is here".
-             Filling the remaining columns with a supply-side invitation turns
-             the emptiest part of the page into the one CTA the marketplace
-             most needs, and keeps the grid from ending in ragged holes. -->
-        <a class="seed-tile hover-card hover-card-surface" regionLink="/sell" *ngFor="let slot of seedSlots">
+             One supply-side invitation after the books turns the emptiest
+             part of the page into the one CTA the marketplace most needs.
+             A single tile — repeating it reads as filler, not an invitation. -->
+        <a class="seed-tile hover-card hover-card-surface" regionLink="/sell" *ngIf="showSeedTile">
           <span class="seed-mark" aria-hidden="true">+</span>
           <span class="seed-text">{{ 'home.seedSlot' | t }}</span>
         </a>
@@ -180,9 +180,7 @@ export class UiRecentListings {
    */
   private static readonly FEATURE_MIN_BOOKS = 5;
 
-  /** Target number of cells in the grid while the catalogue is still small.
-      Three keeps the desktop row full without spilling a lone filler cell
-      onto a second row. */
+  /** Below this many books the grid shows the "list your book" tile. */
   private static readonly COLD_START_SLOTS = 3;
 
   /**
@@ -229,12 +227,11 @@ export class UiRecentListings {
     return this.recentBooks.length >= UiRecentListings.FEATURE_MIN_BOOKS;
   }
 
-  /** Filler "list your book" cells while the catalogue is nearly empty —
-      including fully empty, where they are the page's only way in to selling. */
-  get seedSlots(): number[] {
-    if (this.loading || this.errorMessage) return [];
-    const missing = UiRecentListings.COLD_START_SLOTS - this.recentBooks.length;
-    return missing > 0 ? Array.from({ length: missing }, (_, i) => i) : [];
+  /** One "list your book" tile while the catalogue is nearly empty —
+      including fully empty, where it is the page's only way in to selling. */
+  get showSeedTile(): boolean {
+    if (this.loading || this.errorMessage) return false;
+    return this.recentBooks.length < UiRecentListings.COLD_START_SLOTS;
   }
 
   private listingService = inject(ListingService);
