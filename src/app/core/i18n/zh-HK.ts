@@ -39,7 +39,7 @@ export const zhHK: Record<string, string> = {
 
   // Layout
   'layout.allSchools': '全部大學',
-  'layout.otherCity': '其他',
+  'layout.otherCity': '未分類',
   'nav.search': '搵書',
   'nav.home': '首頁',
   'nav.sell': '賣書',

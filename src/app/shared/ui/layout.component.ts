@@ -533,7 +533,7 @@ export class UiLayout implements OnDestroy {
 
   /**
    * The schools grouped under their cities, in the cities' order, with any
-   * school that has no city last under "Other". By code, not name: the code
+   * school that has no city last under "Uncategorized". By code, not name: the code
    * is what goes out as ?school= and into sessionStorage.
    */
   private schoolOptionsByCity(schools: SchoolOption[], cities: CityOption[]): DropdownOption[] {

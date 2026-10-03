@@ -39,7 +39,7 @@ export const en: Record<string, string> = {
 
   // Layout
   'layout.allSchools': 'All Universities',
-  'layout.otherCity': 'Other',
+  'layout.otherCity': 'Uncategorized',
   'nav.search': 'Find Books',
   'nav.home': 'Home',
   'nav.sell': 'Sell',
