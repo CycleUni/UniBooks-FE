@@ -23,7 +23,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         request: context.request,
         backendUrl: context.env.NG_APP_BACKEND_URL,
         region: context.params.region,
-        next: () => context.next(),
+        next: (path) => (path ? context.next(new URL(path, context.request.url).toString()) : context.next()),
         waitUntil: (promise) => context.waitUntil(promise),
       },
       { cache: caches.default, fetch: (url, init) => fetch(url, init), inject },
@@ -33,8 +33,28 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 };
 
+/** The page's own copies, removed before the book's are appended: with two
+ *  canonicals a search engine may ignore both, and preview fetchers differ
+ *  on which of two og:title tags they read. The site's og:image stays when
+ *  the book has no cover, so its preview still has a picture. */
+const REPLACED_HEAD_TAGS = [
+  'link[rel="canonical"]',
+  'link[rel="alternate"][hreflang]',
+  'meta[property^="og:"]',
+  'meta[name^="twitter:"]',
+];
+
 function inject(page: Response, meta: BookMeta, status: number): Response {
-  const rewritten = new HTMLRewriter()
+  let rewriter = new HTMLRewriter();
+  for (const selector of REPLACED_HEAD_TAGS) {
+    rewriter = rewriter.on(selector, {
+      element(el) {
+        if (!meta.image && el.getAttribute('property') === 'og:image') return;
+        el.remove();
+      },
+    });
+  }
+  const rewritten = rewriter
     .on('title', {
       element(el) {
         el.setInnerContent(meta.title);

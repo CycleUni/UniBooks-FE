@@ -68,6 +68,16 @@ export const DESCRIPTIONS: Record<'en' | 'zh-TW' | 'zh-HK', { withAuthor: string
 const REGIONS = ['tw', 'hk'];
 const DEFAULT_REGION = 'tw';
 
+/**
+ * The page a region's other routes are served from, as
+ * scripts/build-region-html.ts names it (SHELL_PAGE): in the region's
+ * language and with no canonical of its own. Asked for by name because the
+ * _redirects rewrite that would pick it does not apply under a Function, so
+ * a bare next() fell through to the root page — zh-TW on /hk/book, and a
+ * canonical naming the home page.
+ */
+export const REGION_SHELL = 'app-shell';
+
 /** Region codes are ISO 3166-1 alpha-2, as stripRegionPrefix assumes. */
 export function regionFrom(param: unknown): string | null {
   return typeof param === 'string' && /^[a-z]{2}$/i.test(param) ? param.toLowerCase() : null;
@@ -218,8 +228,9 @@ export interface BookPageContext {
   request: Request;
   backendUrl: string | undefined;
   region: unknown;
-  /** The response Pages would have served without this Function. */
-  next: () => Promise<Response>;
+  /** The response Pages would have served without this Function, or with
+   *  a path, the static page at that path instead. */
+  next: (path?: string) => Promise<Response>;
   waitUntil: (promise: Promise<unknown>) => void;
 }
 
@@ -283,11 +294,15 @@ export async function handleBookPage(ctx: BookPageContext, deps: BookPageDeps): 
   const url = new URL(ctx.request.url);
   const region = regionFrom(ctx.region);
   const identity = bookIdentity(url);
-  if (ctx.request.method !== 'GET' || !ctx.backendUrl || !region || !identity) {
+  if (ctx.request.method !== 'GET' || !region) {
     return ctx.next();
   }
+  const shell = `/${region}/${REGION_SHELL}`;
+  if (!ctx.backendUrl || !identity) {
+    return ctx.next(shell);
+  }
 
-  const page = await ctx.next();
+  const page = await ctx.next(shell);
   if (!page.ok || !(page.headers.get('content-type') ?? '').includes('text/html')) {
     return page;
   }

@@ -4,6 +4,7 @@ import {
   CacheLike,
   DESCRIPTIONS,
   LookupResult,
+  REGION_SHELL,
   bookApiUrl,
   bookIdentity,
   cacheKey,
@@ -217,7 +218,7 @@ describe('book link-preview Function', () => {
       );
       const injected: Array<{ meta: BookMeta; status: number }> = [];
       const next = vi.fn(
-        async () =>
+        async (_path?: string) =>
           options.page?.() ??
           new Response(SHELL, {
             status: 200,
@@ -258,6 +259,7 @@ describe('book link-preview Function', () => {
       expect(await response.text()).toBe('injected');
       expect(response.status).toBe(200);
       expect(t.injected[0].meta.title).toBe('Python for Data Analysis · UniBooks');
+      expect(t.next).toHaveBeenCalledWith(`/tw/${REGION_SHELL}`);
       expect(t.api).toHaveBeenCalledWith(
         'https://api.example/api/v1/books/?isbn=9781449319793&region=tw',
         expect.anything(),
@@ -328,18 +330,23 @@ describe('book link-preview Function', () => {
       expect(slow.cache.store.size).toBe(1);
     });
 
-    it('leaves requests it has nothing to add to exactly as Pages serves them', async () => {
+    it("serves the region's shell untouched for a book it has nothing to add to", async () => {
       for (const options of [
         { backendUrl: undefined },
         { url: `${ORIGIN}/tw/book` },
         { url: `${ORIGIN}/tw/book?isbn=not-an-isbn` },
-        { method: 'POST' },
       ]) {
         const t = setup(options);
         expect(await (await t.run()).text()).toBe(SHELL);
         expect(t.api).not.toHaveBeenCalled();
         expect(t.next).toHaveBeenCalledTimes(1);
+        expect(t.next).toHaveBeenCalledWith(`/tw/${REGION_SHELL}`);
       }
+
+      const post = setup({ method: 'POST' });
+      expect(await (await post.run()).text()).toBe(SHELL);
+      expect(post.api).not.toHaveBeenCalled();
+      expect(post.next).toHaveBeenCalledWith();
 
       const notHtml = setup({
         page: () =>
