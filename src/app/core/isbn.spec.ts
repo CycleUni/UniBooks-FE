@@ -1,4 +1,4 @@
-import { cleanAndValidateIsbn, clean_and_validate_isbn, isBooklandIsbn, isValidIsbnChecksum, isbnFromScan } from './isbn';
+import { bookIsbn, cleanAndValidateIsbn, clean_and_validate_isbn, isBooklandIsbn, isValidIsbnChecksum, isbnFromScan } from './isbn';
 
 describe('isBooklandIsbn', () => {
   it('accepts ISBN-13s in the 978 and 979 prefixes, and ISBN-10s', () => {
@@ -86,5 +86,19 @@ describe('isbnFromScan', () => {
     expect(isbnFromScan('9780134685992')).toBeNull();
     expect(isbnFromScan('9090134685991')).toBeNull();
     expect(isbnFromScan('https://example.com')).toBeNull();
+  });
+});
+
+describe('bookIsbn', () => {
+  it('cleans a real ISBN-13 or ISBN-10', () => {
+    expect(bookIsbn('978-986-06-2920-0')).toBe('9789860629200');
+    expect(bookIsbn('080442957x')).toBe('080442957X');
+  });
+
+  it('refuses a misread outside 978/979, a wrong check digit and empty input', () => {
+    expect(bookIsbn('6770250629200')).toBeNull();
+    expect(bookIsbn('9789860629201')).toBeNull();
+    expect(bookIsbn('')).toBeNull();
+    expect(bookIsbn(undefined)).toBeNull();
   });
 });

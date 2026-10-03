@@ -553,6 +553,27 @@ describe('Sell listing form guarding, drafts and field validation', () => {
       expect(component.step).toBe(4);
     });
 
+    it.each([
+      ['a misread that is no ISBN', '6770250629200', ''],
+      ['a wrong check digit', '9789860629201', ''],
+      ['a real ISBN, cleaned', '978-986-06-2920-0', '9789860629200'],
+    ])('files a hand-entered book under the typed ISBN only when it is one (%s)', (_, typed, expected) => {
+      create();
+      (TestBed.inject(ListingService) as any).createListing.mockReturnValue(of({}));
+      component.isVerified = true;
+      component.searchQuery = typed;
+      component.enterManually();
+      component.bookPreview.title = 'Handout';
+      component.bookPreview.authors = 'Dept.';
+      component.nextStep();
+      component.nextStep();
+      component.price = 100;
+
+      component.submit();
+
+      expect(books().createManualBook).toHaveBeenCalledWith(expect.objectContaining({ isbn13: expected }));
+    });
+
     it('summarises the title, condition, price and photo count above Confirm Listing', () => {
       create();
       toPricing({ id: 42, title: 'Clean Code' });

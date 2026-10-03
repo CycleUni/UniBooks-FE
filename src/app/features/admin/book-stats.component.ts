@@ -1,9 +1,10 @@
 import { BookCoverPipe } from '../../shared/pipes/book-cover.pipe';
 import { RegionLinkDirective } from '../../core/region-link.directive';
-import { Component, ChangeDetectorRef, DestroyRef, effect, inject, untracked } from '@angular/core';
+import { Component, ChangeDetectorRef, DestroyRef, ViewChild, effect, inject, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { Subscription } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AdminBookStats, AdminStatsService, StatsDays } from '../../core/services/admin-stats.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { I18nService, TPipe } from '../../core/i18n.service';
@@ -11,6 +12,9 @@ import { ToastService } from '../../core/services/toast.service';
 import { RegionService } from '../../core/region.service';
 import { PricePipe } from '../../shared/pipes/price.pipe';
 import { AdminTrendChartComponent, TrendPoint } from './trend-chart.component';
+import { AdminBookEditComponent } from './book-edit.component';
+import { AdminBookRecord } from '../../core/services/admin.service';
+import { HasUnsavedChanges } from '../../core/unsaved-changes.guard';
 import { AdminStatsPeriodComponent, AdminStatusBarComponent, STATS_PAGE_STYLES, StatsFormat, StatsPeriodMemory } from './stats-widgets';
 
 @Component({
@@ -19,6 +23,7 @@ import { AdminStatsPeriodComponent, AdminStatusBarComponent, STATS_PAGE_STYLES, 
   imports: [
     RegionLinkDirective, CommonModule, RouterModule, TPipe, PricePipe,
     AdminTrendChartComponent, AdminStatsPeriodComponent, AdminStatusBarComponent, BookCoverPipe,
+    AdminBookEditComponent,
   ],
   template: `
     <a [regionLink]="['/admin', 'stats', 'books']" [queryParams]="{ days: days }" class="back-link">&larr; {{ 'admin.stats.backToBooks' | t }}</a>
@@ -42,6 +47,14 @@ import { AdminStatsPeriodComponent, AdminStatusBarComponent, STATS_PAGE_STYLES, 
           </p>
         </div>
       </div>
+
+      <admin-book-edit
+        *ngIf="record"
+        [bookId]="bookId"
+        [book]="record!"
+        (saved)="load()"
+        (merged)="openMerged($event)"
+      ></admin-book-edit>
 
       <section class="kpi-grid">
         <div class="kpi">
@@ -180,7 +193,7 @@ import { AdminStatsPeriodComponent, AdminStatusBarComponent, STATS_PAGE_STYLES, 
     .admin-table { min-width: 520px; }
   `],
 })
-export class AdminBookStatsComponent {
+export class AdminBookStatsComponent implements HasUnsavedChanges {
   private stats = inject(AdminStatsService);
   private i18n = inject(I18nService);
   private toast = inject(ToastService);
@@ -191,7 +204,10 @@ export class AdminBookStatsComponent {
   private destroyRef = inject(DestroyRef);
 
   readonly fmt = new StatsFormat(this.i18n);
-  readonly bookId = Number(this.route.snapshot.paramMap.get('id'));
+  bookId = Number(this.route.snapshot.paramMap.get('id'));
+  /** The book's details as the edit form takes them. */
+  record: AdminBookRecord | null = null;
+  @ViewChild(AdminBookEditComponent) private editor?: AdminBookEditComponent;
 
   private period = inject(StatsPeriodMemory);
   days: StatsDays = this.period.resolve(this.route.snapshot.queryParamMap.get('days'));
@@ -208,6 +224,15 @@ export class AdminBookStatsComponent {
       this.regionService.region();
       untracked(() => this.load());
     });
+    // A merge sends this same component to the book it merged into.
+    this.route.paramMap.pipe(takeUntilDestroyed()).subscribe(params => {
+      const id = Number(params.get('id'));
+      if (id === this.bookId) return;
+      this.bookId = id;
+      this.data = null;
+      this.record = null;
+      this.load();
+    });
     this.destroyRef.onDestroy(() => this.sub?.unsubscribe());
   }
 
@@ -223,12 +248,30 @@ export class AdminBookStatsComponent {
     this.load();
   }
 
-  private load() {
+  hasUnsavedChanges(): boolean {
+    return this.editor?.hasUnsavedChanges() ?? false;
+  }
+
+  unsavedChangesMessage(): string {
+    return this.i18n.t('admin.book.unsavedChanges');
+  }
+
+  /** This book was folded into another; its page no longer exists. */
+  openMerged(id: number) {
+    this.router.navigate(['..', id], { relativeTo: this.route, queryParams: { days: this.days }, replaceUrl: true });
+  }
+
+  load() {
     this.sub?.unsubscribe();
     this.loading = true;
     this.sub = this.stats.getBookStats(this.bookId, this.regionService.region().toUpperCase(), this.days).subscribe({
       next: (res) => {
         this.data = res;
+        const b = res.book;
+        this.record = {
+          isbn13: b.isbn13 || '', title: b.title, authors: b.authors || '',
+          publisher: b.publisher || '', published_date: b.published_date || '', cover_url: b.cover_url || '',
+        };
         this.trend = res.series.map(p => ({ date: p.date, bar: p.completed, line: p.orders }));
         this.hourly = res.series_unit === 'hour';
         this.loading = false;

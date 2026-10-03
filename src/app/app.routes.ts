@@ -97,7 +97,7 @@ const featureRoutes: Routes = [
       { path: '', pathMatch: 'full', redirectTo: 'stats' },
       { path: 'stats', loadComponent: () => import('./features/admin/stats-dashboard.component').then(m => m.AdminStatsDashboardComponent) },
       { path: 'stats/books', loadComponent: () => import('./features/admin/stats-books.component').then(m => m.AdminStatsBooksComponent) },
-      { path: 'stats/books/:id', loadComponent: () => import('./features/admin/book-stats.component').then(m => m.AdminBookStatsComponent) },
+      { path: 'stats/books/:id', loadComponent: () => import('./features/admin/book-stats.component').then(m => m.AdminBookStatsComponent), canDeactivate: [unsavedChangesGuard] },
       { path: 'stats/growth', loadComponent: () => import('./features/admin/stats-growth.component').then(m => m.AdminStatsGrowthComponent) },
       { path: 'stats/academics', loadComponent: () => import('./features/admin/stats-academics.component').then(m => m.AdminStatsAcademicsComponent) },
       { path: 'regions', canActivate: [superuserGuard], loadComponent: () => import('./features/admin/regions-list.component').then(m => m.AdminRegionsListComponent) },

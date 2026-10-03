@@ -21,7 +21,7 @@ import { I18nService, TPipe } from '../../core/i18n.service';
 import { GoogleAnalyticsService } from '../../core/services/google-analytics.service';
 // Type-only: the library (~300 KB of decoders) is pulled in with a dynamic
 // import the first time the camera is opened, not on every visit to /sell.
-import { cleanAndValidateIsbn, isbnFromScan } from '../../core/isbn';
+import { bookIsbn, cleanAndValidateIsbn, isbnFromScan } from '../../core/isbn';
 import { UiBarcodeScanner } from '../../shared/ui/barcode-scanner.component';
 import { RegionLinkService } from '../../core/region-link.service';
 import { RegionLinkDirective } from '../../core/region-link.directive';
@@ -830,11 +830,11 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
       // Book already exists in our DB
       executeListingCreation(this.bookPreview.id);
     } else {
-      const fallbackIsbn = this.searchQuery.replace(/[^0-9]/g, '');
-      const validFallback = (fallbackIsbn.length === 10 || fallbackIsbn.length === 13) ? fallbackIsbn : '';
-
+      // Only a real ISBN goes on the new book: the backend refuses anything
+      // else, and digits that only look like one (a misread or a typo) would
+      // file the book where nobody looking it up will find it.
       const bookData = {
-        isbn13: this.bookPreview.isbn || validFallback,
+        isbn13: bookIsbn(this.bookPreview.isbn) ?? bookIsbn(this.searchQuery) ?? '',
         title: this.bookPreview.title,
         authors: this.bookPreview.author || this.bookPreview.authors || '',
         publisher: this.bookPreview.publisher || '',

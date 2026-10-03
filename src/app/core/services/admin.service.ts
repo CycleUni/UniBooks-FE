@@ -201,6 +201,29 @@ function buildParams(query: Record<string, string | number | undefined | null>):
   return params;
 }
 
+/** A book's catalogue record as the admin edits it. */
+export interface AdminBookRecord {
+  isbn13: string;
+  title: string;
+  authors: string;
+  publisher: string;
+  published_date: string;
+  cover_url: string;
+}
+
+/** What the external catalogues hold for an ISBN; `existing_book` is the
+ *  region's other book already under it, which saving would merge into. */
+export interface AdminBookLookup extends AdminBookRecord {
+  source: string;
+  existing_book: { id: number; title: string } | null;
+}
+
+export interface AdminBookUpdate {
+  /** Set when the book was folded into another one and no longer exists. */
+  merged_into: number | null;
+  book: AdminBookRecord & { id: number; source: string };
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -310,6 +333,15 @@ export class AdminService {
 
   updateSchool(id: string | number, data: Partial<AdminSchool>): Observable<AdminSchool> {
     return this.http.patch<AdminSchool>(`/admin/schools/${id}/`, data);
+  }
+
+  lookupBook(id: number, isbn: string): Observable<AdminBookLookup> {
+    return this.http.get<AdminBookLookup>(`/admin/books/${id}/lookup/`, { params: buildParams({ isbn }) });
+  }
+
+  /** 409 `admin.errBookIsbnTaken` when another book has the ISBN, unless `merge`. */
+  updateBook(id: number, changes: Partial<AdminBookRecord> & { source?: string; merge?: boolean }): Observable<AdminBookUpdate> {
+    return this.http.patch<AdminBookUpdate>(`/admin/books/${id}/`, changes);
   }
 
   deleteSchool(id: string | number): Observable<void> {

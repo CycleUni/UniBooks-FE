@@ -55,22 +55,31 @@ export function isValidIsbnChecksum(isbn: string): boolean {
 }
 
 /**
- * Whether a scanned code can be a book's ISBN. Every ISBN-13 is an EAN-13 in
+ * Whether a 13-digit code can be a book's ISBN. Every ISBN-13 is an EAN-13 in
  * the 978/979 "Bookland" prefix, whatever the country (the country or
  * language group is the digits after it). Scans on iOS misread the leading
  * digits into a different, checksum-valid number; the prefix catches those.
- * Only for scans: typed input keeps the backend's format-only check.
  */
 export function isBooklandIsbn(isbn: string): boolean {
   return isbn.length !== 13 || isbn.startsWith('978') || isbn.startsWith('979');
 }
 
 /**
- * The ISBN a camera scan read, or null when the code can't be a book's: the
+ * The ISBN to store on a book, or null when the value can't be a book's: the
  * right shape, a valid check digit, and (for 13 digits) the 978/979 prefix.
+ * Mirrors the backend's validate_book_isbn, which refuses anything else on
+ * the way into the catalogue. Typed search keeps the format-only check: a
+ * lookup that finds nothing leaves nothing wrong behind.
+ */
+export function bookIsbn(value: string | null | undefined): string | null {
+  const isbn = cleanAndValidateIsbn(value);
+  return isbn && isValidIsbnChecksum(isbn) && isBooklandIsbn(isbn) ? isbn : null;
+}
+
+/**
+ * The ISBN a camera scan read, or null when the code can't be a book's.
  * The sell form and the search screen both take a scan through this.
  */
 export function isbnFromScan(decodedText: string): string | null {
-  const isbn = cleanAndValidateIsbn(decodedText);
-  return isbn && isValidIsbnChecksum(isbn) && isBooklandIsbn(isbn) ? isbn : null;
+  return bookIsbn(decodedText);
 }
