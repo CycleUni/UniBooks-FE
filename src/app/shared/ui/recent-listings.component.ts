@@ -229,13 +229,12 @@ export class UiRecentListings {
     return this.recentBooks.length >= UiRecentListings.FEATURE_MIN_BOOKS;
   }
 
-  /** Filler "list your book" cells, only while the catalogue is nearly empty. */
+  /** Filler "list your book" cells while the catalogue is nearly empty —
+      including fully empty, where they are the page's only way in to selling. */
   get seedSlots(): number[] {
     if (this.loading || this.errorMessage) return [];
     const missing = UiRecentListings.COLD_START_SLOTS - this.recentBooks.length;
-    return missing > 0 && this.recentBooks.length > 0
-      ? Array.from({ length: missing }, (_, i) => i)
-      : [];
+    return missing > 0 ? Array.from({ length: missing }, (_, i) => i) : [];
   }
 
   private listingService = inject(ListingService);
