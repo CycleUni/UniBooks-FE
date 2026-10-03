@@ -7,6 +7,7 @@ import { ListingService } from '../../core/services/listing.service';
 import { I18nService } from '../../core/i18n.service';
 import { RegionService } from '../../core/region.service';
 import { hasBookPreviewState } from '../../core/book-preview';
+import { SchoolStateService } from '../../core/services/school-state.service';
 
 @Component({ template: '' })
 class Blank {}
@@ -109,5 +110,51 @@ describe('UiRecentListings', () => {
 
     expect(listingService.getRecentBooks).toHaveBeenCalledTimes(1);
     expect(listingService.getRecentBooks.mock.calls[0][0]).toBe('NTU');
+  });
+
+  describe('when the school has no books', () => {
+    beforeEach(() => {
+      listingService.getRecentBooks.mockReturnValue(of({
+        count: 1, scope: 'city', city: 'TPE',
+        results: [{ id: 2, isbn: '9781449319793', title: 'Taipei Calculus', authors: '', conditions: { new: 1 }, min_price: 100 }],
+      }));
+      const schools = TestBed.inject(SchoolStateService);
+      schools.setSchools(
+        [{ id: 1, code: 'NTNU', name: 'NTNU', display_name: 'Normal U', city: 'TPE' }],
+        [{ code: 'TPE', name: 'Taipei City', display_name: 'Taipei' }],
+      );
+    });
+
+    async function renderFor(school: string) {
+      const fixture = TestBed.createComponent(UiRecentListings);
+      fixture.componentRef.setInput('school', school);
+      fixture.detectChanges();
+      await new Promise(resolve => setTimeout(resolve));
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('says the books shown are from the rest of the city', async () => {
+      const fixture = await renderFor('NTNU');
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('.section-heading')?.textContent).toContain('home.recentTitleCity');
+      expect(el.querySelector('.fallback-note')).not.toBeNull();
+      expect(fixture.componentInstance.schoolLabel).toBe('Normal U');
+      expect(fixture.componentInstance.cityLabel).toBe('Taipei');
+    });
+
+    it('offers every university instead, as the header picker would', async () => {
+      const fixture = await renderFor('NTNU');
+      const schools = TestBed.inject(SchoolStateService);
+      const setManual = vi.spyOn(schools, 'setManualSchool');
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.fallback-link')!.click();
+      expect(setManual).toHaveBeenCalledWith('');
+    });
+
+    it('shows no note when the books are the school\'s own', async () => {
+      listingService.getRecentBooks.mockReturnValue(of({ count: 0, scope: 'school', city: 'TPE', results: [] }));
+      const fixture = await renderFor('NTNU');
+      expect((fixture.nativeElement as HTMLElement).querySelector('.fallback-note')).toBeNull();
+    });
   });
 });

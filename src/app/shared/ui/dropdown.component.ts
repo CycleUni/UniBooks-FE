@@ -8,6 +8,16 @@ import { isPhoneViewport } from '../../core/viewport';
 export interface DropdownOption {
   value: string;
   label: string;
+  /** Heading the option is listed under (the header's schools, by city).
+   *  Consecutive options sharing one form a group; typing the heading in
+   *  the search box lists the whole group. */
+  group?: string;
+}
+
+/** One line of the open list: an option, and the group heading above it if it starts one. */
+export interface DropdownRow {
+  opt: DropdownOption;
+  heading: string | null;
 }
 
 @Component({
@@ -50,18 +60,20 @@ export interface DropdownOption {
             (click)="$event.stopPropagation()"
           />
           <ul class="dropdown-list" [class.in-sheet]="sheet" role="listbox">
-            <li
-              *ngFor="let opt of filteredOptions"
-              role="option"
-              [attr.aria-selected]="opt.value === value"
-              [class.active]="opt.value === value"
-              (click)="selectOption(opt)"
-            >
-              <span>{{ opt.label }}</span>
-              <svg *ngIf="opt.value === value" class="dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-            </li>
+            <ng-container *ngFor="let row of optionRows">
+              <li *ngIf="row.heading" class="dropdown-group" role="presentation">{{ row.heading }}</li>
+              <li
+                role="option"
+                [attr.aria-selected]="row.opt.value === value"
+                [class.active]="row.opt.value === value"
+                (click)="selectOption(row.opt)"
+              >
+                <span>{{ row.opt.label }}</span>
+                <svg *ngIf="row.opt.value === value" class="dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </li>
+            </ng-container>
             <li *ngIf="filteredOptions.length === 0" class="dropdown-empty">{{ 'common.noMatches' | t }}</li>
           </ul>
         </ng-template>
@@ -275,6 +287,17 @@ export interface DropdownOption {
       color: var(--muted);
       cursor: default;
     }
+    /* A label, not a choice: no hover, no pointer, set apart from the rows. */
+    .dropdown-list li.dropdown-group {
+      padding: 12px 8px 4px;
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--muted);
+      cursor: default;
+    }
+    .dropdown-list li.dropdown-group:hover {
+      background-color: transparent;
+    }
     .dropdown-empty:hover {
       background-color: transparent;
     }
@@ -350,13 +373,36 @@ export class UiDropdown implements ControlValueAccessor, AfterViewInit, OnDestro
   }
 
   get filteredOptions(): DropdownOption[] {
-    const base = (!this.searchable || !this.searchQuery.trim())
+    return this.listOptions().options;
+  }
+
+  /**
+   * filteredOptions with each group's heading on its first option. The
+   * option pinned to the top (pinSelected) sits outside the groups: given a
+   * heading there, its group would be headed twice.
+   */
+  get optionRows(): DropdownRow[] {
+    const { options, pinned } = this.listOptions();
+    let previous: string | undefined;
+    return options.map((opt, i) => {
+      if (pinned && i === 0) return { opt, heading: null };
+      const heading = opt.group && opt.group !== previous ? opt.group : null;
+      previous = opt.group;
+      return { opt, heading };
+    });
+  }
+
+  /** The options matching the search, and whether the selected one was moved to the top. */
+  private listOptions(): { options: DropdownOption[]; pinned: boolean } {
+    const query = this.searchQuery.trim().toLowerCase();
+    const base = (!this.searchable || !query)
       ? this.options
-      : this.options.filter(o => o.label.toLowerCase().includes(this.searchQuery.trim().toLowerCase()));
-    if (!this.pinSelected || !this.value) return base;
+      : this.options.filter(o =>
+          o.label.toLowerCase().includes(query) || !!o.group?.toLowerCase().includes(query));
+    if (!this.pinSelected || !this.value) return { options: base, pinned: false };
     const idx = base.findIndex(o => o.value === this.value);
-    if (idx <= 0) return base;
-    return [base[idx], ...base.slice(0, idx), ...base.slice(idx + 1)];
+    if (idx <= 0) return { options: base, pinned: false };
+    return { options: [base[idx], ...base.slice(0, idx), ...base.slice(idx + 1)], pinned: true };
   }
 
   ngAfterViewInit() {

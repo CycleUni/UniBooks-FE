@@ -6,13 +6,13 @@ import { Component, effect, inject, ChangeDetectorRef, NgZone, OnDestroy, untrac
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { UiDropdown } from './dropdown.component';
+import { UiDropdown, DropdownOption } from './dropdown.component';
 import { UiPrefsSelector } from './prefs-selector.component';
 import { RegionService } from '../../core/region.service';
 import { MetadataService } from '../../core/services/metadata.service';
 import { AuthStore } from '../../core/auth.store';
 import { AccountService } from '../../core/services/account.service';
-import { SchoolStateService, SchoolOption } from '../../core/services/school-state.service';
+import { SchoolStateService, SchoolOption, CityOption } from '../../core/services/school-state.service';
 import { MessageService } from '../../core/services/message.service';
 import { I18nService, TPipe } from '../../core/i18n.service';
 import { Lang } from '../../core/i18n';
@@ -34,7 +34,7 @@ import { TAB_SECTIONS } from '../../core/view-transitions';
 export class UiLayout implements OnDestroy {
   /** The selected school's code ('' = all schools). */
   selectedSchool = '';
-  schools: { value: string, label: string }[] = [];
+  schools: DropdownOption[] = [];
   rawSchools: SchoolOption[] = [];
   unreadCount = 0;
   readonly theme = inject(ThemeService);
@@ -131,6 +131,7 @@ export class UiLayout implements OnDestroy {
   private currentPath = '';
 
   private routerSubscription?: Subscription;
+  private selectedSchoolSubscription?: Subscription;
 
   get selectedSchoolLabel(): string {
     const found = this.schools.find(s => s.value === this.selectedSchool);
@@ -166,6 +167,15 @@ export class UiLayout implements OnDestroy {
     this.applyFooterVisibility();
     this.applyRouteState();
     this.currentPath = this.pathOf(this.router.url);
+    // A school picked somewhere other than this selector — the home page's
+    // "see all universities" under a city fallback — must show here too, or
+    // the header keeps naming the school the page has stopped filtering by.
+    this.selectedSchoolSubscription = this.schoolStateService.selectedSchool$.subscribe(code => {
+      if (code !== this.selectedSchool) {
+        this.selectedSchool = code;
+        this.cdr.markForCheck();
+      }
+    });
     this.routerSubscription = this.router.events.subscribe(event => {
       if (event instanceof NavigationEnd) {
         this.applyFullBleed();
@@ -303,6 +313,7 @@ export class UiLayout implements OnDestroy {
 
   ngOnDestroy() {
     this.routerSubscription?.unsubscribe();
+    this.selectedSchoolSubscription?.unsubscribe();
     this.unreadCountSubscription.unsubscribe();
     this.metadataSubscription?.unsubscribe();
     if (typeof window !== 'undefined') {
@@ -458,16 +469,12 @@ export class UiLayout implements OnDestroy {
       next: (data) => {
         this.metadataOwed = false;
         if (data.schools && data.schools.length > 0) {
-          this.schoolStateService.setSchools(data.schools);
+          const cities: CityOption[] = data.cities || [];
+          this.schoolStateService.setSchools(data.schools, cities);
           this.rawSchools = data.schools;
           this.schools = [
             { value: '', label: this.i18n.t('layout.allSchools') || '全部大學' },
-            // By code, not name: the code is what goes out as ?school= and
-            // into sessionStorage.
-            ...data.schools.map((s: SchoolOption) => ({
-              value: s.code,
-              label: s.display_name || s.name
-            }))
+            ...this.schoolOptionsByCity(data.schools, cities),
           ];
 
           // Keep the user's current selection across language switches
@@ -522,6 +529,25 @@ export class UiLayout implements OnDestroy {
         }
       }
     });
+  }
+
+  /**
+   * The schools grouped under their cities, in the cities' order, with any
+   * school that has no city last under "Other". By code, not name: the code
+   * is what goes out as ?school= and into sessionStorage.
+   */
+  private schoolOptionsByCity(schools: SchoolOption[], cities: CityOption[]): DropdownOption[] {
+    const option = (s: SchoolOption, group?: string): DropdownOption =>
+      ({ value: s.code, label: s.display_name || s.name, group });
+    // A payload from before cities: nothing to group by.
+    if (cities.length === 0) return schools.map(s => option(s));
+    const known = new Set(cities.map(c => c.code));
+    const grouped = cities.flatMap(c => schools
+      .filter(s => s.city === c.code)
+      .map(s => option(s, c.display_name || c.name)));
+    const other = this.i18n.t('layout.otherCity');
+    const rest = schools.filter(s => !s.city || !known.has(s.city)).map(s => option(s, other));
+    return [...grouped, ...rest];
   }
 
   onSchoolChange(school: string) {

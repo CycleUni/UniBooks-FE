@@ -20,6 +20,15 @@ export interface SchoolOption {
   name: string;
   display_name?: string;
   email_domain?: string;
+  /** Code of the city the school is in; null when it has none. */
+  city?: string | null;
+}
+
+/** A city as listed by /core/metadata/, in display order. */
+export interface CityOption {
+  code: string;
+  name: string;
+  display_name?: string;
 }
 
 @Injectable({
@@ -30,6 +39,7 @@ export class SchoolStateService {
   private selectedSchoolSubject = new BehaviorSubject<string>('');
   private rawSchools: SchoolOption[] = [];
   private schoolsSubject = new BehaviorSubject<SchoolOption[]>([]);
+  private cities: CityOption[] = [];
   /** Region the manual choice is stored under; set by RegionService. */
   private region = '';
 
@@ -76,9 +86,22 @@ export class SchoolStateService {
     this.region = next;
   }
 
-  setSchools(schools: SchoolOption[]) {
+  setSchools(schools: SchoolOption[], cities: CityOption[] = []) {
     this.rawSchools = schools;
+    this.cities = cities;
     this.schoolsSubject.next(schools);
+  }
+
+  /** This region's cities, in display order. */
+  getCities(): CityOption[] {
+    return this.cities;
+  }
+
+  /** A city's name in the current language; the code itself if unknown. */
+  getCityLabel(code: string | null | undefined): string {
+    if (!code) return '';
+    const c = this.cities.find(x => x.code === code);
+    return c ? (c.display_name || c.name) : code;
   }
 
   private findByCode(code: string): SchoolOption | undefined {

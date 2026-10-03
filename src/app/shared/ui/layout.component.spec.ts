@@ -40,7 +40,7 @@ describe('UiLayout', () => {
         { provide: MetadataService, useValue: { getMetadata: () => of({ schools: [] }), getMetadataWithRetry: vi.fn(() => of({ schools: [] })) } },
         { provide: AuthStore, useValue: { isAuthenticated: signal(false), user: signal(null) } },
         { provide: AccountService, useValue: {} },
-        { provide: SchoolStateService, useValue: { currentSchool: '', hasInitialized: false, ready: false, markReady: vi.fn(), getManualSchool: () => null, hasManualPick: () => false, setSchools: vi.fn(), setSchool: vi.fn(), clearManualSchool: vi.fn() } },
+        { provide: SchoolStateService, useValue: { currentSchool: '', selectedSchool$: of(''), hasInitialized: false, ready: false, markReady: vi.fn(), getManualSchool: () => null, hasManualPick: () => false, setSchools: vi.fn(), setSchool: vi.fn(), clearManualSchool: vi.fn() } },
         { provide: MessageService, useValue: { unreadCount$: of(0), openHub: vi.fn(), closeHub: vi.fn(), retryHubIfOwed: vi.fn() } },
         { provide: I18nService, useValue: { t: (k: string) => k, lang: signal('zh-TW') } },
         { provide: ThemeService, useValue: { mode: signal('system'), resolved: signal('light'), setMode: vi.fn() } },
@@ -246,6 +246,26 @@ describe('UiLayout', () => {
       metadata.getMetadataWithRetry.mockClear();
       await router.navigateByUrl('/sell');
       expect(metadata.getMetadataWithRetry).not.toHaveBeenCalled();
+    });
+
+    it('groups the schools under their cities, in the cities\' order, cityless ones last', () => {
+      metadata.getMetadataWithRetry.mockReturnValue(of({
+        schools: [
+          { id: 1, code: 'NCKU', name: 'NCKU', city: 'TNN' },
+          { id: 2, code: 'NTU', name: 'NTU', city: 'TPE' },
+          { id: 3, code: 'X', name: 'Nowhere', city: null },
+        ],
+        cities: [
+          { code: 'TPE', name: 'Taipei City', display_name: 'Taipei' },
+          { code: 'TNN', name: 'Tainan City' },
+        ],
+      }));
+      (TestBed.inject(I18nService) as any).lang.set('en');
+      TestBed.tick();
+
+      expect(component.schools.slice(1).map(o => `${o.group}:${o.value}`))
+        .toEqual(['Taipei:NTU', 'Tainan City:NCKU', 'layout.otherCity:X']);
+      expect(component.schools[0]).toEqual({ value: '', label: expect.any(String) });
     });
 
     describe('settling the opening school before the list arrives', () => {

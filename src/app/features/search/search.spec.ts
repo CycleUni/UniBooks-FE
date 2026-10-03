@@ -65,6 +65,7 @@ describe('Search page', () => {
           useValue: {
             selectedSchool$: of('NTU'), resolvedSchool$: of('NTU'), ready: true, schools$: of([]),
             currentSchool: 'NTU', getSchoolLabel: () => 'NTU', getSchoolId: () => null,
+            getCityLabel: (code: string | null) => (code === 'TPE' ? 'Taipei City' : ''), setManualSchool: vi.fn(),
           },
         },
         { provide: MetadataService, useValue: { getMetadata: () => of({ categories: [{ slug: 'engineering', title: 'Engineering' }] }) } },
@@ -171,6 +172,24 @@ describe('Search page', () => {
 
       const text = (fixture.nativeElement as HTMLElement).querySelector('.scoped-count')?.textContent;
       expect(text).toContain('Found 45 matching books');
+    });
+
+    it('names the city when the school has none but the city does', async () => {
+      const page = [{ ...book(1, false), cityActiveListings: 1 }, book(2, false)];
+      await setUp({ q: 'calculus' }, { count: 2, local_count: 0, scope: 'school', city: 'TPE', city_count: 1, results: page });
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('.scoped-count')?.textContent).toContain('none listed at NTU yet; 1 in Taipei City');
+      const badges = Array.from(el.querySelectorAll('.local-badge'), b => b.textContent?.trim());
+      expect(badges).toEqual(['Listed in Taipei City', 'No listings at NTU']);
+    });
+
+    it('explains a browse that fell back to the city', async () => {
+      await setUp({ category: 'engineering' }, { count: 1, local_count: 1, scope: 'city', city: 'TPE', city_count: 1, results: [book(1)] });
+
+      const text = (fixture.nativeElement as HTMLElement).querySelector('.scoped-count')?.textContent;
+      expect(text).toContain('Nothing at NTU yet, so here are books from other schools in Taipei City.');
+      expect(text).not.toContain('Found');
     });
   });
 

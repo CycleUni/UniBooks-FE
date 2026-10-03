@@ -10,11 +10,14 @@ import { TPipe, I18nService } from '../../core/i18n.service';
 import { ToastService } from '../../core/services/toast.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { TranslationEditorComponent, TranslationField } from './translation-editor.component';
+import { UiDropdown, DropdownOption } from '../../shared/ui/dropdown.component';
+import { MetadataService } from '../../core/services/metadata.service';
+import { CityOption } from '../../core/services/school-state.service';
 
 @Component({
   selector: 'app-admin-school-detail',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, TranslationEditorComponent, UiButton],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, TranslationEditorComponent, UiButton, UiDropdown],
   template: `
     <div class="section-head-row">
       <div>
@@ -41,6 +44,14 @@ import { TranslationEditorComponent, TranslationField } from './translation-edit
           <label for="school-code">{{ 'admin.schoolCode' | t }}</label>
           <input id="school-code" type="text" class="admin-form-control code-input" maxlength="20" [(ngModel)]="editData.code">
           <small class="hint">{{ 'admin.schoolCodeDesc' | t }}</small>
+        </div>
+
+        <div class="form-group">
+          <ui-dropdown
+            [label]="'admin.schoolCity' | t"
+            [options]="cityOptions"
+            [(ngModel)]="editCity"
+          ></ui-dropdown>
         </div>
 
         <div class="form-group">
@@ -76,16 +87,32 @@ export class AdminSchoolDetailComponent implements OnInit {
   private cdr = inject(ChangeDetectorRef);
   private i18n = inject(I18nService);
   private toast = inject(ToastService);
+  private metadataService = inject(MetadataService);
 
   schoolId!: string;
   school?: AdminSchool;
   editData: Partial<AdminSchool> = { name: '', email_domain: '', code: '' };
   
+  /** City code being edited; '' clears the school's city. */
+  editCity = '';
+  cityOptions: DropdownOption[] = [];
+
   translationFields: TranslationField[] = [
     { key: 'name', placeholder: 'admin.schoolName', type: 'text' }
   ];
 
   ngOnInit() {
+    // This region's cities, as the public school picker lists them.
+    this.metadataService.getMetadata().subscribe({
+      next: data => {
+        this.cityOptions = [
+          { value: '', label: this.i18n.t('admin.schoolCityNone') },
+          ...(data.cities || []).map((c: CityOption) => ({ value: c.code, label: c.display_name || c.name })),
+        ];
+        this.cdr.markForCheck();
+      },
+      error: () => {},
+    });
     this.route.paramMap.subscribe(params => {
       this.schoolId = params.get('id')!;
       this.loadSchool();
@@ -96,16 +123,18 @@ export class AdminSchoolDetailComponent implements OnInit {
     this.adminService.getSchool(this.schoolId).subscribe(data => {
       this.school = data;
       this.editData = { name: data.name, email_domain: data.email_domain, code: data.code, translations: data.translations || {} };
+      this.editCity = data.city || '';
       this.cdr.markForCheck();
     });
   }
 
   saveSchool() {
-    const payload = { ...this.editData, code: (this.editData.code || '').trim().toUpperCase() };
+    const payload = { ...this.editData, code: (this.editData.code || '').trim().toUpperCase(), city: this.editCity || null };
     this.adminService.updateSchool(this.schoolId, payload).subscribe({
       next: data => {
         this.school = data;
         this.editData = { name: data.name, email_domain: data.email_domain, code: data.code, translations: data.translations || {} };
+        this.editCity = data.city || '';
         this.cdr.markForCheck();
       },
       // Silently doing nothing left the old code on the page looking saved;

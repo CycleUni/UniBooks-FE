@@ -146,6 +146,8 @@ export interface AdminSchool {
   email_domain: string;
   translations: any;
   region?: string;
+  /** Code of the school's city in its region; null when none is set. */
+  city?: string | null;
   /** Number of accounts attached to this school; a school with any cannot be deleted. */
   user_count?: number;
 }

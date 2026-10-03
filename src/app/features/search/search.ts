@@ -191,8 +191,14 @@ type FilterDraft = Pick<SearchUrlState, 'conditions' | 'category' | 'course' | '
             <!-- The scoped count is books with a copy at this school. When that
                  is zero while catalogue matches are listed right below,
                  "Found 0 matching books" contradicted the page. -->
-            <ng-container *ngIf="currentSchool && localResultsCount > 0">{{ 'search.foundCountScoped' | t:{school: currentSchoolLabel, n: localResultsCount} }}</ng-container>
-            <ng-container *ngIf="currentSchool && localResultsCount === 0">{{ 'search.foundCountNoneAtSchool' | t:{school: currentSchoolLabel, n: totalCount} }}</ng-container>
+            <!-- Browsing found nothing at the school, so these are its city's. -->
+            <ng-container *ngIf="currentSchool && isCityFallback">
+              {{ 'home.cityFallbackNote' | t:{school: currentSchoolLabel, city: searchCityLabel} }}
+              <button type="button" class="fallback-link" (click)="showAllSchools()">{{ 'home.showAllSchools' | t }}</button>
+            </ng-container>
+            <ng-container *ngIf="currentSchool && !isCityFallback && localResultsCount > 0">{{ 'search.foundCountScoped' | t:{school: currentSchoolLabel, n: localResultsCount} }}</ng-container>
+            <ng-container *ngIf="currentSchool && !isCityFallback && localResultsCount === 0 && cityCount > 0">{{ 'search.foundCountNoneAtSchoolCity' | t:{school: currentSchoolLabel, n: totalCount, city: searchCityLabel, c: cityCount} }}</ng-container>
+            <ng-container *ngIf="currentSchool && !isCityFallback && localResultsCount === 0 && cityCount === 0">{{ 'search.foundCountNoneAtSchool' | t:{school: currentSchoolLabel, n: totalCount} }}</ng-container>
             <ng-container *ngIf="!currentSchool">{{ 'search.foundCountAll' | t:{n: totalCount} }}</ng-container>
           </p>
 
@@ -262,7 +268,8 @@ type FilterDraft = Pick<SearchUrlState, 'conditions' | 'category' | 'course' | '
                   <ng-container *ngIf="item.activeListings > 0">
                     <ui-button>{{ 'search.viewAll' | t }}</ui-button>
                     <span class="local-badge" *ngIf="currentSchool && item.localActiveListings === 0">
-                      {{ 'search.noLocalListings' | t:{school: currentSchoolLabel} }}
+                      <ng-container *ngIf="item.cityActiveListings > 0">{{ 'search.inCity' | t:{city: searchCityLabel} }}</ng-container>
+                      <ng-container *ngIf="!(item.cityActiveListings > 0)">{{ 'search.noLocalListings' | t:{school: currentSchoolLabel} }}</ng-container>
                     </span>
                   </ng-container>
                 </div>
@@ -351,6 +358,10 @@ type FilterDraft = Pick<SearchUrlState, 'conditions' | 'category' | 'course' | '
     .price-input ::ng-deep input:focus { border-color: var(--accent); }
     .results { flex: 1; }
     .scoped-count { margin: -16px 0 24px; font-size: var(--text-base); color: var(--muted); }
+    .fallback-link {
+      display: inline-flex; align-items: center; min-height: var(--tap-min); padding: 0 var(--space-1);
+      border: 0; background: none; font: inherit; color: var(--ink); text-decoration: underline; cursor: pointer;
+    }
 
     .tile-actions-inner { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 8px; }
     .local-badge { display:inline-block; padding:4px 8px; font-size: var(--text-xs); font-weight:500; color:var(--danger); background-color:var(--danger-light); border-radius:4px; }
@@ -608,6 +619,26 @@ export class Search implements OnInit {
     return this.localCount ?? this.filteredResults.filter(item => item.localActiveListings > 0).length;
   }
 
+  /** 'city' when browsing found nothing at the school and fell back to its city. */
+  private searchScope: string | null = null;
+  /** Code of the school's city, from the response. */
+  private searchCity: string | null = null;
+  /** Books with a copy anywhere in the school's city, across every page. */
+  cityCount = 0;
+
+  get isCityFallback(): boolean {
+    return this.searchScope === 'city';
+  }
+
+  get searchCityLabel(): string {
+    return this.schoolStateService.getCityLabel(this.searchCity);
+  }
+
+  /** Leave the school for every university's books, as the header picker would. */
+  showAllSchools() {
+    this.schoolStateService.setManualSchool('');
+  }
+
   private bookService = inject(BookService);
   private auth = inject(AuthStore);
   private cdr = inject(ChangeDetectorRef);
@@ -851,6 +882,9 @@ export class Search implements OnInit {
         this.results = data.results || data;
         this.totalCount = data.count || this.results.length;
         this.localCount = typeof data.local_count === 'number' ? data.local_count : null;
+        this.searchScope = data.scope ?? null;
+        this.searchCity = data.city ?? null;
+        this.cityCount = typeof data.city_count === 'number' ? data.city_count : 0;
         this.googleUnavailable = !!data.google_unavailable;
         this.resultsTruncated = !!data.results_truncated;
         this.loading = false;

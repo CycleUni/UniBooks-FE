@@ -11,6 +11,7 @@ import { UiSkeleton } from './skeleton.component';
 import { UiPagination } from './pagination.component';
 import { UiErrorState } from './error-state.component';
 import { ListingService } from '../../core/services/listing.service';
+import { SchoolStateService } from '../../core/services/school-state.service';
 import { I18nService, TPipe } from '../../core/i18n.service';
 import { bookPreviewState, bookQueryParams } from '../../core/book-preview';
 
@@ -28,7 +29,16 @@ export const RECENT_BOOKS_PAGE_SIZE = 20;
   standalone: true,
   imports: [RegionLinkDirective, CommonModule, RouterModule, UiBookTile, UiSkeleton, TPipe, UiPagination, UiErrorState, UiPromoBanner],
   template: `
-    <h2 class="section-heading" [id]="headingId">{{ (school ? 'home.recentTitle' : 'home.recentTitleAll') | t }}</h2>
+    <h2 class="section-heading" [id]="headingId">
+      <ng-container *ngIf="isCityFallback">{{ 'home.recentTitleCity' | t:{city: cityLabel} }}</ng-container>
+      <ng-container *ngIf="!isCityFallback">{{ (school ? 'home.recentTitle' : 'home.recentTitleAll') | t }}</ng-container>
+    </h2>
+    <!-- The school had nothing, so these are its city's: said up front, so
+         nobody takes them for copies at their own school. -->
+    <p class="fallback-note" *ngIf="isCityFallback && !loading">
+      {{ 'home.cityFallbackNote' | t:{school: schoolLabel, city: cityLabel} }}
+      <button type="button" class="fallback-link" (click)="showAllSchools()">{{ 'home.showAllSchools' | t }}</button>
+    </p>
     <ng-container *ngIf="loading">
       <ui-skeleton variant="discover-grid" [count]="4"></ui-skeleton>
     </ng-container>
@@ -86,6 +96,23 @@ export const RECENT_BOOKS_PAGE_SIZE = 20;
        read a spine title on a desktop screen — and any book count that isn't
        a multiple of 4 left visible holes in the grid. Sizing by a 180px
        minimum instead lets the column count follow the space available. */
+    .fallback-note {
+      margin: calc(-1 * var(--space-2)) 0 var(--space-4);
+      font-size: var(--text-sm);
+      color: var(--muted);
+    }
+    .fallback-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: var(--tap-min);
+      padding: 0 var(--space-1);
+      border: 0;
+      background: none;
+      font: inherit;
+      color: var(--ink);
+      text-decoration: underline;
+      cursor: pointer;
+    }
     .seed-tile {
       display: flex;
       flex-direction: column;
@@ -134,6 +161,10 @@ export class UiRecentListings {
   @Output() adClick = new EventEmitter<any>();
 
   recentBooks: any[] = [];
+  /** 'city' when the school had no books and these are its city's instead. */
+  scope: 'all' | 'school' | 'city' = 'all';
+  /** Code of the selected school's city, from the response. */
+  city: string | null = null;
   loading = true;
   errorMessage: string = '';
   totalCount = 0;
@@ -208,6 +239,24 @@ export class UiRecentListings {
   }
 
   private listingService = inject(ListingService);
+  private schoolState = inject(SchoolStateService);
+
+  get isCityFallback(): boolean {
+    return this.scope === 'city' && !!this.school;
+  }
+
+  get schoolLabel(): string {
+    return this.schoolState.getSchoolLabel(this.school);
+  }
+
+  get cityLabel(): string {
+    return this.schoolState.getCityLabel(this.city);
+  }
+
+  /** Leave the empty school for every university's books, as the header picker would. */
+  showAllSchools() {
+    this.schoolState.setManualSchool('');
+  }
   private cdr = inject(ChangeDetectorRef);
   private i18n = inject(I18nService);
   private destroyRef = inject(DestroyRef);
@@ -239,10 +288,14 @@ export class UiRecentListings {
     ).subscribe((data) => {
       if (data === null) {
         this.recentBooks = [];
+        this.scope = 'all';
+        this.city = null;
         this.errorMessage = this.i18n.t('common.error') || 'Error loading listings';
       } else {
         this.recentBooks = data.results || data;
         this.totalCount = data.count || this.recentBooks.length;
+        this.scope = data.scope || (this.school ? 'school' : 'all');
+        this.city = data.city || null;
         this.errorMessage = '';
       }
       this.loading = false;
