@@ -60,15 +60,27 @@ Cloudflare Pages 時 Function 由平台自動執行，不需要這一步。
 因此 Angular 在瀏覽器端動態寫入的 `<title>` 與 `og:*` 標籤爬蟲看不見。
 
 解法：`npm run build` 在 `ng build` 完成後，會執行
-`scripts/build-region-html.ts` 為每個地區產出一份靜態的 `index.html`，
+`scripts/build-region-html.ts` 為每個地區產出靜態 HTML，
 並自動在部署包（`dist/`）的 `_redirects` 裡注入對應的路由規則：
 
+- 固定的公開頁面（`SITEMAP_PAGES`：首頁、`/search`、`/sell`）各有一份檔案
+  （`tw/index.html`、`tw/search.html`…），寫好該頁的 `<title>`、`og:*`、
+  指向自己的 canonical，以及各地區互相指向的 hreflang。
+  Pages 會讓 rewrite 規則蓋過 HTML 檔，所以每個頁面都有一條指向自己的規則，排在地區規則前面。
+- 其餘路由共用 `app-shell.html`，不含 canonical 與 hreflang
+  （同一份檔案要回應很多路徑，寫死哪一頁都會錯），由前端的 `SeoService` 寫入。
+  規則的目標不加 `.html`，否則 Pages 會 308 轉址。
+
 ```
-/tw/*  /tw/index.html  200
-/hk/*  /hk/index.html  200
+/tw/  /tw/  200
+/tw/search  /tw/search  200
+/tw/sell  /tw/sell  200
+…（hk 同上）
+/tw/*  /tw/app-shell  200
+/hk/*  /hk/app-shell  200
 ```
 
-這樣 `/tw` 的爬蟲拿到的就是已寫好中文 `<title>` 與 `og:*` 的 HTML，
+這樣爬蟲拿到的就是已寫好中文 `<title>`、`og:*` 與 hreflang 的 HTML，
 完全不需要 Cloudflare Pages Functions，零額度消耗。
 
 > **注意**：`public/_redirects`（原始檔）不含地區規則。地區規則由腳本在

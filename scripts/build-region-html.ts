@@ -24,6 +24,25 @@ const ORGANIZATION_ID = `${SITE_ORIGIN}/#organization`;
  * Anything behind a login, the auth flow, checkout and admin stay out.
  */
 const SITEMAP_PAGES = ['', '/search', '/sell'];
+
+/**
+ * The i18n key each page's route declares as its `data.seo.titleKey`, so its
+ * static file is titled as SeoService titles it. The home page uses
+ * seo.homeTitle instead.
+ */
+const PAGE_TITLE_KEYS: Record<string, string> = {
+  '/search': 'nav.search',
+  '/sell': 'nav.sell',
+};
+
+/**
+ * The page every other route of a region is rewritten to, served from
+ * <region>/app-shell.html. The home page cannot double as this, as it once
+ * did: it now names itself as canonical, which would be wrong on every route
+ * the rewrite reaches. Rewrite targets name it without .html: Pages 308s a
+ * .html path to the bare one, and does so for a rewrite's target too.
+ */
+const SHELL_PAGE = 'app-shell'; // functions/_lib/book-meta.ts REGION_SHELL
 const I18N_DIR = path.resolve(__dirname, '../src/app/core/i18n');
 
 type Strings = Record<string, string>;
@@ -171,19 +190,46 @@ function replaceRequired(html: string, pattern: RegExp, replacement: string, lab
 }
 
 /**
+ * Where a region page's static file goes. The home page is the directory
+ * index (Pages serves /tw/ from it); the others drop their .html, as Pages
+ * does, so /tw/search is served from tw/search.html with no redirect. Unlike
+ * a non-HTML file, such a page does not win over the region's /tw/* rewrite
+ * on its own; injectRedirects gives each one a rule of its own ahead of it.
+ */
+function pageFile(region: string, page: string): string {
+  return path.join(DIST_DIR, region, page ? `${page.slice(1)}.html` : 'index.html');
+}
+
+/**
+ * hreflang links naming a page's copy in every region: the set SeoService
+ * writes in the browser, in the HTML for a crawler that does not run the app.
+ */
+function alternateTags(page: string): string[] {
+  return [
+    ...Object.entries(REGION_TO_LANG).map(([region, lang]) => ({ hreflang: lang, href: regionUrl(region, page) })),
+    { hreflang: 'x-default', href: regionUrl(DEFAULT_REGION, page) },
+  ].map((alt) => `<link rel="alternate" hreflang="${escapeHtml(alt.hreflang)}" href="${escapeHtml(alt.href)}">`);
+}
+
+/**
  * Rewrite title, description and inject og:* tags.
  * Pass `null` as region for the root index.html (og:url = https://unibooks.app).
+ * `page` is the one page a region file is for ('' for its home), which gets
+ * its own title, canonical and hreflang; `null` is the region's shell, served
+ * for every other route, which can name none of them.
  */
 function buildHtml(
   originalHtml: string,
   region: string | null,
+  page: string | null,
   locale: Lang,
   strings: Strings,
   hints: { apiOrigin: string | null; languageChunks: Partial<Record<Lang, string>> },
 ): string {
   let html = gateChineseFonts(originalHtml);
 
-  const title = strings['seo.homeTitle'] ?? SITE_NAME;
+  const pageName = page ? strings[PAGE_TITLE_KEYS[page]] : undefined;
+  const title = pageName ? `${pageName} · ${SITE_NAME}` : strings['seo.homeTitle'] ?? SITE_NAME;
   const description = strings['seo.description'] ?? '';
 
   html = replaceRequired(
@@ -209,13 +255,17 @@ function buildHtml(
     'the description meta tag',
   );
 
-  const ogUrl = region ? regionUrl(region, '') : `${SITE_ORIGIN}/`;
+  const ogUrl = region ? regionUrl(region, page ?? '') : `${SITE_ORIGIN}/`;
   const ogImage = `${SITE_ORIGIN}/icons/icon-512x512.png`;
   const ogLocale = ogLocaleFor(locale);
 
-  // No canonical or hreflang in a region's file. It is served for every
-  // route of its region (the /<region>/* rewrite), so a link naming the home
-  // page would be wrong on every other page, and a book page would carry two
+  // A region page's own file names itself as canonical and its copy in
+  // every region as hreflang. SeoService writes the same links once the app
+  // runs, which a crawler that does not run it never sees.
+  //
+  // No canonical or hreflang in a region's shell. It is served for every
+  // other route of its region (the /<region>/* rewrite), so a link naming
+  // any one page would be wrong on the rest, and a book page would carry two
   // canonicals once its Function appends its own. SeoService writes both
   // for the route in the browser, and the book Function on the server.
   //
@@ -226,7 +276,11 @@ function buildHtml(
   // the unprefixed ones (/listing/…, /verify?…), which the app also forwards
   // into a region, and whose canonical SeoService then replaces in place.
   // No hreflang: /tw/ and /hk/ do not name "/" back, so it would be ignored.
-  const canonicalTag = region ? '' : `<link rel="canonical" href="${escapeHtml(regionUrl(DEFAULT_REGION, ''))}">`;
+  const linkTags = !region
+    ? [`<link rel="canonical" href="${escapeHtml(regionUrl(DEFAULT_REGION, ''))}">`]
+    : page === null
+      ? []
+      : [`<link rel="canonical" href="${escapeHtml(ogUrl)}">`, ...alternateTags(page)];
 
   // Organization.logo is what Google shows beside the site in results.
   // A data block, not script, so the CSP's script-src does not apply.
@@ -273,7 +327,7 @@ function buildHtml(
   }
 
   const tags = [
-    canonicalTag,
+    ...linkTags,
     `<meta property="og:site_name" content="${escapeHtml(SITE_NAME)}">`,
     `<meta property="og:type" content="website">`,
     `<meta property="og:title" content="${escapeHtml(title)}">`,
@@ -323,8 +377,13 @@ function updateServiceWorkerHash(html: string): void {
  *
  * Desired order in the final file:
  *   /index.html  /  200          ← already in source file (must stay first)
- *   /<region>/*  /<region>/index.html  200   ← injected here, one per region
+ *   /<region>/<page>  /<region>/<page>  200    ← injected, one per page and region
+ *   /<region>/*  /<region>/app-shell  200      ← injected, one per region
  *   /*  /index.html  200         ← SPA fallback (must stay last)
+ *
+ * A page's rule rewrites it to itself: without it the region's /* rule would
+ * answer the page with the shell, as Pages applies it ahead of an HTML file
+ * matched by its pretty URL (a non-HTML file, like robots.txt, wins anyway).
  */
 function injectRedirects(regions: string[]): void {
   if (!fs.existsSync(REDIRECTS_PATH)) {
@@ -335,11 +394,14 @@ function injectRedirects(regions: string[]): void {
 
   // Strip any previously injected region rules to ensure idempotency.
   const stripped = original.replace(
-    /^\/[a-z0-9-]+\/\*\s+\/[a-z0-9-]+\/index\.html\s+200\n?/gmi,
+    /^\/[a-z0-9-]+\/\S*\s+\/[a-z0-9-]+\/\S*\s+200\n?/gmi,
     '',
   );
 
-  const regionLines = regions.map((r) => `/${r}/*  /${r}/index.html  200`).join('\n');
+  const regionLines = [
+    ...regions.flatMap((r) => SITEMAP_PAGES.map((page) => `/${r}${page || '/'}  /${r}${page || '/'}  200`)),
+    ...regions.map((r) => `/${r}/*  /${r}/${SHELL_PAGE}  200`),
+  ].join('\n');
 
   // Insert region lines just before the catch-all "/* /index.html 200" rule.
   const updated = stripped.replace(
@@ -393,12 +455,12 @@ async function run(): Promise<void> {
   // renders a page of its own (rootRedirectGuard forwards it), and crawlers
   // that read it before the redirect ran were indexing an English copy.
   const defaultLanguage: Lang = REGION_TO_LANG[DEFAULT_REGION];
-  const rootHtml = buildHtml(originalHtml, null, defaultLanguage, await loadStrings(defaultLanguage), hints);
+  const rootHtml = buildHtml(originalHtml, null, null, defaultLanguage, await loadStrings(defaultLanguage), hints);
   fs.writeFileSync(INDEX_HTML_PATH, rootHtml);
   updateServiceWorkerHash(rootHtml);
   console.log(`Patched root index.html (${defaultLanguage})`);
 
-  // Generate per-region index.html files.
+  // Generate each region's shell and its pages.
   const regions = Object.keys(REGION_TO_LANG);
   for (const [region, lang] of Object.entries(REGION_TO_LANG)) {
     validateRegion(region);
@@ -409,9 +471,11 @@ async function run(): Promise<void> {
 
     const strings = await loadStrings(lang);
 
-    const regionHtml = buildHtml(originalHtml, region, lang, strings, hints);
-    fs.writeFileSync(path.join(regionDir, 'index.html'), regionHtml);
-    console.log(`Generated ${region}/index.html (${lang})`);
+    fs.writeFileSync(path.join(regionDir, `${SHELL_PAGE}.html`), buildHtml(originalHtml, region, null, lang, strings, hints));
+    for (const page of SITEMAP_PAGES) {
+      fs.writeFileSync(pageFile(region, page), buildHtml(originalHtml, region, page, lang, strings, hints));
+    }
+    console.log(`Generated ${region}/ shell and ${SITEMAP_PAGES.length} pages (${lang})`);
   }
 
   injectRedirects(regions);
