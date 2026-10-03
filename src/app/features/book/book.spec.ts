@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { BehaviorSubject, of } from 'rxjs';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
+import { BehaviorSubject, of, throwError } from 'rxjs';
 import { Book, BOOK_SOURCE_LABEL_KEYS, bookSourceLabelKey } from './book';
 import { BookService } from '../../core/services/book.service';
 import { I18nService } from '../../core/i18n.service';
@@ -9,6 +9,7 @@ import { AuthStore } from '../../core/auth.store';
 import { RegionService } from '../../core/region.service';
 import { SchoolStateService } from '../../core/services/school-state.service';
 import { GoogleAnalyticsService } from '../../core/services/google-analytics.service';
+import { bookPreviewState } from '../../core/book-preview';
 import { zhTW } from '../../core/i18n/zh-TW';
 import { en } from '../../core/i18n/en';
 import { zhHK } from '../../core/i18n/zh-HK';
@@ -111,6 +112,32 @@ describe('Book page data source footer', () => {
     expect(render('amazon_api').querySelector('.data-source')).toBeNull();
     fixture.destroy();
     expect(render(undefined).querySelector('.data-source')).toBeNull();
+  });
+
+  describe('opened from a search result', () => {
+    const openFromSearch = (stashed: Record<string, unknown>) => {
+      sessionStorage.setItem('cachedBook_9786264140720', JSON.stringify({
+        isbn: '9786264140720', title: '微積分', author: 'Stewart', ...stashed,
+      }));
+      const router = TestBed.inject(Router);
+      vi.spyOn(router as any, 'lastSuccessfulNavigation', 'get').mockReturnValue((() => ({ extras: { state: bookPreviewState() } })) as any);
+      fixture = TestBed.createComponent(Book);
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    };
+
+    afterEach(() => sessionStorage.clear());
+
+    it('keeps naming the catalogue the preview came from when the refresh fails', () => {
+      getBook.mockReturnValue(throwError(() => new Error('404')));
+      const page = openFromSearch({ source: 'google_api' });
+      expect(page.querySelector('.data-source')?.textContent?.trim()).toBe('書目資料來源：Google Books');
+    });
+
+    it('does not state a guessed source when the refresh fails', () => {
+      getBook.mockReturnValue(throwError(() => new Error('404')));
+      expect(openFromSearch({ source: 'manual' }).querySelector('.data-source')).toBeNull();
+    });
   });
 
   describe('mobile infinite scroll', () => {

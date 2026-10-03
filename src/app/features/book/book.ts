@@ -8,7 +8,7 @@ import { UiButton } from '../../shared/ui/button.component';
 import { UiBackButton } from '../../shared/ui/back-button.component';
 import { UiBreadcrumb, BreadcrumbItem } from '../../shared/ui/breadcrumb.component';
 import { RegionService } from '../../core/region.service';
-import { BookService, SearchEngine, parseSearchEngine } from '../../core/services/book.service';
+import { BookService, SearchEngine, engineForSource, parseSearchEngine } from '../../core/services/book.service';
 import { AccountService } from '../../core/services/account.service';
 import { AuthStore } from '../../core/auth.store';
 import { ChangeDetectorRef } from '@angular/core';
@@ -346,6 +346,10 @@ export class Book implements OnInit {
   // is what caused the same ISBN to show a different cover here than on
   // the search result it was opened from.
   private engine: SearchEngine | null = null;
+  // The catalogue the stashed search result came from, when it came from
+  // one. Held back from the preview until the backend answers, but used if
+  // that refresh fails: the preview on screen is that catalogue's data.
+  private previewSource = '';
 
   get currentSchoolLabel(): string {
     return this.schoolStateService.getSchoolLabel(this.currentSchool);
@@ -494,6 +498,7 @@ export class Book implements OnInit {
                   is_subscribed: cached.is_subscribed ?? false,
                   subscription_id: cached.subscription_id ?? null
                 };
+                this.previewSource = engineForSource(cached.source) ? cached.source : '';
                 this.isLocalCache = true;
                 this.describePage();
                 this.cdr.markForCheck();
@@ -583,6 +588,9 @@ export class Book implements OnInit {
         this.isLocalCache = false;
         // A silent fetch only supplements an already-rendered preview;
         // keep showing the preview instead of alarming the user
+        if (silent && this.book && !this.book.source && this.previewSource) {
+          this.book = { ...this.book, source: this.previewSource };
+        }
         if (!silent) {
           this.toast.error(this.i18n.t('alert.bookNotFound'));
         }
