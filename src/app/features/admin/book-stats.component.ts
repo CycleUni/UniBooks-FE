@@ -52,6 +52,7 @@ import { AdminStatsPeriodComponent, AdminStatusBarComponent, STATS_PAGE_STYLES, 
         *ngIf="record"
         [bookId]="bookId"
         [book]="record!"
+        [currentSource]="d.book.source"
         (saved)="load()"
         (merged)="openMerged($event)"
       ></admin-book-edit>

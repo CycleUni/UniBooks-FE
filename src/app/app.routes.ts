@@ -112,6 +112,8 @@ const featureRoutes: Routes = [
       { path: 'school-requests', loadComponent: () => import('./features/admin/school-requests-list.component').then(m => m.AdminSchoolRequestsListComponent) },
       { path: 'listings', loadComponent: () => import('./features/admin/listings-list.component').then(m => m.AdminListingsListComponent) },
       { path: 'listings/:id', loadComponent: () => import('./features/admin/listing-detail-admin.component').then(m => m.AdminListingDetailComponent) },
+      { path: 'books', loadComponent: () => import('./features/admin/books-list.component').then(m => m.AdminBooksListComponent) },
+      { path: 'books/:id', loadComponent: () => import('./features/admin/book-detail-admin.component').then(m => m.AdminBookDetailComponent), canDeactivate: [unsavedChangesGuard] },
       { path: 'orders', loadComponent: () => import('./features/admin/orders-list.component').then(m => m.AdminOrdersListComponent) },
       { path: 'orders/:id', loadComponent: () => import('./features/admin/order-detail-admin.component').then(m => m.AdminOrderDetailComponent) },
       { path: 'reports', loadComponent: () => import('./features/admin/reports-list.component').then(m => m.AdminReportsListComponent) },

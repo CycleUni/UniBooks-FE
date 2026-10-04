@@ -30,7 +30,7 @@ describe('AdminBookEditComponent', () => {
   let admin: { lookupBook: ReturnType<typeof vi.fn>; updateBook: ReturnType<typeof vi.fn> };
   let askDanger: ReturnType<typeof vi.fn>;
 
-  const create = () => {
+  const create = (currentSource: string | null = null) => {
     TestBed.configureTestingModule({
       imports: [AdminBookEditComponent],
       providers: [
@@ -46,6 +46,7 @@ describe('AdminBookEditComponent', () => {
     const fixture = TestBed.createComponent(AdminBookEditComponent);
     fixture.componentInstance.bookId = 6;
     fixture.componentInstance.book = { ...MISREAD };
+    fixture.componentInstance.currentSource = currentSource;
     fixture.detectChanges();
     fixture.componentInstance.toggle();
     return fixture.componentInstance;
@@ -211,5 +212,31 @@ describe('AdminBookEditComponent', () => {
     editor.save();
     expect(editor.titleMissing).toBe(true);
     expect(admin.updateBook).not.toHaveBeenCalled();
+  });
+
+  it('warns when the lookup answers from another catalogue than the record', () => {
+    admin.lookupBook.mockReturnValue(of({ ...FOUND, source: 'openlibrary_api' }));
+    const editor = create('google_api');
+    editor.form.isbn13 = FOUND.isbn13;
+    editor.lookUp();
+    expect(editor.sourceChange).toEqual({ found: 'book.sourceOpenLibrary', current: 'book.sourceGoogle' });
+
+    editor.form.isbn13 = '9780132350884';
+    editor.onIsbnChange();
+    expect(editor.sourceChange).toBeNull();
+  });
+
+  it('does not warn for the same catalogue, or over details a seller typed in', () => {
+    admin.lookupBook.mockReturnValue(of(FOUND));
+    const same = create('google_api');
+    same.form.isbn13 = FOUND.isbn13;
+    same.lookUp();
+    expect(same.sourceChange).toBeNull();
+
+    TestBed.resetTestingModule();
+    const typed = create('manual');
+    typed.form.isbn13 = FOUND.isbn13;
+    typed.lookUp();
+    expect(typed.sourceChange).toBeNull();
   });
 });

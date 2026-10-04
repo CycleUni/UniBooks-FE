@@ -218,6 +218,22 @@ export interface AdminBookLookup extends AdminBookRecord {
   existing_book: { id: number; title: string } | null;
 }
 
+/** A book as the admin's book list and page show it. */
+export interface AdminBook {
+  id: number;
+  region: string;
+  isbn13: string | null;
+  title: string;
+  authors: string;
+  publisher: string;
+  published_date: string;
+  cover_url: string;
+  source: string;
+  created_at: string;
+  active_listings: number;
+  request_count: number;
+}
+
 export interface AdminBookUpdate {
   /** Set when the book was folded into another one and no longer exists. */
   merged_into: number | null;
@@ -333,6 +349,14 @@ export class AdminService {
 
   updateSchool(id: string | number, data: Partial<AdminSchool>): Observable<AdminSchool> {
     return this.http.patch<AdminSchool>(`/admin/schools/${id}/`, data);
+  }
+
+  getBooks(opts: { page?: number; q?: string; region?: string } = {}): Observable<Paginated<AdminBook>> {
+    return this.http.get<Paginated<AdminBook>>('/admin/books/', { params: buildParams(opts) });
+  }
+
+  getBook(id: number): Observable<AdminBook> {
+    return this.http.get<AdminBook>(`/admin/books/${id}/`);
   }
 
   lookupBook(id: number, isbn: string): Observable<AdminBookLookup> {

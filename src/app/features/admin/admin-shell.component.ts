@@ -62,6 +62,7 @@ function onSuperuserRoute(router: Router): boolean {
               <div class="group-title">{{ 'admin.groupTransactions' | t }}</div>
               <ul>
                 <li><a regionLink="listings" routerLinkActive="active">{{ 'admin.navListings' | t }}</a></li>
+                <li><a regionLink="books" routerLinkActive="active">{{ 'admin.navBooks' | t }}</a></li>
                 <li><a regionLink="orders" routerLinkActive="active">{{ 'admin.navOrders' | t }}</a></li>
               </ul>
             </li>

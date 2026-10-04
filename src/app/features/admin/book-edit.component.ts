@@ -1,9 +1,10 @@
-import { ChangeDetectorRef, Component, EventEmitter, Input, OnDestroy, Output, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, EventEmitter, Input, OnDestroy, OnInit, Output, inject } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminBookRecord, AdminService } from '../../core/services/admin.service';
 import { bookIsbn } from '../../core/isbn';
+import { bookSourceLabelKey } from '../../core/book-source';
 import { parseAdminError } from '../../core/admin-error.util';
 import { I18nService, TPipe } from '../../core/i18n.service';
 import { ConfirmService } from '../../core/services/confirm.service';
@@ -18,6 +19,9 @@ import { STATS_PAGE_STYLES } from './stats-widgets';
  * until Save. An ISBN another book of the region already has turns Save into
  * a merge into that book, after a confirmation.
  */
+/** The `Book.source` values that name an external catalogue. */
+const CATALOGUE_SOURCES = new Set(['google_api', 'openlibrary_api', 'isbnnet_api']);
+
 @Component({
   selector: 'admin-book-edit',
   standalone: true,
@@ -57,6 +61,9 @@ import { STATS_PAGE_STYLES } from './stats-widgets';
           <small *ngIf="isbnError" class="field-error" role="alert">{{ isbnError }}</small>
           <small *ngIf="mergeTarget" class="hint warn">{{
             'admin.book.willMerge' | t: { title: mergeTarget.title }
+          }}</small>
+          <small *ngIf="sourceChange as change" class="hint warn">{{
+            'admin.book.sourceDiffers' | t: change
           }}</small>
           <small *ngIf="!isbnError && !mergeTarget && storedIsbnKept" class="hint warn">{{
             'admin.book.storedIsbnInvalid' | t
@@ -175,7 +182,7 @@ import { STATS_PAGE_STYLES } from './stats-widgets';
     `,
   ],
 })
-export class AdminBookEditComponent implements OnDestroy {
+export class AdminBookEditComponent implements OnInit, OnDestroy {
   private admin = inject(AdminService);
   private i18n = inject(I18nService);
   private toast = inject(ToastService);
@@ -184,6 +191,10 @@ export class AdminBookEditComponent implements OnDestroy {
 
   @Input({ required: true }) bookId!: number;
   @Input({ required: true }) book!: AdminBookRecord;
+  /** Start with the form open, on a page whose purpose is the edit. */
+  @Input() initiallyOpen = false;
+  /** The catalogue the stored details came from (`Book.source`). */
+  @Input() currentSource: string | null = null;
   /** The record was saved; the page should reload it. */
   @Output() saved = new EventEmitter<void>();
   /** The book was folded into this one and no longer exists. */
@@ -192,7 +203,7 @@ export class AdminBookEditComponent implements OnDestroy {
   open = false;
   form: AdminBookRecord = this.blank();
   /** Where the looked-up details came from, sent with them on Save. */
-  private lookedUpSource: string | null = null;
+  lookedUpSource: string | null = null;
   mergeTarget: { id: number; title: string } | null = null;
   isbnError = '';
   /** Why the last Save failed; shown above the button. */
@@ -212,6 +223,27 @@ export class AdminBookEditComponent implements OnDestroy {
   get storedIsbnKept(): boolean {
     const stored = this.book.isbn13 || '';
     return !!stored && !bookIsbn(stored) && this.form.isbn13.trim() === stored;
+  }
+
+  /**
+   * The look-up answered from another catalogue than the stored details
+   * came from — say Open Library standing in for a Google Books record
+   * because Google found nothing. Saving would swap the record over to it,
+   * so the admin is told before they do. Details a seller typed in are not
+   * a catalogue's, and any catalogue replacing them needs no warning.
+   */
+  get sourceChange(): { found: string; current: string } | null {
+    const current = this.currentSource;
+    const found = this.lookedUpSource;
+    if (!found || !current || found === current || !CATALOGUE_SOURCES.has(current)) return null;
+    const foundKey = bookSourceLabelKey(found);
+    const currentKey = bookSourceLabelKey(current);
+    if (!foundKey || !currentKey) return null;
+    return { found: this.i18n.t(foundKey), current: this.i18n.t(currentKey) };
+  }
+
+  ngOnInit() {
+    if (this.initiallyOpen) this.toggle();
   }
 
   ngOnDestroy() {

@@ -217,7 +217,7 @@ export interface AdminBookStats {
   region: string;
   currency: string;
   days: StatsDays;
-  book: StatsBook & { publisher: string; published_date: string };
+  book: StatsBook & { publisher: string; published_date: string; source: string };
   summary: BookStatsFigures & { all_time_completed: number; rank: number | null };
   requests: RequestFigures & { rank: number | null };
   by_status: OrderStatusCounts;
