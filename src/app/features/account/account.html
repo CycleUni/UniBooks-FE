@@ -49,6 +49,14 @@
                 <a regionLink="/admin">{{ 'nav.admin' | t }}</a>
               </div>
             </div>
+            <!-- Phones only: region and language live here rather than under
+                 every page. Wide screens keep them in the footer. -->
+            <div class="nav-group prefs-group" role="group" aria-labelledby="acct-nav-prefs">
+              <h4 class="nav-group-title" id="acct-nav-prefs">{{ 'acct.navGroupPrefs' | t }}</h4>
+              <div class="nav-links">
+                <ui-prefs-selector variant="rows"></ui-prefs-selector>
+              </div>
+            </div>
             <!-- Phones: the menu ends with signing out, as account screens in
                  apps do; wide screens keep the button in the profile card. -->
             <div class="nav-group menu-logout">

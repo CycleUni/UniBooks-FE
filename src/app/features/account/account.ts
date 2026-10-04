@@ -2,6 +2,7 @@ import { RegionLinkDirective } from '../../core/region-link.directive';
 import { Component, inject, effect, ChangeDetectorRef, DestroyRef, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { UiButton } from '../../shared/ui/button.component';
+import { UiPrefsSelector } from '../../shared/ui/prefs-selector.component';
 
 import { AuthStore } from '../../core/auth.store';
 import { AccountService } from '../../core/services/account.service';
@@ -19,7 +20,7 @@ import { stripRegionPrefix } from '../../core/region-path';
 @Component({
   selector: 'app-account',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, UiButton, TPipe],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, UiButton, UiPrefsSelector, TPipe],
   templateUrl: './account.html',
   styleUrls: ['./account.css']
 })

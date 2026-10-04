@@ -164,13 +164,13 @@
             <a [href]="termsUrl" target="_blank" rel="noopener noreferrer">{{ 'footer.terms' | t }}</a>
             <a [href]="privacyUrl" target="_blank" rel="noopener noreferrer">{{ 'footer.privacy' | t }}</a>
           </div>
-          <div class="footer-prefs">
+          <div class="footer-prefs" *ngIf="showPrefs">
             <ui-prefs-selector></ui-prefs-selector>
           </div>
         </div>
       </footer>
 
-      <div class="standalone-prefs-container container" *ngIf="!fullBleed && !showFooter && !hidePrefs">
+      <div class="standalone-prefs-container container" *ngIf="!fullBleed && !showFooter && !hidePrefs && showPrefs">
         <ui-prefs-selector></ui-prefs-selector>
       </div>
     </div>

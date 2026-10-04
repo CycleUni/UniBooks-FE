@@ -1,6 +1,6 @@
 import { RegionLinkDirective } from '../../core/region-link.directive';
 import { stripRegionPrefix, isSameRegion } from '../../core/region-path';
-import { isPhoneViewport } from '../../core/viewport';
+import { injectIsPhone, isPhoneViewport } from '../../core/viewport';
 import { isBottomSheetOpen } from './bottom-sheet.component';
 import { Component, effect, inject, ChangeDetectorRef, NgZone, OnDestroy, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -125,6 +125,23 @@ export class UiLayout implements OnDestroy {
   /** The route declares `data: { hidePrefs: true }`: no language/region
    *  pickers under the page (the checkout flow). */
   hidePrefs = false;
+
+  /** Pages whose region and language pickers stay on phones. */
+  private static readonly PHONE_PREFS_ROUTES = ['/login', '/register'];
+
+  private readonly isPhone = injectIsPhone();
+
+  /**
+   * Whether the region and language pickers go under this page. Phones keep
+   * them in the account menu instead; a signed-out visitor has no menu — the
+   * account tab opens sign-in — so the sign-in and sign-up pages keep them.
+   */
+  get showPrefs(): boolean {
+    if (!this.isPhone()) return true;
+    if (this.authStore.isAuthenticated()) return false;
+    const path = this.pathOf(this.router.url).replace(/\/$/, '');
+    return UiLayout.PHONE_PREFS_ROUTES.includes(path);
+  }
 
 
   private unreadCountSubscription: Subscription;

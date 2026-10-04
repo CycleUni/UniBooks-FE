@@ -134,6 +134,44 @@ describe('UiLayout', () => {
     expect(footer).toBeNull();
   });
 
+  describe('region and language pickers', () => {
+    const onPhone = () => (component as any).isPhone.set(true);
+
+    it('stay under the page on wide screens', async () => {
+      (TestBed.inject(AuthStore).isAuthenticated as any).set(true);
+      await router.navigateByUrl('/');
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('.footer-prefs ui-prefs-selector')).toBeTruthy();
+    });
+
+    it('move to the account menu on a signed-in phone', async () => {
+      (TestBed.inject(AuthStore).isAuthenticated as any).set(true);
+      onPhone();
+      await router.navigateByUrl('/');
+      fixture.detectChanges();
+
+      expect(component.showPrefs).toBe(false);
+      expect(fixture.nativeElement.querySelector('ui-prefs-selector')).toBeNull();
+    });
+
+    it('leave ordinary pages on a signed-out phone', async () => {
+      onPhone();
+      await router.navigateByUrl('/book/1');
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('ui-prefs-selector')).toBeNull();
+    });
+
+    it('stay on the sign-in page on a signed-out phone, which has no account menu', async () => {
+      onPhone();
+      await router.navigateByUrl('/login');
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('.standalone-prefs-container ui-prefs-selector')).toBeTruthy();
+    });
+  });
+
   describe('account link while the profile is loading', () => {
     const accountLink = () =>
       (fixture.nativeElement as HTMLElement).querySelector('.nav-links a[href$="/account"]') as HTMLAnchorElement;
