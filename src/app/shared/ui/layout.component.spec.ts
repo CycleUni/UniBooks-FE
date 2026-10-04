@@ -42,7 +42,7 @@ describe('UiLayout', () => {
         { provide: AccountService, useValue: {} },
         { provide: SchoolStateService, useValue: { currentSchool: '', selectedSchool$: of(''), hasInitialized: false, ready: false, markReady: vi.fn(), getManualSchool: () => null, hasManualPick: () => false, setSchools: vi.fn(), setSchool: vi.fn(), clearManualSchool: vi.fn() } },
         { provide: MessageService, useValue: { unreadCount$: of(0), openHub: vi.fn(), closeHub: vi.fn(), retryHubIfOwed: vi.fn() } },
-        { provide: I18nService, useValue: { t: (k: string) => k, lang: signal('zh-TW') } },
+        { provide: I18nService, useValue: { t: (k: string) => k, lang: signal('zh-TW'), suggestionSettled: () => true } },
         { provide: ThemeService, useValue: { mode: signal('system'), resolved: signal('light'), setMode: vi.fn() } },
         { provide: MobileLayoutService, useValue: { hideBottomNav: signal(false), setHideBottomNav: vi.fn() } },
       ]

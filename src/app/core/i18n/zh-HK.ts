@@ -30,6 +30,9 @@ export const zhHK: Record<string, string> = {
   'common.dismiss': '關閉提示',
   'app.updateAvailable': '有新版本可用',
   'app.updateReload': '重新載入',
+  'app.langSuggestTitle': '想唔想用香港中文睇 UniBooks？',
+  'app.langSuggestSwitch': '轉做香港中文',
+  'app.langSuggestKeep': '繼續用 {lang}',
 
   // Conditions
   'cond.new': '全新',

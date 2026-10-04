@@ -21,13 +21,14 @@ import { ThemeService, ThemeMode } from '../../core/services/theme.service';
 import { MobileLayoutService } from '../../core/services/mobile-layout.service';
 import { aboutUrl as aboutSiteUrl } from '../../core/about-site';
 import { UiAppBar } from './app-bar.component';
+import { UiLangSuggestion } from './lang-suggestion.component';
 import { NavigationHistoryService } from '../../core/services/navigation-history.service';
 import { TAB_SECTIONS } from '../../core/view-transitions';
 
 @Component({
   selector: 'ui-layout',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, UiDropdown, TPipe, UiPrefsSelector, UiAppBar],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, UiDropdown, TPipe, UiPrefsSelector, UiAppBar, UiLangSuggestion],
   templateUrl: './layout.component.html',
   styleUrls: ['./layout.component.css']
 })

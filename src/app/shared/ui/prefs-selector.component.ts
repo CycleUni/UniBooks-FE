@@ -94,6 +94,8 @@ export class UiPrefsSelector {
   }
 
   onLangChange(lang: string) {
+    // A language picked by hand answers the device-language suggestion too.
+    this.i18n.settleSuggestion();
     this.i18n.setLang(lang as Lang);
   }
 }

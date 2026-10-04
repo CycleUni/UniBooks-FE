@@ -2,6 +2,8 @@ import { Injectable, Pipe, PipeTransform, inject, signal, effect } from '@angula
 import { Lang, TRANSLATIONS, SUPPORTED_LANGS, REGION_TO_LANG } from './i18n/index';
 
 const STORAGE_KEY = 'lang';
+/** Set once the visitor has answered the device-language suggestion, or picked a language by hand. */
+const SUGGESTION_KEY = 'langSuggestion';
 
 /**
  * The site language for a browser language tag, for a first visit with no
@@ -30,6 +32,36 @@ export function langFromBrowserTag(tag: string | undefined | null): Lang {
 export function langFromPath(pathname: string | undefined | null): Lang | null {
   const first = (pathname || '').split('/')[1]?.toLowerCase() ?? '';
   return Object.prototype.hasOwnProperty.call(REGION_TO_LANG, first) ? REGION_TO_LANG[first] : null;
+}
+
+/**
+ * The language to offer a visitor whose device prefers one other than the
+ * page's, or null when there is nothing better to offer.
+ *
+ * `tags` is navigator.languages, most preferred first; `offered` is what the
+ * current region's pages come in (a language outside it would be undone by
+ * the next region check). The first tag that names a site language the region
+ * offers wins — so ['ja', 'zh-HK'] on a Hong Kong page offers nothing rather
+ * than English. A device with no Chinese or English tag at all is offered
+ * English, the site's only language for everyone else.
+ */
+export function suggestedLang(
+  tags: readonly string[],
+  offered: readonly string[],
+  current: Lang,
+): Lang | null {
+  let pick: Lang | null = null;
+  for (const tag of tags) {
+    const lower = (tag || '').toLowerCase();
+    if (!/^(zh|yue|en)\b/.test(lower)) continue;
+    const lang = langFromBrowserTag(lower);
+    if (offered.includes(lang)) {
+      pick = lang;
+      break;
+    }
+  }
+  if (!pick && tags.length > 0 && offered.includes('en')) pick = 'en';
+  return pick && pick !== current ? pick : null;
 }
 
 @Injectable({
@@ -105,6 +137,39 @@ export class I18nService {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(STORAGE_KEY, lang);
     }
+  }
+
+  /** Whether the device-language suggestion has been answered (or made moot by a hand-picked language). */
+  suggestionSettled(): boolean {
+    try {
+      return localStorage.getItem(SUGGESTION_KEY) === '1';
+    } catch {
+      // No storage, no memory of an answer: asking on every load would nag.
+      return true;
+    }
+  }
+
+  settleSuggestion() {
+    try {
+      localStorage.setItem(SUGGESTION_KEY, '1');
+    } catch {
+      // Storage blocked: the answer only lasts this page view.
+    }
+  }
+
+  /**
+   * `t()` in a given language rather than the current one, for text meant
+   * for a reader of that language — the suggestion to switch to it. The
+   * table must already be loaded (loadLang); English stands in otherwise.
+   */
+  tIn(lang: Lang, key: string, params?: Record<string, string | number>): string {
+    let text = TRANSLATIONS[lang]?.[key] ?? TRANSLATIONS['en']?.[key] ?? key;
+    if (params) {
+      for (const [name, value] of Object.entries(params)) {
+        text = text.replaceAll(`{${name}}`, String(value));
+      }
+    }
+    return text;
   }
 
   t(key: string, params?: Record<string, string | number>): string {

@@ -30,6 +30,9 @@ export const en: Record<string, string> = {
   'common.dismiss': 'Dismiss',
   'app.updateAvailable': 'A new version is available.',
   'app.updateReload': 'Reload',
+  'app.langSuggestTitle': 'Read UniBooks in English?',
+  'app.langSuggestSwitch': 'Switch to English',
+  'app.langSuggestKeep': 'Keep {lang}',
 
   // Conditions
   'cond.new': 'New',

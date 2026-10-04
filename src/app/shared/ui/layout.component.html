@@ -103,6 +103,10 @@
         </div>
       </header>
 
+      <!-- Not on full-bleed pages (the chat fills the viewport below the
+           header); the offer waits for the next ordinary page instead. -->
+      <ui-lang-suggestion *ngIf="!fullBleed"></ui-lang-suggestion>
+
       <main class="main-content" [class.full-bleed]="fullBleed" [class.hide-bottom-nav]="mobileLayout.hideBottomNav()" [class.has-action-bar]="hasActionBar" [class.action-bar-over-tabs]="hasActionBar && !actionBarReplacesTabs">
         <ng-content></ng-content>
       </main>

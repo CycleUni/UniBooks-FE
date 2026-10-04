@@ -30,6 +30,9 @@ export const zhTW: Record<string, string> = {
   'common.dismiss': '關閉提示',
   'app.updateAvailable': '有新版本可用',
   'app.updateReload': '重新載入',
+  'app.langSuggestTitle': '要改用繁體中文瀏覽 UniBooks 嗎？',
+  'app.langSuggestSwitch': '切換成繁體中文',
+  'app.langSuggestKeep': '維持 {lang}',
 
   // Conditions
   'cond.new': '全新',
