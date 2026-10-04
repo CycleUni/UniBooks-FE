@@ -8,7 +8,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AdminBookStats, AdminStatsService, StatsDays } from '../../core/services/admin-stats.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { I18nService, TPipe } from '../../core/i18n.service';
-import { ToastService } from '../../core/services/toast.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { RegionService } from '../../core/region.service';
 import { PricePipe } from '../../shared/pipes/price.pipe';
 import { AdminTrendChartComponent, TrendPoint } from './trend-chart.component';
@@ -21,15 +22,16 @@ import { AdminStatsPeriodComponent, AdminStatusBarComponent, STATS_PAGE_STYLES, 
   selector: 'app-admin-book-stats',
   standalone: true,
   imports: [
-    RegionLinkDirective, CommonModule, RouterModule, TPipe, PricePipe,
+    RegionLinkDirective, CommonModule, RouterModule, TPipe, UiSkeleton, UiErrorState, PricePipe,
     AdminTrendChartComponent, AdminStatsPeriodComponent, AdminStatusBarComponent, BookCoverPipe,
     AdminBookEditComponent,
   ],
   template: `
     <a [regionLink]="['/admin', 'stats', 'books']" [queryParams]="{ days: days }" class="back-link">&larr; {{ 'admin.stats.backToBooks' | t }}</a>
 
-    <div *ngIf="!data && loading" class="empty-note">{{ 'common.loading' | t }}</div>
-    <div *ngIf="!data && !loading" class="empty-note">{{ 'admin.errLoadFailed' | t }}</div>
+    <ui-skeleton *ngIf="!data && loading" variant="table" [count]="5"></ui-skeleton>
+
+    <ui-error-state *ngIf="!data && !loading && loadError" [message]="loadError" (retry)="load()"></ui-error-state>
 
     <div *ngIf="data as d" [class.stale]="loading">
       <div class="section-head-row">
@@ -197,7 +199,6 @@ import { AdminStatsPeriodComponent, AdminStatusBarComponent, STATS_PAGE_STYLES, 
 export class AdminBookStatsComponent implements HasUnsavedChanges {
   private stats = inject(AdminStatsService);
   private i18n = inject(I18nService);
-  private toast = inject(ToastService);
   private regionService = inject(RegionService);
   private cdr = inject(ChangeDetectorRef);
   private route = inject(ActivatedRoute);
@@ -217,6 +218,8 @@ export class AdminBookStatsComponent implements HasUnsavedChanges {
   /** Today's chart is split by hour; the others by day. */
   hourly = false;
   loading = true;
+  /** Why the last load failed, shown with a retry in place of the section. */
+  loadError = '';
 
   private sub?: Subscription;
 
@@ -265,6 +268,7 @@ export class AdminBookStatsComponent implements HasUnsavedChanges {
   load() {
     this.sub?.unsubscribe();
     this.loading = true;
+    this.loadError = '';
     this.sub = this.stats.getBookStats(this.bookId, this.regionService.region().toUpperCase(), this.days).subscribe({
       next: (res) => {
         this.data = res;
@@ -281,7 +285,7 @@ export class AdminBookStatsComponent implements HasUnsavedChanges {
       error: (err) => {
         this.data = null;
         this.loading = false;
-        this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
+        this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
         this.cdr.markForCheck();
       },
     });

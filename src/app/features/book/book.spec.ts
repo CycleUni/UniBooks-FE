@@ -201,4 +201,50 @@ describe('Book page data source footer', () => {
       expect(getBook).toHaveBeenCalledWith('9786264140720', 3, '', undefined);
     });
   });
+
+  // Only a 404 means the book does not exist; a book on screen whose
+  // listings failed must not claim nobody is selling it.
+  describe('load failures', () => {
+    const open = () => {
+      fixture = TestBed.createComponent(Book);
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    };
+
+    it('says the book was not found on a 404', () => {
+      getBook.mockReturnValue(throwError(() => ({ status: 404 })));
+      const page = open();
+      expect(page.querySelector('ui-empty')?.textContent).toContain(zhTW['alert.bookNotFound']);
+      expect(page.querySelector('ui-error-state')).toBeNull();
+    });
+
+    it('offers a retry, not "not found", on any other failure', () => {
+      getBook.mockReturnValueOnce(throwError(() => ({ status: 503 })));
+      const page = open();
+      expect(page.querySelector('ui-error-state')?.textContent).toContain(zhTW['common.loadFailed']);
+      expect(page.querySelector('ui-empty')).toBeNull();
+
+      getBook.mockReturnValue(of({
+        id: 'b1', isbn13: '9786264140720', title: '微積分', authors: 'Stewart',
+        listings: { count: 0, results: [] }, waiting_count: 0,
+      }));
+      (page.querySelector('ui-error-state button') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(page.querySelector('.book-title')?.textContent).toContain('微積分');
+    });
+
+    it('shows a failed listings load under a shown book as failed, not as "none"', () => {
+      sessionStorage.setItem('cachedBook_9786264140720', JSON.stringify({ isbn: '9786264140720', title: '微積分', author: 'Stewart' }));
+      const router = TestBed.inject(Router);
+      vi.spyOn(router as any, 'lastSuccessfulNavigation', 'get').mockReturnValue((() => ({ extras: { state: bookPreviewState() } })) as any);
+      getBook.mockReturnValue(throwError(() => ({ status: 503 })));
+      const page = open();
+      sessionStorage.clear();
+
+      expect(page.querySelector('.book-title')?.textContent).toContain('微積分');
+      expect(page.querySelector('.listings-section ui-error-state')?.textContent).toContain(zhTW['book.listingsLoadFailed']);
+      expect(page.querySelector('.listings-section ui-empty')).toBeNull();
+      expect(page.querySelector('.waitlist-banner')).toBeNull();
+    });
+  });
 });

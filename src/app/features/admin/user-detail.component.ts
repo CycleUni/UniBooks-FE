@@ -13,6 +13,8 @@ import { MetadataService } from '../../core/services/metadata.service';
 import { AuthStore } from '../../core/auth.store';
 import { RegionService } from '../../core/region.service';
 import { TPipe, I18nService } from '../../core/i18n.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { UiButton } from '../../shared/ui/button.component';
 import { UiCheckbox } from '../../shared/ui/checkbox.component';
 import { UiDropdown } from '../../shared/ui/dropdown.component';
@@ -20,11 +22,13 @@ import { UiDropdown } from '../../shared/ui/dropdown.component';
 @Component({
   selector: 'app-admin-user-detail',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, UiButton, UiDropdown, UiCheckbox],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiErrorState, UiButton, UiDropdown, UiCheckbox],
   template: `
     <a [regionLink]="['/admin', 'users']" class="back-link">&larr; {{ 'admin.backToList' | t }}</a>
 
-    <div *ngIf="loading" class="empty-note">{{ 'common.loading' | t }}</div>
+    <ui-skeleton *ngIf="loading" variant="form" [count]="4"></ui-skeleton>
+    <!-- The form's own error line is inside the card, which needs a user. -->
+    <ui-error-state *ngIf="!loading && loadError" [message]="loadError" (retry)="load()"></ui-error-state>
 
     <div class="detail-card" *ngIf="!loading && user">
       <h2>{{ user.display_name || user.email }}</h2>
@@ -123,6 +127,8 @@ export class AdminUserDetailComponent implements OnInit {
 
   user: AdminUser | null = null;
   loading = true;
+  /** Why the last load failed. */
+  loadError = '';
   saving = false;
   errorMsg = '';
   savedMsg = '';
@@ -212,8 +218,13 @@ export class AdminUserDetailComponent implements OnInit {
   }
 
   ngOnInit() {
-    const id = this.route.snapshot.paramMap.get('id')!;
+    this.load();
+  }
 
+  load() {
+    const id = this.route.snapshot.paramMap.get('id')!;
+    this.loading = true;
+    this.loadError = '';
     this.adminService.getUser(id).subscribe({
       next: (user) => {
         this.user = user;
@@ -232,7 +243,7 @@ export class AdminUserDetailComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: (err) => {
-        this.errorMsg = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
+        this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
         this.loading = false;
         this.cdr.markForCheck();
       }

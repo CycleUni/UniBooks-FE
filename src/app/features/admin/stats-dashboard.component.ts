@@ -6,7 +6,8 @@ import { Subscription, forkJoin } from 'rxjs';
 import { AdminStatsOverview, AdminStatsService, StatsDays } from '../../core/services/admin-stats.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { I18nService, TPipe } from '../../core/i18n.service';
-import { ToastService } from '../../core/services/toast.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { RegionService } from '../../core/region.service';
 import { PricePipe } from '../../shared/pipes/price.pipe';
 import { AdminTrendChartComponent, TrendPoint } from './trend-chart.component';
@@ -27,7 +28,7 @@ const REPORT_REASON_KEYS: Record<string, string> = {
   selector: 'app-admin-stats-dashboard',
   standalone: true,
   imports: [
-    RegionLinkDirective, CommonModule, RouterModule, TPipe, PricePipe,
+    RegionLinkDirective, CommonModule, RouterModule, TPipe, UiSkeleton, UiErrorState, PricePipe,
     AdminTrendChartComponent, AdminStatsPeriodComponent, AdminStatusBarComponent,
   ],
   template: `
@@ -36,7 +37,9 @@ const REPORT_REASON_KEYS: Record<string, string> = {
       <admin-stats-period [days]="days" (daysChange)="onDaysChange($event)"></admin-stats-period>
     </div>
 
-    <div *ngIf="!overview && loadingOverview" class="empty-note">{{ 'common.loading' | t }}</div>
+    <ui-skeleton *ngIf="!overview && loadingOverview" variant="table" [count]="5"></ui-skeleton>
+
+    <ui-error-state *ngIf="!overview && !loadingOverview && loadError" [message]="loadError" (retry)="load()"></ui-error-state>
 
     <div *ngIf="overview as o" class="stats-body" [class.stale]="loadingOverview">
       <p class="scope-note">{{ 'admin.stats.scopeNote' | t: { region: regionName(), currency: o.currency } }}</p>
@@ -195,7 +198,6 @@ const REPORT_REASON_KEYS: Record<string, string> = {
 export class AdminStatsDashboardComponent {
   private stats = inject(AdminStatsService);
   private i18n = inject(I18nService);
-  private toast = inject(ToastService);
   private regionService = inject(RegionService);
   private cdr = inject(ChangeDetectorRef);
   private route = inject(ActivatedRoute);
@@ -211,6 +213,8 @@ export class AdminStatsDashboardComponent {
   /** Today's chart is split by hour; the others by day. */
   hourly = false;
   loadingOverview = true;
+  /** Why the last load failed, shown with a retry in place of the section. */
+  loadError = '';
 
   private sub?: Subscription;
 
@@ -255,9 +259,10 @@ export class AdminStatsDashboardComponent {
     return this.regionService.region().toUpperCase();
   }
 
-  private load() {
+  load() {
     this.sub?.unsubscribe();
     this.loadingOverview = true;
+    this.loadError = '';
     const region = this.region();
     this.sub = forkJoin({
       overview: this.stats.getOverview(region, this.days),
@@ -273,7 +278,7 @@ export class AdminStatsDashboardComponent {
       error: (err) => {
         this.overview = null;
         this.loadingOverview = false;
-        this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
+        this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
         this.cdr.markForCheck();
       },
     });

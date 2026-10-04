@@ -10,7 +10,8 @@ import {
 } from '../../core/services/admin-stats.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { I18nService, TPipe } from '../../core/i18n.service';
-import { ToastService } from '../../core/services/toast.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { RegionLinkService } from '../../core/region-link.service';
 import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
@@ -35,7 +36,7 @@ const SORT_LABELS: Record<BookRankingSort, string> = {
   selector: 'admin-book-ranking',
   standalone: true,
   imports: [
-    RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, UiSearchBarComponent, UiPagination,
+    RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiErrorState, UiSearchBarComponent, UiPagination,
     PricePipe, AdminRankingChartComponent, UiDropdown, BookCoverPipe,
   ],
   template: `
@@ -68,7 +69,9 @@ const SORT_LABELS: Record<BookRankingSort, string> = {
         ></admin-ranking-chart>
       </div>
 
-      <div *ngIf="!rows && loading" class="empty-note">{{ 'common.loading' | t }}</div>
+      <ui-skeleton *ngIf="!rows && loading" variant="table" [count]="5"></ui-skeleton>
+
+      <ui-error-state *ngIf="!rows && !loading && loadError" [message]="loadError" (retry)="load()"></ui-error-state>
       <div class="table-container" *ngIf="rows" [class.stale]="loading">
         <table class="admin-table admin-table-clickable ranking">
           <thead>
@@ -121,7 +124,6 @@ const SORT_LABELS: Record<BookRankingSort, string> = {
 export class AdminBookRankingComponent implements OnChanges {
   private stats = inject(AdminStatsService);
   private i18n = inject(I18nService);
-  private toast = inject(ToastService);
   private cdr = inject(ChangeDetectorRef);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -142,6 +144,8 @@ export class AdminBookRankingComponent implements OnChanges {
   currency = '';
   total = 0;
   loading = true;
+  /** Why the last load failed, shown with a retry in place of the section. */
+  loadError = '';
 
   /** The chart describes the rows it was built from, not a sort still loading. */
   bars: RankingBar[] = [];
@@ -226,10 +230,11 @@ export class AdminBookRankingComponent implements OnChanges {
       .map(r => ({ id: r.book.id, label: r.book.title, value: value(r) }));
   }
 
-  private load() {
+  load() {
     if (!this.region) return;
     this.sub?.unsubscribe();
     this.loading = true;
+    this.loadError = '';
     this.sub = this.stats
       .getBookRanking({
         region: this.region,
@@ -249,11 +254,11 @@ export class AdminBookRankingComponent implements OnChanges {
           this.cdr.markForCheck();
         },
         error: (err) => {
-          this.rows = [];
+          this.rows = null;
           this.bars = [];
           this.total = 0;
           this.loading = false;
-          this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
+          this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
           this.cdr.markForCheck();
         },
       });

@@ -6,6 +6,8 @@ import { FormsModule } from '@angular/forms';
 import { AdminService, AdminListing } from '../../core/services/admin.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { TPipe, I18nService } from '../../core/i18n.service';
+import { UiErrorState } from '../../shared/ui/error-state.component';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { UiButton } from '../../shared/ui/button.component';
 import { UiDropdown } from '../../shared/ui/dropdown.component';
 import { UiCheckbox } from '../../shared/ui/checkbox.component';
@@ -18,11 +20,13 @@ import { RegionLinkService } from '../../core/region-link.service';
 @Component({
   selector: 'app-admin-listing-detail',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiButton, UiDropdown, UiCheckbox, UiInput, PricePipe, ForceCancelModalComponent, RegionLinkDirective],
+  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiErrorState, UiSkeleton, UiButton, UiDropdown, UiCheckbox, UiInput, PricePipe, ForceCancelModalComponent, RegionLinkDirective],
   template: `
     <a [regionLink]="['/admin', 'listings']" class="back-link">&larr; {{ 'admin.backToList' | t }}</a>
 
-    <div *ngIf="loading" class="empty-note">{{ 'common.loading' | t }}</div>
+    <ui-skeleton *ngIf="loading" variant="form" [count]="4"></ui-skeleton>
+    <!-- A failed load used to leave only the back link, with no word why. -->
+    <ui-error-state *ngIf="!loading && loadError" [message]="loadError" (retry)="load()"></ui-error-state>
 
     <div class="detail-card" *ngIf="!loading && listing">
       <h2>{{ listing.book?.title }}</h2>
@@ -84,6 +88,8 @@ export class AdminListingDetailComponent implements OnInit {
 
   listing: AdminListing | null = null;
   loading = true;
+  /** Why the last load failed. */
+  loadError = '';
   saving = false;
   errorMsg = '';
   savedMsg = '';
@@ -109,7 +115,13 @@ export class AdminListingDetailComponent implements OnInit {
   }
 
   ngOnInit() {
+    this.load();
+  }
+
+  load() {
     const id = this.route.snapshot.paramMap.get('id')!;
+    this.loading = true;
+    this.loadError = '';
     this.adminService.getListing(id).subscribe({
       next: (listing) => {
         this.listing = listing;
@@ -121,6 +133,7 @@ export class AdminListingDetailComponent implements OnInit {
       },
       error: (err) => {
         this.loading = false;
+        this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
         this.cdr.markForCheck();
       }
     });

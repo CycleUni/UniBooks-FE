@@ -9,7 +9,8 @@ import {
 import { AdminGroupBooksComponent } from './group-books.component';
 import { parseAdminError } from '../../core/admin-error.util';
 import { I18nService, TPipe } from '../../core/i18n.service';
-import { ToastService } from '../../core/services/toast.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { RegionService } from '../../core/region.service';
 import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
@@ -44,7 +45,7 @@ const SORTS: { value: BreakdownSort; label: string }[] = [
   selector: 'app-admin-stats-academics',
   standalone: true,
   imports: [
-    CommonModule, FormsModule, TPipe, UiSearchBarComponent, UiPagination, PricePipe,
+    CommonModule, FormsModule, TPipe, UiSkeleton, UiErrorState, UiSearchBarComponent, UiPagination, PricePipe,
     AdminStatsPeriodComponent, AdminRankingChartComponent, AdminGroupBooksComponent, UiDropdown,
   ],
   template: `
@@ -105,7 +106,9 @@ const SORTS: { value: BreakdownSort; label: string }[] = [
         ></admin-ranking-chart>
       </div>
 
-      <div *ngIf="!data && loading" class="empty-note">{{ 'common.loading' | t }}</div>
+      <ui-skeleton *ngIf="!data && loading" variant="table" [count]="5"></ui-skeleton>
+
+      <ui-error-state *ngIf="!data && !loading && loadError" [message]="loadError" (retry)="load()"></ui-error-state>
       <div class="table-container" *ngIf="data as d" [class.stale]="loading">
         <table class="admin-table breakdown">
           <thead>
@@ -201,7 +204,6 @@ const SORTS: { value: BreakdownSort; label: string }[] = [
 export class AdminStatsAcademicsComponent {
   private stats = inject(AdminStatsService);
   private i18n = inject(I18nService);
-  private toast = inject(ToastService);
   private regionService = inject(RegionService);
   private cdr = inject(ChangeDetectorRef);
   private route = inject(ActivatedRoute);
@@ -224,6 +226,8 @@ export class AdminStatsAcademicsComponent {
   data: AdminStatsBreakdown | null = null;
   total = 0;
   loading = true;
+  /** Why the last load failed, shown with a retry in place of the section. */
+  loadError = '';
   schoolOptions: { id: number; label: string }[] = [];
   /** Built when the schools load, not per check: the list is long and searchable. */
   schoolDropdown: DropdownOption[] = [];
@@ -429,9 +433,10 @@ export class AdminStatsAcademicsComponent {
       });
   }
 
-  private load() {
+  load() {
     this.sub?.unsubscribe();
     this.loading = true;
+    this.loadError = '';
     const by = this.by;
     this.sub = this.stats
       .getBreakdown({
@@ -465,7 +470,7 @@ export class AdminStatsAcademicsComponent {
           this.expanded = null;
           this.total = 0;
           this.loading = false;
-          this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
+          this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
           this.cdr.markForCheck();
         },
       });

@@ -144,6 +144,21 @@ describe('ListingsComponent listing management', () => {
     expect(getMyProfile).toHaveBeenLastCalledWith(1, '', { status: 'sold', sort: 'price_desc' });
   });
 
+  // A failed load is not "no listings yet": the empty state would invite
+  // the user to list a book they may well have listed already.
+  it('marks a failed first load as failed, not empty, and lets a retry clear it', () => {
+    getMyProfile.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+    component.loadMyListings();
+    expect(component.loadFailed).toBe(true);
+    expect(component.loading).toBe(false);
+    // The error state says it on an empty page; no toast on top of it.
+    expect(toast.error).not.toHaveBeenCalled();
+
+    component.loadMyListings();
+    expect(component.loadFailed).toBe(false);
+    expect(component.myListings.length).toBe(1);
+  });
+
   it('starts over at page one whenever the list changes shape', () => {
     component.currentPage = 3;
     component.onStatusChange('active');

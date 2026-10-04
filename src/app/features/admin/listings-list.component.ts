@@ -6,6 +6,8 @@ import { FormsModule } from '@angular/forms';
 import { AdminService, AdminListing } from '../../core/services/admin.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { TPipe, I18nService } from '../../core/i18n.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { ToastService } from '../../core/services/toast.service';
 import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
 import { UiDropdown } from '../../shared/ui/dropdown.component';
@@ -17,19 +19,21 @@ import { RegionService } from '../../core/region.service';
 @Component({
   selector: 'app-admin-listings-list',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, UiSearchBarComponent, UiDropdown, UiPagination, PricePipe],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiErrorState, UiSearchBarComponent, UiDropdown, UiPagination, PricePipe],
   template: `
     <div class="admin-filters">
       <ui-search-bar [placeholder]="'admin.searchListings' | t" [value]="q" (search)="onSearch($event)"></ui-search-bar>
       <ui-dropdown [label]="'admin.colStatus' | t" [options]="statusOptions" [(ngModel)]="statusFilter" (ngModelChange)="reload()" [searchable]="false"></ui-dropdown>
     </div>
 
-    <div *ngIf="loading" class="empty-note">{{ 'common.loading' | t }}</div>
+    <ui-skeleton *ngIf="loading" variant="table" [count]="5"></ui-skeleton>
+
+    <ui-error-state *ngIf="!loading && loadError" [message]="loadError" (retry)="reload()"></ui-error-state>
 
     <div class="table-container">
 
 
-      <table class="admin-table admin-table-clickable" *ngIf="!loading">
+      <table class="admin-table admin-table-clickable" *ngIf="!loading && !loadError">
       <thead>
         <tr>
           <th>{{ 'admin.colRegion' | t }}</th>
@@ -81,6 +85,8 @@ export class AdminListingsListComponent implements OnInit {
   q = '';
   statusFilter = '';
   loading = true;
+  /** Why the last load failed; the table would otherwise read as empty. */
+  loadError = '';
 
   /** Whether the table the admin is looking at is narrowed by anything. An
    *  empty result then means "nothing matched", which is a different fact
@@ -123,6 +129,7 @@ export class AdminListingsListComponent implements OnInit {
 
   reload() {
     this.loading = true;
+    this.loadError = '';
     this.adminService.getListings({ page: this.page, q: this.q, status: this.statusFilter, region: this.regionService.region().toUpperCase() }).subscribe({
       next: (res) => {
         this.listings = res.results;
@@ -131,7 +138,7 @@ export class AdminListingsListComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: (err) => {
-        this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
+        this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
         this.loading = false;
         this.cdr.markForCheck();
       }

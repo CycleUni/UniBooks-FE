@@ -1,12 +1,13 @@
 import { Component, inject, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule, ActivatedRoute, Router } from '@angular/router';
+import { RouterModule, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AdminService, AdminCurrency } from '../../core/services/admin.service';
 import { TPipe, I18nService } from '../../core/i18n.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { parseAdminError } from '../../core/admin-error.util';
 import { RegionLinkDirective } from '../../core/region-link.directive';
-import { RegionLinkService } from '../../core/region-link.service';
 import { UiDropdown } from '../../shared/ui/dropdown.component';
 import { UiCheckbox } from '../../shared/ui/checkbox.component';
 import { UiInput } from '../../shared/ui/input.component';
@@ -15,8 +16,11 @@ import { UiButton } from '../../shared/ui/button.component';
 @Component({
   selector: 'app-admin-currency-detail',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TPipe, RegionLinkDirective, UiDropdown, UiInput, UiButton, UiCheckbox],
+  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiErrorState, UiSkeleton, RegionLinkDirective, UiDropdown, UiInput, UiButton, UiCheckbox],
   template: `
+    <ui-skeleton *ngIf="!item && !loadError" variant="form" [count]="4"></ui-skeleton>
+    <!-- A failed load used to bounce back to the list without a word. -->
+    <ui-error-state *ngIf="!item && loadError" [message]="loadError" (retry)="load()"></ui-error-state>
     <div class="admin-detail-header" *ngIf="item">
       <a [regionLink]="['/admin', 'currencies']" class="back-link">&larr; {{ 'admin.backToList' | t }}</a>
       <h2>{{ 'admin.editCurrency' | t }} - {{ item.code }}</h2>
@@ -76,8 +80,6 @@ export class AdminCurrencyDetailComponent implements OnInit {
   private adminService = inject(AdminService);
   private cdr = inject(ChangeDetectorRef);
   private route = inject(ActivatedRoute);
-  private router = inject(Router);
-  private regionLink = inject(RegionLinkService);
   private i18n = inject(I18nService);
 
   item?: AdminCurrency;
@@ -90,15 +92,26 @@ export class AdminCurrencyDetailComponent implements OnInit {
     { value: 'suffix', label: 'suffix' }
   ];
 
+  /** Why the last load failed. */
+  loadError = '';
+
   ngOnInit() {
+    this.load();
+  }
+
+  load() {
     const code = this.route.snapshot.paramMap.get('id');
+    this.loadError = '';
     if (code) {
       this.adminService.getCurrency(code).subscribe({
         next: (res) => {
           this.item = res;
           this.cdr.markForCheck();
         },
-        error: () => this.router.navigate(this.regionLink.path(['/admin', 'currencies']))
+        error: (err) => {
+          this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
+          this.cdr.markForCheck();
+        }
       });
     }
   }

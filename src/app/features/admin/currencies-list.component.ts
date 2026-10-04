@@ -11,19 +11,20 @@ import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AdminService, AdminCurrency, Paginated } from '../../core/services/admin.service';
 import { TPipe, I18nService } from '../../core/i18n.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { parseAdminError } from '../../core/admin-error.util';
 
 @Component({
   selector: 'app-admin-currencies-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiPagination, UiDropdown, UiInput, UiButton, UiErrorState, UiCheckbox, UiFocusTrapDirective],
+  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiPagination, UiDropdown, UiInput, UiButton, UiErrorState, UiCheckbox, UiFocusTrapDirective],
   template: `
     <div class="section-head-row">
       <h2>{{ 'admin.navCurrencies' | t }}</h2>
       <ui-button (onClick)="openCreateModal()">{{ 'admin.addCurrency' | t }}</ui-button>
     </div>
 
-    <div *ngIf="!data && loading" class="empty-note">{{ 'common.loading' | t }}</div>
+    <ui-skeleton *ngIf="!data && loading" variant="table" [count]="5"></ui-skeleton>
     <!-- A failed load used to leave the page with its heading and nothing
          under it, which read as an empty list rather than an error. -->
     <ui-error-state

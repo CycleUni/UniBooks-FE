@@ -7,6 +7,8 @@ import { FormsModule } from '@angular/forms';
 import { AdminService, AdminSchoolRequest, SchoolRequestStatus } from '../../core/services/admin.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { TPipe, I18nService } from '../../core/i18n.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { ToastService } from '../../core/services/toast.service';
 import { UiButton } from '../../shared/ui/button.component';
 import { UiDropdown } from '../../shared/ui/dropdown.component';
@@ -30,17 +32,19 @@ interface Draft {
 @Component({
   selector: 'app-admin-school-requests-list',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, UiButton, UiDropdown, UiPagination, UiSearchBarComponent],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiErrorState, UiButton, UiDropdown, UiPagination, UiSearchBarComponent],
   template: `
     <div class="admin-filters">
       <ui-search-bar [placeholder]="'admin.searchSchoolRequests' | t" [value]="q" (search)="onSearch($event)"></ui-search-bar>
       <ui-dropdown [label]="'admin.colStatus' | t" [options]="statusFilterOptions" [(ngModel)]="statusFilter" (ngModelChange)="onFilterChange()" [searchable]="false"></ui-dropdown>
     </div>
 
-    <div *ngIf="loading" class="empty-note">{{ 'common.loading' | t }}</div>
+    <ui-skeleton *ngIf="loading" variant="table" [count]="5"></ui-skeleton>
+
+    <ui-error-state *ngIf="!loading && loadError" [message]="loadError" (retry)="reload()"></ui-error-state>
 
     <div class="table-container">
-      <table class="admin-table" *ngIf="!loading">
+      <table class="admin-table" *ngIf="!loading && !loadError">
         <thead>
           <tr>
             <th class="nowrap">{{ 'admin.colRegion' | t }}</th>
@@ -124,6 +128,8 @@ export class AdminSchoolRequestsListComponent implements OnInit {
   // Opens on the queue that needs work; "all" is one option away.
   statusFilter: SchoolRequestStatus | '' = 'pending';
   loading = true;
+  /** Why the last load failed; the table would otherwise read as empty. */
+  loadError = '';
   savingId: number | null = null;
 
   get hasFilters(): boolean {
@@ -182,6 +188,7 @@ export class AdminSchoolRequestsListComponent implements OnInit {
 
   reload() {
     this.loading = true;
+    this.loadError = '';
     this.adminService.getSchoolRequests({
       page: this.page,
       q: this.q,
@@ -197,7 +204,7 @@ export class AdminSchoolRequestsListComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: (err) => {
-        this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
+        this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
         this.loading = false;
         this.cdr.markForCheck();
       }

@@ -6,6 +6,8 @@ import { Subscription } from 'rxjs';
 import { AdminService, AdminBook } from '../../core/services/admin.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { TPipe, I18nService } from '../../core/i18n.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { ToastService } from '../../core/services/toast.service';
 import { RegionService } from '../../core/region.service';
 import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
@@ -24,7 +26,7 @@ import { BookCoverPipe } from '../../shared/pipes/book-cover.pipe';
     RegionLinkDirective,
     CommonModule,
     RouterModule,
-    TPipe,
+    TPipe, UiSkeleton, UiErrorState,
     UiSearchBarComponent,
     UiPagination,
     BookCoverPipe,
@@ -38,10 +40,12 @@ import { BookCoverPipe } from '../../shared/pipes/book-cover.pipe';
       ></ui-search-bar>
     </div>
 
-    <div *ngIf="loading" class="empty-note">{{ 'common.loading' | t }}</div>
+    <ui-skeleton *ngIf="loading" variant="table" [count]="5"></ui-skeleton>
+
+    <ui-error-state *ngIf="!loading && loadError" [message]="loadError" (retry)="reload()"></ui-error-state>
 
     <div class="table-container">
-      <table class="admin-table admin-table-clickable" *ngIf="!loading">
+      <table class="admin-table admin-table-clickable" *ngIf="!loading && !loadError">
         <thead>
           <tr>
             <th>{{ 'admin.colBook' | t }}</th>
@@ -130,6 +134,8 @@ export class AdminBooksListComponent {
   pageSize = 20;
   q = '';
   loading = true;
+  /** Why the last load failed; the table would otherwise read as empty. */
+  loadError = '';
   private sub?: Subscription;
 
   constructor() {
@@ -156,6 +162,7 @@ export class AdminBooksListComponent {
   reload() {
     this.sub?.unsubscribe();
     this.loading = true;
+    this.loadError = '';
     this.sub = this.adminService
       .getBooks({ page: this.page, q: this.q, region: this.regionService.region().toUpperCase() })
       .subscribe({
@@ -166,7 +173,7 @@ export class AdminBooksListComponent {
           this.cdr.markForCheck();
         },
         error: (err) => {
-          this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
+          this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
           this.loading = false;
           this.cdr.markForCheck();
         },

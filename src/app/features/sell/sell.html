@@ -1,6 +1,8 @@
       <main class="container container--form sell-page">
       <h2>{{ 'sell.title' | t }}</h2>
 
+      <ui-skeleton *ngIf="isLoading" variant="form" [count]="3"></ui-skeleton>
+
       <div *ngIf="!isLoggedIn && !isLoading" class="unverified-state">
         <div class="alert-box warning">
           <h3>{{ 'sell.notLoggedInTitle' | t }}</h3>

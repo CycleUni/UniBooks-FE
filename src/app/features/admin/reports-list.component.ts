@@ -8,6 +8,8 @@ import { FormsModule } from '@angular/forms';
 import { AdminService, AdminReport } from '../../core/services/admin.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { TPipe, I18nService } from '../../core/i18n.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { ToastService } from '../../core/services/toast.service';
 import { UiButton } from '../../shared/ui/button.component';
 import { UiDropdown } from '../../shared/ui/dropdown.component';
@@ -16,15 +18,17 @@ import { UiPagination } from '../../shared/ui/pagination.component';
 @Component({
   selector: 'app-admin-reports-list',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, UiButton, UiDropdown, UiPagination],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiErrorState, UiButton, UiDropdown, UiPagination],
   template: `
     <div class="admin-filters">
       <ui-dropdown [label]="'admin.colStatus' | t" [options]="statusOptions" [(ngModel)]="statusFilter" (ngModelChange)="reload()" [searchable]="false"></ui-dropdown>
     </div>
 
-    <div *ngIf="loading" class="empty-note">{{ 'common.loading' | t }}</div>
+    <ui-skeleton *ngIf="loading" variant="table" [count]="5"></ui-skeleton>
 
-    <table class="admin-table" *ngIf="!loading">
+    <ui-error-state *ngIf="!loading && loadError" [message]="loadError" (retry)="reload()"></ui-error-state>
+
+    <table class="admin-table" *ngIf="!loading && !loadError">
       <thead>
         <tr>
           <th>{{ 'admin.colRegion' | t }}</th>
@@ -81,6 +85,8 @@ export class AdminReportsListComponent implements OnInit {
   pageSize = 20;
   statusFilter = 'open';
   loading = true;
+  /** Why the last load failed; the table would otherwise read as empty. */
+  loadError = '';
   actingId: string | null = null;
 
   getRegionName(code?: string): string {
@@ -116,6 +122,7 @@ export class AdminReportsListComponent implements OnInit {
 
   reload() {
     this.loading = true;
+    this.loadError = '';
     this.adminService.getReports(this.statusFilter, this.page, this.regionService.region().toUpperCase()).subscribe({
       next: (res) => {
         this.reports = res.results;
@@ -124,7 +131,7 @@ export class AdminReportsListComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: (err) => {
-        this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
+        this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
         this.loading = false;
         this.cdr.markForCheck();
       }

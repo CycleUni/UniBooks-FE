@@ -7,7 +7,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AdminBook, AdminBookRecord, AdminService } from '../../core/services/admin.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { I18nService, TPipe } from '../../core/i18n.service';
-import { ToastService } from '../../core/services/toast.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { HasUnsavedChanges } from '../../core/unsaved-changes.guard';
 import { BookCoverPipe } from '../../shared/pipes/book-cover.pipe';
 import { AdminBookEditComponent } from './book-edit.component';
@@ -21,15 +22,15 @@ import { STATS_PAGE_STYLES } from './stats-widgets';
     RegionLinkDirective,
     CommonModule,
     RouterModule,
-    TPipe,
+    TPipe, UiSkeleton, UiErrorState,
     BookCoverPipe,
     AdminBookEditComponent,
   ],
   template: `
     <a [regionLink]="['/admin', 'books']" class="back-link">&larr; {{ 'admin.backToList' | t }}</a>
 
-    <div *ngIf="!book && loading" class="empty-note">{{ 'common.loading' | t }}</div>
-    <div *ngIf="!book && !loading" class="empty-note">{{ 'admin.errLoadFailed' | t }}</div>
+    <ui-skeleton *ngIf="!book && loading" variant="form" [count]="4"></ui-skeleton>
+    <ui-error-state *ngIf="!book && !loading" [message]="loadError || ('admin.errLoadFailed' | t)" (retry)="load()"></ui-error-state>
 
     <div *ngIf="book as b" [class.stale]="loading">
       <div class="section-head-row">
@@ -125,7 +126,6 @@ import { STATS_PAGE_STYLES } from './stats-widgets';
 export class AdminBookDetailComponent implements HasUnsavedChanges {
   private admin = inject(AdminService);
   private i18n = inject(I18nService);
-  private toast = inject(ToastService);
   private cdr = inject(ChangeDetectorRef);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -136,6 +136,8 @@ export class AdminBookDetailComponent implements HasUnsavedChanges {
   /** The book's details as the edit form takes them. */
   record: AdminBookRecord | null = null;
   loading = true;
+  /** Why the last load failed. */
+  loadError = '';
   @ViewChild(AdminBookEditComponent) private editor?: AdminBookEditComponent;
   private sub?: Subscription;
 
@@ -186,7 +188,7 @@ export class AdminBookDetailComponent implements HasUnsavedChanges {
       error: (err) => {
         this.book = null;
         this.loading = false;
-        this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
+        this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
         this.cdr.markForCheck();
       },
     });

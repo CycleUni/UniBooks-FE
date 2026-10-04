@@ -8,7 +8,8 @@ import {
 } from '../../core/services/admin-stats.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { I18nService, TPipe } from '../../core/i18n.service';
-import { ToastService } from '../../core/services/toast.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { RegionService } from '../../core/region.service';
 import { DropdownOption, UiDropdown } from '../../shared/ui/dropdown.component';
 import { AdminStatsPeriodComponent, STATS_PAGE_STYLES, StatsFormat, StatsPeriodMemory } from './stats-widgets';
@@ -23,7 +24,7 @@ const ROLES: RetentionRole[] = ['all', 'buyer', 'seller'];
 @Component({
   selector: 'app-admin-stats-growth',
   standalone: true,
-  imports: [CommonModule, FormsModule, TPipe, AdminStatsPeriodComponent, UiDropdown],
+  imports: [CommonModule, FormsModule, TPipe, UiSkeleton, UiErrorState, AdminStatsPeriodComponent, UiDropdown],
   template: `
     <div class="section-head-row">
       <h2>{{ 'admin.navStatsGrowth' | t }}</h2>
@@ -31,7 +32,9 @@ const ROLES: RetentionRole[] = ['all', 'buyer', 'seller'];
     </div>
     <p class="scope-note">{{ 'admin.stats.scopeNoteShort' | t: { region: regionName() } }} {{ 'admin.stats.gaNote' | t }}</p>
 
-    <div *ngIf="!growth && loading" class="empty-note">{{ 'common.loading' | t }}</div>
+    <ui-skeleton *ngIf="!growth && loading" variant="table" [count]="5"></ui-skeleton>
+
+    <ui-error-state *ngIf="!growth && !loading && loadError" [message]="loadError" (retry)="load()"></ui-error-state>
 
     <ng-container *ngIf="growth as g">
       <section class="kpi-grid" [class.stale]="loading">
@@ -130,7 +133,9 @@ const ROLES: RetentionRole[] = ['all', 'buyer', 'seller'];
       </div>
       <p class="card-note">{{ 'admin.stats.retentionNote' | t }}</p>
 
-      <div *ngIf="!retention && loadingRetention" class="empty-note">{{ 'common.loading' | t }}</div>
+      <ui-skeleton *ngIf="!retention && loadingRetention" variant="table" [count]="5"></ui-skeleton>
+
+      <ui-error-state *ngIf="!retention && !loadingRetention && retentionError" [message]="retentionError" (retry)="loadRetention()"></ui-error-state>
       <div class="table-container" *ngIf="retention as r" [class.stale]="loadingRetention">
         <table class="admin-table cohort">
           <thead>
@@ -170,7 +175,6 @@ const ROLES: RetentionRole[] = ['all', 'buyer', 'seller'];
 export class AdminStatsGrowthComponent {
   private stats = inject(AdminStatsService);
   private i18n = inject(I18nService);
-  private toast = inject(ToastService);
   private regionService = inject(RegionService);
   private cdr = inject(ChangeDetectorRef);
   private route = inject(ActivatedRoute);
@@ -185,8 +189,12 @@ export class AdminStatsGrowthComponent {
 
   growth: AdminStatsGrowth | null = null;
   loading = true;
+  /** Why the last load failed, shown with a retry in place of the section. */
+  loadError = '';
   retention: AdminStatsRetention | null = null;
   loadingRetention = true;
+  /** Why the last load failed, shown with a retry in place of the section. */
+  retentionError = '';
 
   private sub?: Subscription;
   private retentionSub?: Subscription;
@@ -269,9 +277,10 @@ export class AdminStatsGrowthComponent {
     });
   }
 
-  private load() {
+  load() {
     this.sub?.unsubscribe();
     this.loading = true;
+    this.loadError = '';
     this.sub = this.stats.getGrowth(this.region(), this.days).subscribe({
       next: (res) => {
         this.growth = res;
@@ -281,15 +290,16 @@ export class AdminStatsGrowthComponent {
       error: (err) => {
         this.growth = null;
         this.loading = false;
-        this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
+        this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
         this.cdr.markForCheck();
       },
     });
   }
 
-  private loadRetention() {
+  loadRetention() {
     this.retentionSub?.unsubscribe();
     this.loadingRetention = true;
+    this.retentionError = '';
     this.retentionSub = this.stats.getRetention(this.region(), this.role).subscribe({
       next: (res) => {
         this.retention = res;
@@ -299,7 +309,7 @@ export class AdminStatsGrowthComponent {
       error: (err) => {
         this.retention = null;
         this.loadingRetention = false;
-        this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
+        this.retentionError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
         this.cdr.markForCheck();
       },
     });

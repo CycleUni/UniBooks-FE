@@ -111,7 +111,7 @@ export class ListingDetail implements OnInit, OnDestroy {
   private ga = inject(GoogleAnalyticsService);
   private seo = inject(SeoService);
 
-  private currentId: string | null = null;
+  currentId: string | null = null;
 
   constructor() {
     // Re-fetch listing when language changes so that backend translated fields (e.g. school_name, course_name) update.
@@ -144,26 +144,11 @@ export class ListingDetail implements OnInit, OnDestroy {
       const newId = params.get('id');
       this.currentId = newId;
       if (newId) {
-        this.isLoading = true;
+        // Another listing: never show the previous one beside its error.
+        if (String(this.listing?.id) !== newId) this.listing = null;
         this.otherListings = [];
-        this.errorMsg = '';
-        this.notFound = false;
         this.firedScrollThresholds.clear(); // reset thresholds for new listing
-        this.cdr.markForCheck();
-        this.loadListing(newId);
-        // Fallback in case the API hangs. Running outside Angular's zone
-        // so the timeout doesn't trigger unnecessary change detection.
-        this.ngZone.runOutsideAngular(() => {
-          setTimeout(() => {
-            if (this.isLoading && this.currentId === newId) {
-              this.ngZone.run(() => {
-                this.isLoading = false;
-                this.errorMsg = this.i18n.t('alert.loadingTimeout') ?? 'Failed to load listing.';
-                this.cdr.markForCheck();
-              });
-            }
-          }, 8000);
-        });
+        this.startLoad(newId);
       } else {
         this.isLoading = false;
         this.errorMsg = this.i18n.t('alert.bookNotFound');
@@ -180,11 +165,36 @@ export class ListingDetail implements OnInit, OnDestroy {
   }
 
 
+  /** Load the listing with the skeleton up, and give up after 8s. Also the
+   *  error state's retry. */
+  startLoad(id: string) {
+    this.isLoading = true;
+    this.errorMsg = '';
+    this.notFound = false;
+    this.cdr.markForCheck();
+    this.loadListing(id);
+    // Fallback in case the API hangs. Running outside Angular's zone
+    // so the timeout doesn't trigger unnecessary change detection.
+    this.ngZone.runOutsideAngular(() => {
+      setTimeout(() => {
+        if (this.isLoading && this.currentId === id) {
+          this.ngZone.run(() => {
+            this.isLoading = false;
+            this.errorMsg = this.i18n.t('alert.loadingTimeout');
+            this.cdr.markForCheck();
+          });
+        }
+      }, 8000);
+    });
+  }
+
   private loadListing(id: string) {
     this.listingService.getListing(id).subscribe({
       next: (data) => {
         this.listing = data;
         this.isLoading = false;
+        // A late answer after the 8s timeout replaces its error.
+        this.errorMsg = '';
         this.ga.trackViewItem({
           bookId: data.book,
           isbn: data.isbn,
@@ -237,10 +247,16 @@ export class ListingDetail implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.isLoading = false;
+        // A language switch reloads a listing already on screen; keep it.
+        if (this.listing && String(this.listing.id) === id) {
+          this.cdr.markForCheck();
+          return;
+        }
         if (err?.status === 404) {
           this.notFound = true;
         } else {
-          this.errorMsg = this.i18n.t('alert.bookNotFound');
+          // Not a 404: the listing may well exist; offer the retry.
+          this.errorMsg = this.i18n.t('common.loadFailed');
         }
         this.cdr.markForCheck();
       }

@@ -8,7 +8,8 @@ import {
 } from '../../core/services/admin-stats.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { I18nService, TPipe } from '../../core/i18n.service';
-import { ToastService } from '../../core/services/toast.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { RegionLinkService } from '../../core/region-link.service';
 import { UiPagination } from '../../shared/ui/pagination.component';
 import { PricePipe } from '../../shared/pipes/price.pipe';
@@ -25,11 +26,12 @@ const PAGE_SIZE = 10;
 @Component({
   selector: 'admin-group-books',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, TPipe, UiPagination, PricePipe, AdminRankingChartComponent],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, TPipe, UiSkeleton, UiErrorState, UiPagination, PricePipe, AdminRankingChartComponent],
   template: `
     <div class="group-books" [class.stale]="loading && rows">
       <h4 class="chart-title">{{ 'admin.stats.groupBooksTitle' | t: { name: name } }}</h4>
-      <div *ngIf="!rows && loading" class="empty-note">{{ 'common.loading' | t }}</div>
+      <ui-skeleton *ngIf="!rows && loading" variant="table" [count]="5"></ui-skeleton>
+      <ui-error-state *ngIf="!rows && !loading && loadError" [message]="loadError" (retry)="load()"></ui-error-state>
       <div *ngIf="rows && rows.length === 0" class="empty-note">{{ 'admin.stats.groupBooksEmpty' | t }}</div>
 
       <ng-container *ngIf="rows?.length">
@@ -83,7 +85,6 @@ const PAGE_SIZE = 10;
 export class AdminGroupBooksComponent implements OnChanges {
   private stats = inject(AdminStatsService);
   private i18n = inject(I18nService);
-  private toast = inject(ToastService);
   private cdr = inject(ChangeDetectorRef);
   private router = inject(Router);
   private regionLink = inject(RegionLinkService);
@@ -103,6 +104,8 @@ export class AdminGroupBooksComponent implements OnChanges {
   total = 0;
   page = 1;
   loading = true;
+  /** Why the last load failed, shown with a retry in place of the section. */
+  loadError = '';
   readonly barFormat = (value: number) => this.fmt.int(value);
 
   private sub?: Subscription;
@@ -125,9 +128,10 @@ export class AdminGroupBooksComponent implements OnChanges {
     this.router.navigate(this.regionLink.path(['/admin/stats/books', bar.id]), { queryParams: { days: this.days } });
   }
 
-  private load() {
+  load() {
     this.sub?.unsubscribe();
     this.loading = true;
+    this.loadError = '';
     this.sub = this.stats
       .getBookRanking({
         region: this.region,
@@ -149,10 +153,10 @@ export class AdminGroupBooksComponent implements OnChanges {
           this.cdr.markForCheck();
         },
         error: (err) => {
-          this.rows = [];
+          this.rows = null;
           this.bars = [];
           this.loading = false;
-          this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
+          this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
           this.cdr.markForCheck();
         },
       });

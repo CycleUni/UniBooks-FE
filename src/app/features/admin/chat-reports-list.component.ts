@@ -5,6 +5,8 @@ import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { AdminService, AdminChatReport } from '../../core/services/admin.service';
 import { TPipe, I18nService } from '../../core/i18n.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { ToastService } from '../../core/services/toast.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { UiButton } from '../../shared/ui/button.component';
@@ -16,15 +18,17 @@ import { RegionService } from '../../core/region.service';
 @Component({
   selector: 'app-admin-chat-reports-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiButton, UiDropdown, UiPagination],
+  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiErrorState, UiButton, UiDropdown, UiPagination],
   template: `
     <div class="admin-filters">
       <ui-dropdown [label]="'admin.colStatus' | t" [options]="statusOptions" [(ngModel)]="statusFilter" (ngModelChange)="reload()" [searchable]="false"></ui-dropdown>
     </div>
 
-    <div *ngIf="loading" class="empty-note">{{ 'common.loading' | t }}</div>
+    <ui-skeleton *ngIf="loading" variant="table" [count]="5"></ui-skeleton>
 
-    <table class="admin-table admin-table-clickable" *ngIf="!loading">
+    <ui-error-state *ngIf="!loading && loadError" [message]="loadError" (retry)="reload()"></ui-error-state>
+
+    <table class="admin-table admin-table-clickable" *ngIf="!loading && !loadError">
       <thead>
         <tr>
           <th>{{ 'admin.colRegion' | t }}</th>
@@ -59,11 +63,14 @@ import { RegionService } from '../../core/region.service';
                 <ui-button variant="ghost" (onClick)="loadMessages(report.id)" [disabled]="loadingMessages">
                   {{ (loadingMessages ? 'common.loading' : 'admin.viewMessages') | t }}
                 </ui-button>
-                <div *ngIf="messages" class="messages-preview">
+                <ui-skeleton *ngIf="loadingMessages" variant="row" [count]="3"></ui-skeleton>
+                <ui-error-state *ngIf="!loadingMessages && messagesError" [message]="messagesError" (retry)="loadMessages(report.id)"></ui-error-state>
+                <div *ngIf="messages?.length" class="messages-preview">
                   <div *ngFor="let msg of messages" class="msg-line">
                     <span class="msg-user">[{{ msg.user_id }}]:</span> {{ msg.content }}
                   </div>
                 </div>
+                <p *ngIf="messages && messages.length === 0" class="empty-note">{{ 'common.noData' | t }}</p>
               </div>
             </td>
           </tr>
@@ -107,9 +114,13 @@ export class AdminChatReportsListComponent implements OnInit {
   pageSize = 20;
   statusFilter = 'open';
   loading = true;
+  /** Why the last load failed; the table would otherwise read as empty. */
+  loadError = '';
   actingId: string | null = null;
   expandedId: string | null = null;
   loadingMessages = false;
+  /** Why the expanded report's messages failed to load; shown with a retry. */
+  messagesError = '';
   messages: any[] | null = null;
 
   getRegionName(code?: string): string {
@@ -146,6 +157,7 @@ export class AdminChatReportsListComponent implements OnInit {
 
   reload() {
     this.loading = true;
+    this.loadError = '';
     this.adminService.getChatReports(this.statusFilter, this.page, this.regionService.region().toUpperCase()).subscribe({
       next: (res) => {
         this.reports = res.results;
@@ -154,7 +166,7 @@ export class AdminChatReportsListComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: (err) => {
-        this.toast.error(parseAdminError(err, this.i18n, 'admin.errGeneric'));
+        this.loadError = parseAdminError(err, this.i18n, 'admin.errGeneric');
         this.loading = false;
         this.cdr.markForCheck();
       }
@@ -179,32 +191,41 @@ export class AdminChatReportsListComponent implements OnInit {
   toggleExpand(report: AdminChatReport) {
     this.expandedId = this.expandedId === report.id ? null : report.id;
     this.messages = null;
+    this.messagesError = '';
+    // A request still in flight belongs to the row just left; loadMessages
+    // drops its answer, so it must not keep this row's button disabled.
+    this.loadingMessages = false;
     this.cdr.markForCheck();
   }
 
   loadMessages(reportId: string) {
     this.loadingMessages = true;
+    this.messagesError = '';
+    this.messages = null;
+    // Only answers for the row still expanded may land: a late one for a row
+    // since collapsed or switched away from would show under the wrong report.
+    const current = () => this.expandedId === reportId;
+    const fail = (err: unknown) => {
+      if (!current()) return;
+      this.messagesError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
+      this.loadingMessages = false;
+      this.cdr.markForCheck();
+    };
     this.adminService.getChatReportToken(reportId).subscribe({
       next: ({ token, edge_chat_url, room_id }) => {
+        if (!current()) return;
         const url = `${edge_chat_url}/api/unibooks/${room_id}/messages`;
         this.http.get<any[]>(url, { headers: { Authorization: `Bearer ${token}`, 'ngsw-bypass': 'true' } }).subscribe({
           next: (msgs) => {
+            if (!current()) return;
             this.messages = msgs;
             this.loadingMessages = false;
             this.cdr.markForCheck();
           },
-          error: (err) => {
-            this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
-            this.loadingMessages = false;
-            this.cdr.markForCheck();
-          }
+          error: fail,
         });
       },
-      error: (err) => {
-        this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
-        this.loadingMessages = false;
-        this.cdr.markForCheck();
-      }
+      error: fail,
     });
   }
 }

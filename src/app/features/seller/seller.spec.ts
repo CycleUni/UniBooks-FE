@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { SellerPageComponent } from './seller';
 import { AccountService } from '../../core/services/account.service';
 import { ListingService } from '../../core/services/listing.service';
@@ -140,5 +140,36 @@ describe('SellerPageComponent', () => {
 
     expect(component.currentPage).toBe(3);
     expect(getListings).toHaveBeenCalledWith(undefined, 'seller1', 3);
+  });
+
+  // Only a 404 means "no such seller"; anything else may work on retry.
+  it('says the page failed to load, not that the seller is gone, on a non-404', () => {
+    component.seller = null;
+    getPublicUserProfile.mockReturnValueOnce(throwError(() => ({ status: 503 })));
+    component.loadSeller('seller1');
+    expect(component.loadFailed).toBe(true);
+    expect(component.error).toBe(false);
+
+    component.loadSeller('seller1');
+    expect(component.loadFailed).toBe(false);
+    expect(component.seller).not.toBeNull();
+  });
+
+  it('says the seller is gone on a 404', () => {
+    component.seller = null;
+    getPublicUserProfile.mockReturnValueOnce(throwError(() => ({ status: 404 })));
+    component.loadSeller('seller1');
+    expect(component.error).toBe(true);
+    expect(component.loadFailed).toBe(false);
+  });
+
+  it('shows a failed listings load as failed, not as "no listings"', () => {
+    getListings.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+    component.loadListings('seller1');
+    fixture.detectChanges();
+    const el: HTMLElement = fixture.nativeElement;
+    expect(component.listingsFailed).toBe(true);
+    expect(el.querySelector('ui-error-state')).not.toBeNull();
+    expect(el.querySelector('.empty-state')).toBeNull();
   });
 });

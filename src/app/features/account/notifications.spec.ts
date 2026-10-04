@@ -153,6 +153,19 @@ describe('NotificationsComponent', () => {
     });
   });
 
+  it('keeps the settings on screen when a refresh fails, and says so', () => {
+    create();
+    account.getNotificationSettings.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 503 })));
+
+    fixture.componentInstance.onRefresh();
+    fixture.detectChanges();
+
+    expect(toggle()).not.toBeNull();
+    expect(el().querySelector('ui-error-state')).toBeNull();
+    expect(el().querySelector('ui-skeleton')).toBeNull();
+    expect(toast.error).toHaveBeenCalledWith('acct.notifyLoadFailed');
+  });
+
   it('re-fetches settings on onRefresh', () => {
     create();
     expect(account.getNotificationSettings).toHaveBeenCalledTimes(1);

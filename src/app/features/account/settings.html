@@ -1,5 +1,14 @@
     <h2 class="section-heading">{{ 'acct.settingsTitle' | t }}</h2>
 
+    <ui-skeleton *ngIf="!profileLoaded && !profileLoadFailed" variant="form" [count]="3" style="max-width: 400px;"></ui-skeleton>
+    <ui-error-state
+      *ngIf="profileLoadFailed"
+      [message]="'acct.loadProfileFailed' | t"
+      (retry)="loadProfile()"
+    ></ui-error-state>
+
+    <ng-container *ngIf="profileLoaded">
+
         <!-- Campus email verifications section -->
     <div class="verify-section" *ngIf="currentRegion">
       <ng-container *ngIf="currentVerification; else unverifiedBlock">
@@ -181,3 +190,4 @@
         <span class="text-danger">{{ 'acct.deleteAccountBtn' | t }}</span>
       </ui-button>
     </div>
+    </ng-container>

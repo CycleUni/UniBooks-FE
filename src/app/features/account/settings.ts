@@ -13,6 +13,8 @@ import { ConfirmService } from '../../core/services/confirm.service';
 import { ActivatedRoute } from '@angular/router';
 import { parseApiError } from '../../core/api-error.util';
 import { SchoolRequestFormComponent } from './school-request-form.component';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 
 /** The verification answer that means "valid campus address, unknown campus". */
 const SCHOOL_NOT_SUPPORTED = 'acct.errSchoolNotSupported';
@@ -20,7 +22,7 @@ const SCHOOL_NOT_SUPPORTED = 'acct.errSchoolNotSupported';
 @Component({
   selector: 'app-account-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule, UiButton, UiInput, TPipe, SchoolRequestFormComponent],
+  imports: [CommonModule, FormsModule, UiButton, UiInput, TPipe, SchoolRequestFormComponent, UiSkeleton, UiErrorState],
   templateUrl: './settings.html',
   styleUrls: ['./settings.css']
 })
@@ -46,6 +48,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
   resendCooldownSeconds = 0;
   isEditingPendingEmail = false;
   isLoading = false;
+  /** The first profile load has answered. Until then the form shows a
+   *  placeholder: empty inputs and an "unverified" banner read as facts
+   *  about the account, not as "still loading". */
+  profileLoaded = false;
+  /** The first profile load failed; nothing on the form can be trusted. */
+  profileLoadFailed = false;
   verifyIsError = false;
   settingsIsError = false;
   isGoogleLinked = false;
@@ -228,8 +236,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   loadProfile() {
+    this.profileLoadFailed = false;
     this.accountService.getMyProfile().subscribe({
       next: (data) => {
+        this.profileLoaded = true;
         this.profileUserId = data.id ? String(data.id) : null;
         this.email = data.email || '';
         this.firstName = data.first_name || '';
@@ -250,6 +260,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       },
       error: (err) => {
+        // A reload after the form is up (e.g. confirming an email change)
+        // keeps the form and says so inline; a first load has no form yet.
+        if (!this.profileLoaded) this.profileLoadFailed = true;
         this.settingsIsError = true;
         this.clientSettingsMsg = 'acct.loadProfileFailed';
         console.error('Failed to load profile', err);

@@ -1,14 +1,15 @@
 import { Component, inject, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule, ActivatedRoute, Router } from '@angular/router';
+import { RouterModule, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AdminService, AdminRegion, AdminCurrency } from '../../core/services/admin.service';
 import { TPipe, I18nService } from '../../core/i18n.service';
+import { UiErrorState } from '../../shared/ui/error-state.component';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { ToastService } from '../../core/services/toast.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { Lang } from '../../core/i18n';
 import { RegionLinkDirective } from '../../core/region-link.directive';
-import { RegionLinkService } from '../../core/region-link.service';
 import { UiDropdown } from '../../shared/ui/dropdown.component';
 import { UiCheckbox } from '../../shared/ui/checkbox.component';
 import { UiInput } from '../../shared/ui/input.component';
@@ -17,9 +18,11 @@ import { UiButton } from '../../shared/ui/button.component';
 @Component({
   selector: 'app-admin-region-detail',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TPipe, RegionLinkDirective, UiDropdown, UiInput, UiButton, UiCheckbox],
+  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiErrorState, UiSkeleton, RegionLinkDirective, UiDropdown, UiInput, UiButton, UiCheckbox],
   template: `
-    <div *ngIf="!item" class="empty-note">{{ 'common.loading' | t }}</div>
+    <ui-skeleton *ngIf="!item && !loadError" variant="form" [count]="4"></ui-skeleton>
+    <!-- A failed load used to bounce back to the list without a word. -->
+    <ui-error-state *ngIf="!item && loadError" [message]="loadError" (retry)="load()"></ui-error-state>
     <div class="admin-detail-header" *ngIf="item">
       <a [regionLink]="['/admin', 'regions']" class="back-link">&larr; {{ 'admin.backToList' | t }}</a>
       <h2>{{ 'admin.editRegion' | t }} - {{ item.code }}</h2>
@@ -111,8 +114,6 @@ export class AdminRegionDetailComponent implements OnInit {
   private adminService = inject(AdminService);
   private cdr = inject(ChangeDetectorRef);
   private route = inject(ActivatedRoute);
-  private router = inject(Router);
-  private regionLink = inject(RegionLinkService);
   private i18n = inject(I18nService);
   private toast = inject(ToastService);
 
@@ -147,13 +148,21 @@ export class AdminRegionDetailComponent implements OnInit {
     }
   }
 
+  /** Why the last load failed. */
+  loadError = '';
+
   ngOnInit() {
     this.adminService.getCurrencies().subscribe(res => {
       this.currencies = Array.isArray(res) ? res : res.results;
       this.cdr.markForCheck();
     });
     
+    this.load();
+  }
+
+  load() {
     const code = this.route.snapshot.paramMap.get('id');
+    this.loadError = '';
     if (code) {
       this.adminService.getRegion(code).subscribe({
         next: (res) => {
@@ -168,7 +177,10 @@ export class AdminRegionDetailComponent implements OnInit {
           }
           this.cdr.markForCheck();
         },
-        error: () => this.router.navigate(this.regionLink.path(['/admin', 'regions']))
+        error: (err) => {
+          this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
+          this.cdr.markForCheck();
+        }
       });
     }
   }

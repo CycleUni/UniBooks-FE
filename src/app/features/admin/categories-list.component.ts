@@ -9,6 +9,7 @@ import { FormsModule } from '@angular/forms';
 import { AdminService, AdminCategory, Paginated } from '../../core/services/admin.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { TPipe, I18nService } from '../../core/i18n.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { TranslationEditorComponent, TranslationField } from './translation-editor.component';
 import { BulkImportModalComponent } from './bulk-import-modal.component';
@@ -19,7 +20,7 @@ import { RegionService } from '../../core/region.service';
 @Component({
   selector: 'app-admin-categories-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TPipe, TranslationEditorComponent, BulkImportModalComponent, UiPagination, UiCheckbox, UiTextarea, UiButton, UiErrorState],
+  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, TranslationEditorComponent, BulkImportModalComponent, UiPagination, UiCheckbox, UiTextarea, UiButton, UiErrorState],
   template: `
     <ng-container *ngIf="!showModal">
       <div class="section-head-row">
@@ -33,7 +34,7 @@ import { RegionService } from '../../core/region.service';
       <div class="admin-filters">
       </div>
 
-      <div *ngIf="!categoriesData && loading" class="empty-note">{{ 'common.loading' | t }}</div>
+      <ui-skeleton *ngIf="!categoriesData && loading" variant="table" [count]="5"></ui-skeleton>
       <!-- In place of a toast: the toast vanished after a few seconds and
            left the page looking like an empty list with no way to retry. -->
       <ui-error-state

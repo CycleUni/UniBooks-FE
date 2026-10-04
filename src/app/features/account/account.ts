@@ -36,6 +36,9 @@ export class Account {
   verifiedAt: string | null = null;
   avatarUrl = '';
   showConfirmUnbindModal = false;
+  /** /auth/me/ has answered, either way; the card shows placeholders until then. */
+  profileLoaded = false;
+  profileFailed = false;
 
   // Profile-card stats line — sourced from the same /auth/me/ payload
   // loadProfile() already fetches, so these reflect real counts rather
@@ -124,10 +127,17 @@ export class Account {
         this.soldListingsCount = counts?.sold ?? listingResults.filter((l: any) => l.status === 'sold').length;
         this.subscriptionsCount = (data.mySubscriptions || []).length;
         this.orderService.checkUnreadOrders(String(data.id), data.last_seen_bought_orders_at, data.last_seen_sold_orders_at);
+        this.profileLoaded = true;
+        this.profileFailed = false;
         this.cdr.markForCheck();
       },
       error: (err) => {
         console.error('Failed to load profile', err);
+        // Fall back to the defaults rather than a placeholder that never ends.
+        if (!this.profileLoaded) {
+          this.profileLoaded = true;
+          this.profileFailed = true;
+        }
         this.cdr.markForCheck();
       }
     });

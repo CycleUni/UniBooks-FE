@@ -25,10 +25,12 @@ import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
     <ui-pull-to-refresh [refreshing]="refreshing" (refresh)="onRefresh()">
       <h2 class="section-heading">{{ 'acct.notificationsTitle' | t }}</h2>
 
-    <ui-skeleton *ngIf="loading()" variant="row" [count]="1"></ui-skeleton>
+    <!-- First load only: a pull-to-refresh keeps the settings on screen
+         under the refresher's own spinner. -->
+    <ui-skeleton *ngIf="loading() && !settings()" variant="settings-rows" [count]="2"></ui-skeleton>
 
     <ui-error-state
-      *ngIf="loadFailed()"
+      *ngIf="loadFailed() && !settings()"
       [message]="'acct.notifyLoadFailed' | t"
       (retry)="load()"
     ></ui-error-state>
@@ -142,6 +144,8 @@ export class NotificationsComponent implements OnInit {
         this.loading.set(false);
         this.loadFailed.set(true);
         this.refreshing = false;
+        // A failed refresh leaves the settings already shown; say so instead.
+        if (this.settings()) this.toast.error(this.i18n.t('acct.notifyLoadFailed'));
       },
     });
   }

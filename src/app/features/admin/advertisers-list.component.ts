@@ -3,6 +3,7 @@ import { parseAdminError } from '../../core/admin-error.util';
 import { Component, inject, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
 import { UiCheckbox } from '../../shared/ui/checkbox.component';
 import { RouterModule } from '@angular/router';
@@ -17,7 +18,7 @@ import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
 @Component({
   selector: 'app-admin-advertisers-list',
   standalone: true,
-  imports: [CommonModule, UiSkeleton, RouterModule, FormsModule, TPipe, UiSearchBarComponent, UiPagination, UiCheckbox, UiButton],
+  imports: [CommonModule, UiSkeleton, UiErrorState, RouterModule, FormsModule, TPipe, UiSearchBarComponent, UiPagination, UiCheckbox, UiButton],
   template: `
     <div class="section-head-row">
       <h2>{{ 'admin.navAdvertisers' | t }}</h2>
@@ -30,7 +31,8 @@ import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
       <ui-search-bar [placeholder]="'admin.searchAdvertisers' | t" [value]="q" (search)="onSearch($event)"></ui-search-bar>
     </div>
 
-    <div class="table-container" *ngIf="!loading && advertisersData">
+    <ui-error-state *ngIf="!loading && loadError" [message]="loadError" (retry)="loadPage(currentPage)"></ui-error-state>
+    <div class="table-container" *ngIf="!loading && !loadError && advertisersData">
       <table class="admin-table">
         <thead>
           <tr>
@@ -131,6 +133,8 @@ export class AdminAdvertisersListComponent implements OnInit {
   total = 0;
   pageSize = 20;
   loading = true;
+  /** Why the last load failed; the table would otherwise read as empty. */
+  loadError = '';
   schoolSearchQuery = '';
   q = '';
   
@@ -171,6 +175,7 @@ export class AdminAdvertisersListComponent implements OnInit {
   loadPage(page: number) {
     this.currentPage = page;
     this.loading = true;
+    this.loadError = '';
     this.cdr.markForCheck();
     this.adminService.getAdvertisers({ page, q: this.q }).subscribe({
       next: (data) => {
@@ -180,7 +185,7 @@ export class AdminAdvertisersListComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: (err) => {
-        this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
+        this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
         this.loading = false;
         this.cdr.markForCheck();
       }

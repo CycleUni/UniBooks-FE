@@ -100,6 +100,40 @@
       margin: 0;
     }
 
+    /* Profile placeholders: the same pulse and fill as ui-skeleton. Each bar
+       is inline-block at the line's own font size, so the card keeps the
+       height it will have once the text lands. */
+    .ph {
+      background-color: var(--line-strong);
+      animation: ph-pulse 1.5s infinite ease-in-out;
+    }
+    .avatar.ph { color: transparent; }
+    .ph-line {
+      display: inline-block;
+      height: 1em;
+      vertical-align: middle;
+      border-radius: var(--radius-xs);
+    }
+    .ph-name { width: 8em; }
+    .ph-school { width: 10em; }
+    .ph-stats { width: 14em; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @keyframes ph-pulse {
+      0% { opacity: 0.75; }
+      50% { opacity: 0.5; }
+      100% { opacity: 0.75; }
+    }
+
     .dashboard-nav {
       display: flex;
       flex-direction: column;

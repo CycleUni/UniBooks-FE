@@ -4,7 +4,7 @@ import { provideRouter } from '@angular/router';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { I18nService } from '../../core/i18n.service';
 import { AccountService } from '../../core/services/account.service';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { RegionService } from '../../core/region.service';
 
 
@@ -144,5 +144,23 @@ describe('ReportsComponent', () => {
     // Object form
     expect(component.reasonLabel({ id: '1', type: 'listing', reason: 'fake', status: 'open', created_at: '' })).toBe('moderation.reasonFake');
     expect(component.reasonLabel({ id: '2', type: 'chat', reason: 'harassment', status: 'open', created_at: '' })).toBe('msg.reportReasonHarassment');
+  });
+
+  // Half the list passed off as all of it, or "no reports" for a failed
+  // load, both claim something the page does not know.
+  it('shows the error state, not an empty or partial list, when a side fails, and retries', () => {
+    mockAccountService.getMyChatReports.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+    component.loadReports(1);
+    fixture.detectChanges();
+    const el: HTMLElement = fixture.nativeElement;
+    expect(component.loadFailed).toBe(true);
+    expect(el.querySelector('ui-error-state')).not.toBeNull();
+    expect(el.querySelector('ui-empty')).toBeNull();
+    expect(el.querySelector('.report-card')).toBeNull();
+
+    component.loadReports(1);
+    fixture.detectChanges();
+    expect(component.loadFailed).toBe(false);
+    expect(el.querySelectorAll('.report-card').length).toBe(3);
   });
 });

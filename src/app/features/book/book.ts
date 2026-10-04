@@ -22,6 +22,7 @@ import { UiInfiniteScroll } from '../../shared/ui/infinite-scroll.component';
 import { injectIsPhone } from '../../core/viewport';
 import { PhonePager } from '../../core/phone-pager';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { UiEmpty } from '../../shared/ui/empty.component';
 import { UiVerificationPrompt } from '../../shared/ui/verification-prompt.component';
 import { RegionLinkService } from '../../core/region-link.service';
@@ -40,7 +41,7 @@ export { BOOK_SOURCE_LABEL_KEYS, bookSourceLabelKey } from '../../core/book-sour
 @Component({
   selector: 'app-book',
   standalone: true,
-  imports: [CommonModule, RouterModule, UiButton, UiBackButton, UiBreadcrumb, TPipe, UiListingCard, UiBookCover, UiPagination, UiInfiniteScroll, UiEmpty, UiSkeleton, UiVerificationPrompt],
+  imports: [CommonModule, RouterModule, UiButton, UiBackButton, UiBreadcrumb, TPipe, UiListingCard, UiBookCover, UiPagination, UiInfiniteScroll, UiEmpty, UiSkeleton, UiErrorState, UiVerificationPrompt],
   template: `
       <!-- Opened directly (no cached preview to paint first), the page used
            to stay blank until the book request answered. -->
@@ -49,8 +50,13 @@ export { BOOK_SOURCE_LABEL_KEYS, bookSourceLabelKey } from '../../core/book-sour
         <ui-skeleton variant="list" [count]="4"></ui-skeleton>
       </div>
 
-      <div class="container container--narrow book-page" *ngIf="!book && !isLoadingListings && bookId">
+      <!-- "Not found" only for a 404; any other failure may work on retry. -->
+      <div class="container container--narrow book-page" *ngIf="!book && !isLoadingListings && bookId && !bookLoadFailed">
         <ui-empty [message]="'alert.bookNotFound' | t"></ui-empty>
+      </div>
+
+      <div class="container container--narrow book-page" *ngIf="!book && !isLoadingListings && bookLoadFailed">
+        <ui-error-state [message]="'common.loadFailed' | t" (retry)="fetchBook()"></ui-error-state>
       </div>
 
       <div class="container container--narrow book-page" *ngIf="book">
@@ -93,7 +99,7 @@ export { BOOK_SOURCE_LABEL_KEYS, bookSourceLabelKey } from '../../core/book-sour
                 <span class="meta-value"  style="font-family: monospace;">{{ book.isbn13 }}</span>
               </div>
             </div>
-            <div class="waitlist-banner" [class.hot]="book.waiting_count > 0" *ngIf="!isLoadingListings && totalListings === 0">
+            <div class="waitlist-banner" [class.hot]="book.waiting_count > 0" *ngIf="!isLoadingListings && !listingsFailed && totalListings === 0">
               <span class="waitlist-count" [class.hot]="book.waiting_count > 0">
                 {{ (book.waiting_count > 0 ? 'book.waitingBanner' : 'book.waitingBannerZero') | t:{n: book.waiting_count} }}
               </span>
@@ -104,16 +110,25 @@ export { BOOK_SOURCE_LABEL_KEYS, bookSourceLabelKey } from '../../core/book-sour
         </div>
 
         <div class="listings-section">
-          <h3 class="section-heading" *ngIf="!isLoadingListings">{{ 'book.currentListings' | t:{n: totalListings} }}</h3>
-          <h3 class="section-heading" *ngIf="isLoadingListings">{{ 'book.currentListings' | t:{n: '-'} }}</h3>
+          <h3 class="section-heading" *ngIf="!isLoadingListings && !listingsFailed">{{ 'book.currentListings' | t:{n: totalListings} }}</h3>
+          <h3 class="section-heading" *ngIf="isLoadingListings || listingsFailed">{{ 'book.currentListings' | t:{n: '-'} }}</h3>
           
           <ui-skeleton *ngIf="isLoadingListings" variant="list" [count]="3"></ui-skeleton>
 
-          <div class="no-local-alert" *ngIf="!isLoadingListings && listings.length > 0 && localListingsCount === 0 && currentSchool">
+          <!-- The book is on screen (a cached preview, or a reload of a page
+               already shown) but its listings did not come: "nobody is
+               selling this" would be a claim nothing backs. -->
+          <ui-error-state
+            *ngIf="!isLoadingListings && listingsFailed"
+            [message]="'book.listingsLoadFailed' | t"
+            (retry)="fetchBook(true)"
+          ></ui-error-state>
+
+          <div class="no-local-alert" *ngIf="!isLoadingListings && !listingsFailed && listings.length > 0 && localListingsCount === 0 && currentSchool">
             {{ 'search.noLocalListings' | t:{school: currentSchoolLabel} }}
           </div>
 
-          <div class="listings-grid" *ngIf="!isLoadingListings && listings.length > 0">
+          <div class="listings-grid" *ngIf="!isLoadingListings && !listingsFailed && listings.length > 0">
             <ui-listing-card *ngFor="let item of listings" 
               [item]="item"
               [isOwn]="isOwnListing(item)"
@@ -123,10 +138,10 @@ export { BOOK_SOURCE_LABEL_KEYS, bookSourceLabelKey } from '../../core/book-sour
             ></ui-listing-card>
           </div>
           
-          <ui-pagination *ngIf="!isPhone && !isLoadingListings && totalListings > 20" [total]="totalListings" [pageSize]="20" [currentPage]="currentPage" (pageChange)="onPageChange($event)"></ui-pagination>
-          <ui-infinite-scroll *ngIf="isPhone && !isLoadingListings && listings.length > 0" [loading]="loadingMore" [hasMore]="hasMoreListings" [error]="loadMoreError" (loadMore)="onLoadMore()"></ui-infinite-scroll>
+          <ui-pagination *ngIf="!isPhone && !isLoadingListings && !listingsFailed && totalListings > 20" [total]="totalListings" [pageSize]="20" [currentPage]="currentPage" (pageChange)="onPageChange($event)"></ui-pagination>
+          <ui-infinite-scroll *ngIf="isPhone && !isLoadingListings && !listingsFailed && listings.length > 0" [loading]="loadingMore" [hasMore]="hasMoreListings" [error]="loadMoreError" (loadMore)="onLoadMore()"></ui-infinite-scroll>
 
-          <ui-empty *ngIf="!isLoadingListings && listings.length === 0" [message]="'book.emptyState' | t"></ui-empty>
+          <ui-empty *ngIf="!isLoadingListings && !listingsFailed && listings.length === 0" [message]="'book.emptyState' | t"></ui-empty>
         </div>
 
         <p class="data-source" *ngIf="sourceLabelKey as key">
@@ -316,6 +331,10 @@ export class Book implements OnInit {
   }
   currentPage = 1;
   isLoadingListings = true;
+  /** The book failed to load for a reason other than not existing. */
+  bookLoadFailed = false;
+  /** The book is shown but its listings failed to load. */
+  listingsFailed = false;
   isVerified = false;
   showUnverifiedPrompt = false;
   private isPhoneSignal = injectIsPhone();
@@ -451,6 +470,8 @@ export class Book implements OnInit {
         this.listings = [];
         this.totalListings = 0;
         this.isLoadingListings = true;
+        this.bookLoadFailed = false;
+        this.listingsFailed = false;
         this.pager.reset(this.currentPage, 0);
       }
       this.bookId = nextId;
@@ -525,8 +546,10 @@ export class Book implements OnInit {
     }
   }
 
-  private fetchBook(silent = false) {
+  fetchBook(silent = false) {
     this.isLoadingListings = true;
+    this.bookLoadFailed = false;
+    this.listingsFailed = false;
     this.pager.reset(this.currentPage, this.totalListings);
     // A silent refresh of an already-cached preview is only supposed to
     // supplement it with real listing status, not replace it — but when the
@@ -567,7 +590,7 @@ export class Book implements OnInit {
         this.sortListings();
         this.cdr.markForCheck();
       },
-      error: () => {
+      error: (err) => {
         this.isLoadingListings = false;
         this.isLocalCache = false;
         // A silent fetch only supplements an already-rendered preview;
@@ -575,8 +598,12 @@ export class Book implements OnInit {
         if (silent && this.book && !this.book.source && this.previewSource) {
           this.book = { ...this.book, source: this.previewSource };
         }
-        if (!silent) {
-          this.toast.error(this.i18n.t('alert.bookNotFound'));
+        if (this.book) {
+          // The book is on screen; only its listings are missing.
+          this.listingsFailed = true;
+        } else if (err?.status !== 404) {
+          // Only a 404 means there is no such book; this may work on retry.
+          this.bookLoadFailed = true;
         }
         this.cdr.markForCheck();
       }

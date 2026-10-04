@@ -4,6 +4,7 @@ import { parseAdminError } from '../../core/admin-error.util';
 import { Component, inject, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
 import { UiCheckbox } from '../../shared/ui/checkbox.component';
 import { UiDropdown } from '../../shared/ui/dropdown.component';
@@ -22,7 +23,7 @@ import { RegionService } from '../../core/region.service';
 @Component({
   selector: 'app-admin-ads-list',
   standalone: true,
-  imports: [CommonModule, UiSkeleton, RouterModule, FormsModule, TPipe, UiSearchBarComponent, UiPagination, UiCheckbox, UiDropdown, UiButton],
+  imports: [CommonModule, UiSkeleton, UiErrorState, RouterModule, FormsModule, TPipe, UiSearchBarComponent, UiPagination, UiCheckbox, UiDropdown, UiButton],
   template: `
     <div class="section-head-row">
       <h2>{{ 'admin.navAds' | t }}</h2>
@@ -35,7 +36,8 @@ import { RegionService } from '../../core/region.service';
       <ui-search-bar [placeholder]="'admin.searchAds' | t" [value]="q" (search)="onSearch($event)"></ui-search-bar>
     </div>
 
-    <div class="table-container" *ngIf="!loading && adsData">
+    <ui-error-state *ngIf="!loading && loadError" [message]="loadError" (retry)="loadPage(currentPage)"></ui-error-state>
+    <div class="table-container" *ngIf="!loading && !loadError && adsData">
       <table class="admin-table">
         <thead>
           <tr>
@@ -190,6 +192,8 @@ export class AdminAdsListComponent implements OnInit {
   total = 0;
   pageSize = 20;
   loading = true;
+  /** Why the last load failed; the table would otherwise read as empty. */
+  loadError = '';
   saving = false;
   advertisers: AdminAdvertiser[] = [];
   uploadingImage = false;
@@ -239,6 +243,7 @@ export class AdminAdsListComponent implements OnInit {
   loadPage(page: number) {
     this.currentPage = page;
     this.loading = true;
+    this.loadError = '';
     this.cdr.markForCheck();
     this.adminService.getAds({ page, q: this.q, region: this.regionService.region().toUpperCase() }).subscribe({
       next: (data) => {
@@ -248,7 +253,7 @@ export class AdminAdsListComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: (err) => {
-        this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
+        this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
         this.loading = false;
         this.cdr.markForCheck();
       }

@@ -6,6 +6,7 @@ import { AuthStore } from '../../core/auth.store';
 import { TPipe, I18nService } from '../../core/i18n.service';
 import { AccountService } from '../../core/services/account.service';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { UiButton } from '../../shared/ui/button.component';
 import { UiEmpty } from '../../shared/ui/empty.component';
 import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
@@ -26,14 +27,17 @@ import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [CommonModule, RouterModule, UiSkeleton, TPipe, UiButton, UiEmpty, ReviewModalComponent, DateTimeFormatPipe, PricePipe, UiSearchBarComponent, RegionLinkDirective, UiPullToRefresh],
+  imports: [CommonModule, RouterModule, UiSkeleton, UiErrorState, TPipe, UiButton, UiEmpty, ReviewModalComponent, DateTimeFormatPipe, PricePipe, UiSearchBarComponent, RegionLinkDirective, UiPullToRefresh],
   template: `
     <ui-pull-to-refresh [refreshing]="refreshing" (refresh)="onRefresh()">
       <h2 class="section-heading">{{ 'acct.myOrders' | t }}</h2>
 
       <div class="tabs">
-        <button class="tab" [class.active]="activeTab === 'buying'" (click)="setTab('buying')">{{ 'acct.buying' | t }}</button>
-        <button class="tab" [class.active]="activeTab === 'selling'" (click)="setTab('selling')">{{ 'acct.selling' | t }}</button>
+        <!-- Neither tab is marked until the first load has picked the side
+             with the newest activity, or the user has picked one: marking
+             the default and then moving the mark was a visible jump. -->
+        <button class="tab" [class.active]="tabSettled && activeTab === 'buying'" (click)="setTab('buying')">{{ 'acct.buying' | t }}</button>
+        <button class="tab" [class.active]="tabSettled && activeTab === 'selling'" (click)="setTab('selling')">{{ 'acct.selling' | t }}</button>
       </div>
 
       <ui-search-bar 
@@ -45,7 +49,14 @@ import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
 
       <ui-skeleton *ngIf="isLoading" variant="order" [count]="3"></ui-skeleton>
 
-      <div *ngIf="!isLoading">
+      <!-- A failed load is not "no orders yet". -->
+      <ui-error-state
+        *ngIf="!isLoading && loadFailed"
+        [message]="'acct.ordersLoadFailed' | t"
+        (retry)="loadOrders()"
+      ></ui-error-state>
+
+      <div *ngIf="!isLoading && !loadFailed">
         <div *ngIf="activeTab === 'buying'">
           <ui-empty *ngIf="filteredBoughtOrders.length === 0" [message]="'acct.noOrders' | t"></ui-empty>
           <div class="order-card" *ngFor="let order of filteredBoughtOrders" [id]="'order-' + order.id">
@@ -394,7 +405,13 @@ import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
 })
 export class OrdersComponent implements OnInit {
   activeTab: 'buying' | 'selling' = 'buying';
+  /** The first load is in flight: the placeholder shows. Later reloads
+   *  (pull-to-refresh, a refused status change) keep the list on screen. */
   isLoading = true;
+  /** The orders have loaded at least once. */
+  private ordersLoaded = false;
+  /** The first load failed: there is no list to fall back on. */
+  loadFailed = false;
   refreshing = false;
   boughtOrders: Order[] = [];
   soldOrders: Order[] = [];
@@ -497,11 +514,28 @@ export class OrdersComponent implements OnInit {
   lastSeenBought: string | null | undefined = null;
   lastSeenSold: string | null | undefined = null;
 
+  /** The user picked a tab; no load overrides that choice. */
+  private tabChosen = false;
+
+  /** Which tab is current is known, so the tab bar may mark it. */
+  get tabSettled(): boolean {
+    return this.tabChosen || this.ordersLoaded;
+  }
+
   setTab(tab: 'buying' | 'selling') {
+    this.tabChosen = true;
     this.activeTab = tab;
     if (this.currentUserId) {
       this.markTabAsSeen(this.currentUserId);
     }
+  }
+
+  /** The side with the newest activity; buying when there is none. */
+  private busiestTab(): 'buying' | 'selling' {
+    if (this.soldOrders.length === 0) return 'buying';
+    if (this.boughtOrders.length === 0) return 'selling';
+    const newest = (orders: Order[]) => Math.max(...orders.map(o => new Date(o.updated_at || o.created_at || 0).getTime()));
+    return newest(this.boughtOrders) >= newest(this.soldOrders) ? 'buying' : 'selling';
   }
 
   markTabAsSeen(userId: string) {
@@ -531,7 +565,8 @@ export class OrdersComponent implements OnInit {
   }
 
   loadOrders() {
-    this.isLoading = true;
+    this.isLoading = !this.ordersLoaded;
+    this.loadFailed = false;
     this.accountService.getMyProfile().subscribe({
       next: (profile) => {
         const userId = profile.id;
@@ -544,17 +579,12 @@ export class OrdersComponent implements OnInit {
             this.boughtOrders = orders.filter(o => String(o.buyer) === String(userId));
             this.soldOrders = orders.filter(o => String(o.seller) === String(userId));
             
-            if (this.boughtOrders.length > 0 && this.soldOrders.length === 0) {
-              this.activeTab = 'buying';
-            } else if (this.boughtOrders.length === 0 && this.soldOrders.length > 0) {
-              this.activeTab = 'selling';
-            } else if (this.boughtOrders.length > 0 && this.soldOrders.length > 0) {
-              const newestBought = Math.max(...this.boughtOrders.map(o => new Date(o.updated_at || o.created_at || 0).getTime()));
-              const newestSold = Math.max(...this.soldOrders.map(o => new Date(o.updated_at || o.created_at || 0).getTime()));
-              this.activeTab = newestBought >= newestSold ? 'buying' : 'selling';
-            }
-            
+            // Only the first load picks the tab, and only if the user has not:
+            // a refresh switching sides under the reader is the same jump.
+            if (!this.ordersLoaded && !this.tabChosen) this.activeTab = this.busiestTab();
+
             this.markTabAsSeen(userId);
+            this.ordersLoaded = true;
             this.isLoading = false;
             this.refreshing = false;
             this.cdr.markForCheck();
@@ -562,19 +592,25 @@ export class OrdersComponent implements OnInit {
           },
           error: (err) => {
             console.error('Failed to load orders', err);
-            this.isLoading = false;
-            this.refreshing = false;
-            this.cdr.markForCheck();
+            this.onLoadFailed();
           }
         });
       },
       error: (err) => {
         console.error('Failed to load profile', err);
-        this.isLoading = false;
-        this.refreshing = false;
-        this.cdr.markForCheck();
+        this.onLoadFailed();
       }
     });
+  }
+
+  private onLoadFailed() {
+    this.isLoading = false;
+    this.refreshing = false;
+    // Over a list already showing, a toast; with nothing to show, the error
+    // state with its retry, never the "no orders" empty state.
+    if (this.ordersLoaded) this.toast.error(this.i18n.t('acct.ordersLoadFailed'));
+    else this.loadFailed = true;
+    this.cdr.markForCheck();
   }
 
   onRefresh() {

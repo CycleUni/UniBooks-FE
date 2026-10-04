@@ -198,4 +198,40 @@ describe('SettingsComponent', () => {
       expect(component.savingShowAvatar).toBe(false);
     });
   });
+
+  // Until /auth/me/ answers, empty inputs and an "unverified" banner would
+  // read as facts about the account; the form waits behind a placeholder.
+  describe('first profile load', () => {
+    it('holds the form back until the profile arrives', () => {
+      (component as any).restorePendingVerificationState = () => {};
+      (component as any).accountService = { getMyProfile: () => of({ id: 1, email: 'a@example.com' }) };
+      expect(component.profileLoaded).toBe(false);
+      component.loadProfile();
+      expect(component.profileLoaded).toBe(true);
+      expect(component.profileLoadFailed).toBe(false);
+    });
+
+    it('offers a retry when the first load fails, and clears it on retry', () => {
+      (component as any).accountService = { getMyProfile: () => throwError(() => ({ status: 500 })) };
+      component.loadProfile();
+      expect(component.profileLoadFailed).toBe(true);
+      expect(component.profileLoaded).toBe(false);
+
+      (component as any).restorePendingVerificationState = () => {};
+      (component as any).accountService = { getMyProfile: () => of({ id: 1 }) };
+      component.loadProfile();
+      expect(component.profileLoadFailed).toBe(false);
+      expect(component.profileLoaded).toBe(true);
+    });
+
+    it('keeps the form up when a later reload fails', () => {
+      (component as any).restorePendingVerificationState = () => {};
+      (component as any).accountService = { getMyProfile: () => of({ id: 1 }) };
+      component.loadProfile();
+      (component as any).accountService = { getMyProfile: () => throwError(() => ({ status: 500 })) };
+      component.loadProfile();
+      expect(component.profileLoaded).toBe(true);
+      expect(component.profileLoadFailed).toBe(false);
+    });
+  });
 });

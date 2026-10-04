@@ -10,6 +10,7 @@ import { RegionService } from '../../core/region.service';
 import { AccountService } from '../../core/services/account.service';
 import { ListingService } from '../../core/services/listing.service';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { UiListingRow } from '../../shared/ui/listing-row.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
 import { UiInfiniteScroll } from '../../shared/ui/infinite-scroll.component';
@@ -24,11 +25,11 @@ import { isUserVerifiedIn } from '../../core/verification';
 @Component({
   selector: 'app-seller-page',
   standalone: true,
-  imports: [CommonModule, UiSkeleton, UiListingRow, UiPagination, UiInfiniteScroll, UiBreadcrumb, TPipe],
+  imports: [CommonModule, UiSkeleton, UiErrorState, UiListingRow, UiPagination, UiInfiniteScroll, UiBreadcrumb, TPipe],
   template: `
     <!-- The profile request gates the whole page; hold its place instead of
          rendering nothing and then snapping the header in. -->
-    <div class="container container--narrow seller-page" *ngIf="!seller && !error">
+    <div class="container container--narrow seller-page" *ngIf="!seller && !error && !loadFailed">
       <ui-skeleton variant="row" [count]="1"></ui-skeleton>
       <ui-skeleton [count]="5"></ui-skeleton>
     </div>
@@ -65,7 +66,7 @@ import { isUserVerifiedIn } from '../../core/verification';
       <div class="seller-listings">
         <h2>{{ 'seller.listingsTitle' | t:{name: seller.display_name} }}</h2>
         
-        <div class="listings-grid" *ngIf="!loadingListings && listings.length > 0">
+        <div class="listings-grid" *ngIf="!loadingListings && !listingsFailed && listings.length > 0">
           <ui-listing-row
             *ngFor="let listing of listings"
             [title]="listing.book_title || listing.book?.title"
@@ -81,9 +82,15 @@ import { isUserVerifiedIn } from '../../core/verification';
         </div>
         
         <ui-pagination *ngIf="!isPhone && totalListings > 20" [total]="totalListings" [pageSize]="20" [currentPage]="currentPage" (pageChange)="onPageChange($event)"></ui-pagination>
-        <ui-infinite-scroll *ngIf="isPhone && !loadingListings && listings.length > 0" [loading]="loadingMore" [hasMore]="hasMoreListings" [error]="loadMoreError" (loadMore)="onLoadMore()"></ui-infinite-scroll>
+        <ui-infinite-scroll *ngIf="isPhone && !loadingListings && !listingsFailed && listings.length > 0" [loading]="loadingMore" [hasMore]="hasMoreListings" [error]="loadMoreError" (loadMore)="onLoadMore()"></ui-infinite-scroll>
 
-        <div class="empty-state" *ngIf="!loadingListings && listings.length === 0">
+        <ui-error-state
+          *ngIf="!loadingListings && listingsFailed"
+          [message]="'seller.listingsLoadFailed' | t"
+          (retry)="currentId && loadListings(currentId)"
+        ></ui-error-state>
+
+        <div class="empty-state" *ngIf="!loadingListings && !listingsFailed && listings.length === 0">
           <p>{{ 'seller.noListings' | t }}</p>
         </div>
         
@@ -91,6 +98,12 @@ import { isUserVerifiedIn } from '../../core/verification';
       </div>
     </div>
     
+    <!-- Only a 404 means there is no such seller; anything else is a load
+         that failed and may well work on a second try. -->
+    <div class="container container--narrow seller-page" *ngIf="loadFailed">
+      <ui-error-state [message]="'common.loadFailed' | t" (retry)="currentId && loadSeller(currentId)"></ui-error-state>
+    </div>
+
     <div class="not-found" *ngIf="error">
       <h2>{{ 'seller.notFound' | t }}</h2>
       <p>{{ 'seller.notFoundDesc' | t }}</p>
@@ -220,7 +233,12 @@ export class SellerPageComponent implements OnInit {
   // Starts true: the profile renders first, and in that gap the listings are
   // still on their way, not absent.
   loadingListings = true;
+  /** No such seller (404). */
   error = false;
+  /** The profile failed to load for another reason; a retry may work. */
+  loadFailed = false;
+  /** The listings failed to load: not the same as having none. */
+  listingsFailed = false;
   totalListings = 0;
   currentPage = 1;
   private isPhoneSignal = injectIsPhone();
@@ -264,7 +282,7 @@ export class SellerPageComponent implements OnInit {
   noShowCount = 0;
   avatarUrl = '';
   
-  private currentId: string | null = null;
+  currentId: string | null = null;
 
   /** Home › <seller name>. */
   get breadcrumbItems(): BreadcrumbItem[] {
@@ -295,6 +313,7 @@ export class SellerPageComponent implements OnInit {
         this.listings = [];
         this.loadingListings = true;
         this.error = false;
+        this.loadFailed = false;
         this.pager.reset(this.currentPage, 0);
       }
       this.currentId = id;
@@ -305,6 +324,7 @@ export class SellerPageComponent implements OnInit {
   }
 
   loadSeller(id: string) {
+    this.loadFailed = false;
     this.accountService.getPublicUserProfile(id).subscribe({
       next: (profile) => {
         this.seller = profile;
@@ -318,7 +338,11 @@ export class SellerPageComponent implements OnInit {
         this.loadListings(id);
       },
       error: (err) => {
-        this.error = true;
+        // A language switch reloads a seller already on screen; keep it.
+        if (!this.seller) {
+          if (err?.status === 404) this.error = true;
+          else this.loadFailed = true;
+        }
         this.cdr.detectChanges();
       }
     });
@@ -326,6 +350,7 @@ export class SellerPageComponent implements OnInit {
 
   loadListings(sellerId: string) {
     this.loadingListings = true;
+    this.listingsFailed = false;
     this.pager.reset(this.currentPage, this.totalListings);
     this.cdr.detectChanges();
     this.listingService.getListings(undefined, sellerId, this.currentPage).subscribe({
@@ -343,6 +368,7 @@ export class SellerPageComponent implements OnInit {
       },
       error: () => {
         this.loadingListings = false;
+        this.listingsFailed = true;
         this.cdr.detectChanges();
       }
     });

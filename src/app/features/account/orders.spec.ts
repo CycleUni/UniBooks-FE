@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { OrdersComponent } from './orders';
@@ -200,6 +200,85 @@ describe('OrdersComponent.approveOrder', () => {
 
     expect(clearProfileCache).toHaveBeenCalled();
     expect(component.refreshing).toBe(false);
+  });
+
+  // A failed load is not "no orders yet", and a reload must not blank a list
+  // that is already on screen.
+  describe('loading states', () => {
+    let getOrders: ReturnType<typeof vi.fn>;
+    let toastError: ReturnType<typeof vi.fn>;
+    beforeEach(() => {
+      getOrders = vi.fn();
+      toastError = vi.fn();
+      (component as any).accountService = { clearProfileCache: vi.fn(), getMyProfile: vi.fn().mockReturnValue(of({ id: 'u1' })), updateProfile: vi.fn().mockReturnValue(of({})) };
+      (component as any).orderService = { getOrders, checkUnreadOrders: vi.fn(), markOrdersAsSeen: vi.fn().mockReturnValue(of({})) };
+      (component as any).toast = { error: toastError, success: vi.fn() };
+      (component as any).i18n = { t: (k: string) => k };
+    });
+
+    it('shows the error state, not the empty one, when the first load fails, and retries', () => {
+      getOrders.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+      component.loadOrders();
+      expect(component.isLoading).toBe(false);
+      expect(component.loadFailed).toBe(true);
+      expect(toastError).not.toHaveBeenCalled();
+
+      getOrders.mockReturnValueOnce(of([]));
+      component.loadOrders();
+      expect(component.loadFailed).toBe(false);
+    });
+
+    const sold = { id: 's1', buyer: 'u2', seller: 'u1', created_at: '2026-10-02T00:00:00Z' };
+    const bought = { id: 'b1', buyer: 'u1', seller: 'u2', created_at: '2026-10-01T00:00:00Z' };
+
+    // Marking "Purchases" by default and moving the mark to "Sales" once the
+    // orders said that side was busier was a visible jump.
+    it('marks no tab until the first load picks one', () => {
+      getOrders.mockReturnValueOnce(new Observable(() => {}));
+      component.loadOrders();
+      expect(component.tabSettled).toBe(false);
+
+      getOrders.mockReturnValueOnce(of([sold, bought]));
+      component.loadOrders();
+      expect(component.tabSettled).toBe(true);
+      expect(component.activeTab).toBe('selling');
+    });
+
+    it('keeps a tab the user picked while loading', () => {
+      getOrders.mockReturnValueOnce(new Observable(() => {}));
+      component.loadOrders();
+      component.setTab('buying');
+      expect(component.tabSettled).toBe(true);
+
+      getOrders.mockReturnValueOnce(of([sold, bought]));
+      component.loadOrders();
+      expect(component.activeTab).toBe('buying');
+    });
+
+    it('does not switch sides on a refresh', () => {
+      getOrders.mockReturnValueOnce(of([bought]));
+      component.loadOrders();
+      expect(component.activeTab).toBe('buying');
+
+      getOrders.mockReturnValueOnce(of([sold, bought]));
+      component.onRefresh();
+      expect(component.activeTab).toBe('buying');
+    });
+
+    it('keeps the list up through a reload, and toasts when that reload fails', () => {
+      getOrders.mockReturnValueOnce(of([]));
+      component.loadOrders();
+
+      getOrders.mockReturnValueOnce(new Observable(() => {}));
+      component.loadOrders();
+      expect(component.isLoading).toBe(false);
+
+      getOrders.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+      component.onRefresh();
+      expect(component.loadFailed).toBe(false);
+      expect(component.refreshing).toBe(false);
+      expect(toastError).toHaveBeenCalledWith('acct.ordersLoadFailed');
+    });
   });
 });
 

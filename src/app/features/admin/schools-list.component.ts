@@ -9,6 +9,7 @@ import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AdminService, AdminSchool, Paginated } from '../../core/services/admin.service';
 import { TPipe, I18nService } from '../../core/i18n.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { ToastService } from '../../core/services/toast.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { RegionService } from '../../core/region.service';
@@ -18,7 +19,7 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
 @Component({
   selector: 'app-admin-schools-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiSearchBarComponent, BulkImportModalComponent, UiPagination, UiButton, UiErrorState, UiFocusTrapDirective],
+  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiSearchBarComponent, BulkImportModalComponent, UiPagination, UiButton, UiErrorState, UiFocusTrapDirective],
   template: `
     <div class="section-head-row">
       <h2>{{ 'admin.navSchools' | t }}</h2>
@@ -32,7 +33,7 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
       <ui-search-bar [placeholder]="'admin.searchSchools' | t" [value]="q" (search)="onSearch($event)"></ui-search-bar>
     </div>
 
-    <div *ngIf="!schoolsData && loading" class="empty-note">{{ 'common.loading' | t }}</div>
+    <ui-skeleton *ngIf="!schoolsData && loading" variant="table" [count]="5"></ui-skeleton>
     <!-- A failed load used to leave the page with its heading and nothing
          under it, which read as an empty list rather than an error. -->
     <ui-error-state

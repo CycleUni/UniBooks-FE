@@ -125,6 +125,29 @@ import { TPipe } from '../../core/i18n.service';
           </div>
         </ng-container>
 
+        <!-- A form still waiting for the values it edits: a label over an
+             input per field, then the submit button. Empty inputs in its
+             place read as "you have no name and no email". -->
+        <ng-container *ngSwitchCase="'form'">
+          <div class="s-field" *ngFor="let i of slots">
+            <div class="s-bar pulse s-label"></div>
+            <div class="s-input pulse"></div>
+          </div>
+          <div class="s-submit pulse"></div>
+        </ng-container>
+
+        <!-- A card of setting rows: label and description on the left, the
+             control (switch, dropdown) on the right. -->
+        <ng-container *ngSwitchCase="'settings-rows'">
+          <div class="s-setting" *ngFor="let i of slots">
+            <div class="s-setting-text">
+              <div class="s-bar pulse w-40"></div>
+              <div class="s-bar pulse w-80 s-desc"></div>
+            </div>
+            <div class="s-control pulse"></div>
+          </div>
+        </ng-container>
+
         <ng-container *ngSwitchDefault>
           <div class="skeleton-row" *ngFor="let i of slots">
             <div class="s-cover pulse"></div>
@@ -299,6 +322,31 @@ import { TPipe } from '../../core/i18n.service';
     .s-bubble { height: 40px; border-radius: 12px; align-self: flex-start; }
     .s-bubble.self { align-self: flex-end; }
 
+    /* form: mirrors a .form-group of ui-input fields */
+    .v-form { display: flex; flex-direction: column; gap: var(--space-5); }
+    .s-field { display: flex; flex-direction: column; gap: var(--space-2); }
+    .s-label { width: 30%; height: 14px; }
+    .s-input { height: 40px; border-radius: var(--radius-control); }
+    .s-submit { width: 120px; height: 40px; border-radius: var(--radius-control); }
+
+    /* settings-rows: mirrors .notification-list in notifications.ts */
+    .v-settings-rows {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface-card);
+    }
+    .s-setting {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+      padding: var(--space-4) var(--space-5);
+    }
+    .s-setting + .s-setting { border-top: 1px solid var(--line); }
+    .s-setting-text { flex: 1; display: flex; flex-direction: column; gap: var(--space-2); }
+    .s-desc { height: 12px; }
+    .s-control { width: 44px; height: 24px; flex-shrink: 0; border-radius: 12px; }
+
     @keyframes pulse {
       0% { opacity: 0.75; }
       50% { opacity: 0.5; }
@@ -308,7 +356,7 @@ import { TPipe } from '../../core/i18n.service';
 })
 export class UiSkeleton {
   @Input() count: number = 3;
-  @Input() variant: 'list' | 'row' | 'card-row' | 'discover-grid' | 'report' | 'order' | 'table' | 'detail' | 'chat-list' | 'chat-bubbles' = 'list';
+  @Input() variant: 'list' | 'row' | 'card-row' | 'discover-grid' | 'report' | 'order' | 'table' | 'detail' | 'chat-list' | 'chat-bubbles' | 'form' | 'settings-rows' = 'list';
 
   readonly bubbleWidths = [55, 40, 65, 35, 50];
 

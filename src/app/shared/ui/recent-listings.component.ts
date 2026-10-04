@@ -286,7 +286,7 @@ export class UiRecentListings {
         this.recentBooks = [];
         this.scope = 'all';
         this.city = null;
-        this.errorMessage = this.i18n.t('common.error') || 'Error loading listings';
+        this.errorMessage = this.i18n.t('home.listingsError');
       } else {
         this.recentBooks = data.results || data;
         this.totalCount = data.count || this.recentBooks.length;

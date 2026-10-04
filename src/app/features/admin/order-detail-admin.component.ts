@@ -5,7 +5,8 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
 import { AdminService, AdminOrder } from '../../core/services/admin.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { TPipe, I18nService } from '../../core/i18n.service';
-import { ToastService } from '../../core/services/toast.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { UiButton } from '../../shared/ui/button.component';
 import { ForceCancelModalComponent } from './force-cancel-modal.component';
 import { PricePipe } from '../../shared/pipes/price.pipe';
@@ -13,11 +14,13 @@ import { PricePipe } from '../../shared/pipes/price.pipe';
 @Component({
   selector: 'app-admin-order-detail',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, TPipe, UiButton, ForceCancelModalComponent, PricePipe],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, TPipe, UiSkeleton, UiErrorState, UiButton, ForceCancelModalComponent, PricePipe],
   template: `
     <a [regionLink]="['/admin', 'orders']" class="back-link">&larr; {{ 'admin.backToList' | t }}</a>
 
-    <div *ngIf="loading" class="empty-note">{{ 'common.loading' | t }}</div>
+    <ui-skeleton *ngIf="loading" variant="form" [count]="4"></ui-skeleton>
+    <!-- A failed load used to leave only the back link, with a toast. -->
+    <ui-error-state *ngIf="!loading && loadError" [message]="loadError" (retry)="load()"></ui-error-state>
 
     <div class="detail-card" *ngIf="!loading && order">
       <h2>{{ order.listing?.book_title }}<span *ngIf="order.listing?.deleted" class="text-muted"> · {{ 'common.listingDeleted' | t }}</span></h2>
@@ -59,11 +62,12 @@ export class AdminOrderDetailComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private adminService = inject(AdminService);
   private i18n = inject(I18nService);
-  private toast = inject(ToastService);
   private cdr = inject(ChangeDetectorRef);
 
   order: AdminOrder | null = null;
   loading = true;
+  /** Why the last load failed. */
+  loadError = '';
   showForceCancelModal = false;
   cancelledMsg = '';
 
@@ -71,9 +75,10 @@ export class AdminOrderDetailComponent implements OnInit {
     this.load();
   }
 
-  private load() {
+  load() {
     const id = this.route.snapshot.paramMap.get('id')!;
     this.loading = true;
+    this.loadError = '';
     this.adminService.getOrder(id).subscribe({
       next: (order) => {
         this.order = order;
@@ -81,7 +86,7 @@ export class AdminOrderDetailComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: (err) => {
-        this.toast.error(parseAdminError(err, this.i18n, 'admin.errLoadFailed'));
+        this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
         this.loading = false;
         this.cdr.markForCheck();
       }

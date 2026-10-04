@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError, Observable } from 'rxjs';
 import { Account } from './account';
 import { AccountService } from '../../core/services/account.service';
 import { OrderService } from '../../core/services/order.service';
@@ -48,5 +48,42 @@ describe('Account shell', () => {
 
     expect(getMyProfile).toHaveBeenCalledTimes(1);
     expect(checkUnreadOrders).toHaveBeenCalledTimes(1);
+  });
+
+  // Before /auth/me/ answers, "User", "No school" and three zero counts would
+  // read as facts about the account; the card holds placeholders instead.
+  describe('profile card', () => {
+    const create = (getMyProfile: () => Observable<unknown>) => {
+      TestBed.configureTestingModule({
+        imports: [Account],
+        providers: [
+          provideRouter([]),
+          { provide: AccountService, useValue: { getMyProfile } },
+          { provide: OrderService, useValue: { checkUnreadOrders: vi.fn(), unreadOrders$: of(false) } },
+          { provide: AuthStore, useValue: { user: signal(null), isAuthenticated: signal(true), getUser: () => null, logout: () => of(null) } },
+          { provide: RegionService, useValue: { region: signal('tw'), regions: signal([]), currentRegionObj: signal(null), currency: signal({ code: 'TWD', decimal_places: 0 }) } },
+          { provide: I18nService, useValue: { lang: signal('zh-TW'), t: (k: string) => k } },
+        ],
+      });
+      const fixture = TestBed.createComponent(Account);
+      TestBed.tick();
+      fixture.detectChanges();
+      return fixture;
+    };
+
+    it('shows placeholders while the profile is on its way', () => {
+      const fixture = create(() => new Observable(() => {}));
+      const card: HTMLElement = fixture.nativeElement.querySelector('.profile-card');
+      expect(card.querySelector('.avatar.ph')).not.toBeNull();
+      expect(card.querySelector('.profile-stats .ph')).not.toBeNull();
+      expect(card.textContent).not.toContain('acct.defaultUser');
+    });
+
+    it('drops the placeholders but not into invented counts when the load fails', () => {
+      const fixture = create(() => throwError(() => ({ status: 500 })));
+      const card: HTMLElement = fixture.nativeElement.querySelector('.profile-card');
+      expect(card.querySelector('.ph')).toBeNull();
+      expect(card.querySelector('.profile-stats')).toBeNull();
+    });
   });
 });

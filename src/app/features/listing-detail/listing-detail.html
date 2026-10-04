@@ -179,7 +179,7 @@
         </div>
       </div>
 
-      <ui-error-state *ngIf="errorMsg" [message]="errorMsg" [retryable]="false"></ui-error-state>
+      <ui-error-state *ngIf="errorMsg" [message]="errorMsg" [retryable]="!!currentId" (retry)="currentId && startLoad(currentId)"></ui-error-state>
       <ui-empty
         *ngIf="notFound"
         [fullPage]="true"

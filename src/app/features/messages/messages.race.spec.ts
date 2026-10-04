@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { Subject, of, EMPTY } from 'rxjs';
+import { Subject, of, EMPTY, throwError } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Messages } from './messages';
 import { MessageService } from '../../core/services/message.service';
@@ -131,5 +131,61 @@ describe('Messages.selectChat — out-of-order response race', () => {
     expect(component.chatToken).toBe(fakeJwt('u_a'));
     expect(component.messages.map(m => m.body)).toEqual(['hello from A']);
     expect(connectEdgeChat).toHaveBeenCalledWith('A', fakeJwt('u_a'), 'u_a', 'https://edge-a.example');
+  });
+
+  // An empty pane or inbox after a failed fetch would read as "no messages"
+  // / "no conversations yet".
+  describe('load failures', () => {
+    it('says the history failed, instead of showing an empty chat, and retries', () => {
+      const chatA = { id: 'A' };
+      component.selectChat(chatA);
+      tokenSubjects['A'].next({ token: fakeJwt('u_a'), edge_chat_url: 'https://edge-a.example' });
+      historySubjects['A'].error(new Error('offline'));
+
+      expect(component.historyFailed).toBe(true);
+      expect(component.loadingHistory).toBe(false);
+
+      historySubjects['A'] = new Subject();
+      component.retryHistory();
+      expect(component.historyFailed).toBe(false);
+      expect(component.loadingHistory).toBe(true);
+
+      historySubjects['A'].next([{ id: 'm_a1', content: 'hello', user_id: 'u_other', timestamp: 1000 }]);
+      expect(component.historyFailed).toBe(false);
+      expect(component.messages.map(m => m.body)).toEqual(['hello']);
+    });
+
+    it('does not carry a failed history over to the next chat opened', () => {
+      component.selectChat({ id: 'A' });
+      tokenSubjects['A'].next({ token: fakeJwt('u_a'), edge_chat_url: 'https://edge-a.example' });
+      historySubjects['A'].error(new Error('offline'));
+      expect(component.historyFailed).toBe(true);
+
+      component.selectChat({ id: 'B' });
+      expect(component.historyFailed).toBe(false);
+    });
+
+    it('marks a failed first inbox load as failed, and toasts when a refresh fails over a list', () => {
+      const service = (component as any).messageService;
+      const toast = { error: vi.fn() };
+      (component as any).toast = toast;
+      // Unsent chats come from the signed-in user's store; none here.
+      (component as any).pendingChats = { list: () => [], remove: vi.fn() };
+
+      service.getConversations = vi.fn(() => throwError(() => ({ status: 500 })));
+      component.loadConversations();
+      expect(component.inboxLoadFailed).toBe(true);
+      expect(toast.error).not.toHaveBeenCalled();
+
+      service.getConversations = vi.fn(() => of([{ id: 'c1', listing_id: 'l1' }]));
+      component.retryInbox();
+      expect(component.inboxLoadFailed).toBe(false);
+      expect(component.chats.length).toBe(1);
+
+      service.getConversations = vi.fn(() => throwError(() => ({ status: 500 })));
+      component.onRefreshInbox();
+      expect(component.inboxLoadFailed).toBe(false);
+      expect(toast.error).toHaveBeenCalledWith('msg.inboxLoadFailed');
+    });
   });
 });

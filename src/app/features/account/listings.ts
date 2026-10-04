@@ -12,6 +12,8 @@ import { UiDropdown, DropdownOption } from '../../shared/ui/dropdown.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
 import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
 import { UiInfiniteScroll } from '../../shared/ui/infinite-scroll.component';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { injectIsPhone } from '../../core/viewport';
 import { PhonePager } from '../../core/phone-pager';
 import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
@@ -56,7 +58,7 @@ const PAGE_SIZE = 20;
   standalone: true,
   imports: [
     CommonModule, FormsModule, UiButton, UiEmpty, UiInput, UiTextarea, UiListingRow, UiDropdown,
-    UiPagination, UiPullToRefresh, UiInfiniteScroll, UiSearchBarComponent, TPipe,
+    UiPagination, UiPullToRefresh, UiInfiniteScroll, UiSearchBarComponent, UiSkeleton, UiErrorState, TPipe,
   ],
   template: `
     <ui-pull-to-refresh [refreshing]="refreshing" (refresh)="onRefresh()">
@@ -101,7 +103,7 @@ const PAGE_SIZE = 20;
       {{ 'acct.listingCount' | t:{ n: totalListings } }}
     </p>
 
-    <div *ngIf="loading" class="empty-note">{{ 'common.loading' | t }}</div>
+    <ui-skeleton *ngIf="loading" [count]="3"></ui-skeleton>
 
     <div class="list-container" *ngIf="!loading && myListings.length > 0">
       <ui-listing-row
@@ -123,8 +125,14 @@ const PAGE_SIZE = 20;
       ></ui-listing-row>
     </div>
 
+    <ui-error-state
+      *ngIf="!loading && loadFailed && myListings.length === 0"
+      [message]="'acct.errLoadFailed' | t"
+      (retry)="loadMyListings()"
+    ></ui-error-state>
+
     <ui-empty
-      *ngIf="!loading && myListings.length === 0"
+      *ngIf="!loading && !loadFailed && myListings.length === 0"
       [message]="(hasFilters ? 'acct.noListingsMatch' : 'acct.noListings') | t"
       [actionText]="(hasFilters ? 'acct.clearFilters' : 'acct.addListing') | t"
       (onAction)="hasFilters ? clearFilters() : goToSell()"
@@ -238,7 +246,6 @@ const PAGE_SIZE = 20;
 
     .list-search { display: block; margin-bottom: 8px; }
     .result-note { margin: 0 0 8px; font-size: var(--text-sm); color: var(--muted); }
-    .empty-note { padding: 24px 0; text-align: center; color: var(--muted); }
 
     .edit-modal {
       position: fixed;
@@ -317,6 +324,8 @@ export class ListingsComponent implements OnInit {
   isUploadingPhoto = false;
   saving = false;
   loading = true;
+  /** The last load failed: an empty list here is unknown, not "none yet". */
+  loadFailed = false;
   categoryOptions: any[] = [];
   totalListings = 0;
   currentPage = 1;
@@ -480,6 +489,7 @@ export class ListingsComponent implements OnInit {
 
   loadMyListings() {
     this.loading = true;
+    this.loadFailed = false;
     this.pager.reset(this.currentPage, this.totalListings);
     this.accountService
       // The default sort is left out rather than sent: the backend's default is
@@ -506,7 +516,10 @@ export class ListingsComponent implements OnInit {
         error: (err) => {
           this.loading = false;
           this.refreshing = false;
-          this.toast.error(parseApiError(err, this.i18n, 'acct.errLoadFailed'));
+          this.loadFailed = true;
+          // With nothing on screen the error state says it and offers the
+          // retry; over a list that is still showing, a toast is enough.
+          if (this.myListings.length > 0) this.toast.error(parseApiError(err, this.i18n, 'acct.errLoadFailed'));
           this.cdr.markForCheck();
         }
       });

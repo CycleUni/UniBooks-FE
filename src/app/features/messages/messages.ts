@@ -32,6 +32,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
 import { ListingService } from '../../core/services/listing.service';
 import { translateApiError } from '../../core/api-error.util';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
 import { PendingChatStore, PENDING_CHAT_PREFIX, isPendingChat, pendingChatFromListing } from './pending-chats';
 
@@ -44,7 +45,7 @@ const MEETUP_DETAIL_STATUSES = ['accepted', 'handed_over'];
 @Component({
   selector: 'app-messages',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, UiEmpty, UiButton, UiInput, UiMeetupCard, TPipe, UiImageLightbox, UiReportModal, UiRoleBadge, MessagesInboxList, PricePipe, UiVerificationPrompt, UiSkeleton, UiPullToRefresh],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, UiEmpty, UiButton, UiInput, UiMeetupCard, TPipe, UiImageLightbox, UiReportModal, UiRoleBadge, MessagesInboxList, PricePipe, UiVerificationPrompt, UiSkeleton, UiErrorState, UiPullToRefresh],
   templateUrl: './messages.html',
   styleUrls: ['./messages.css']
 })
@@ -73,6 +74,10 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
   loadingChats = true;
   /** The open chat's history is on its way (placeholder bubbles show). */
   loadingHistory = false;
+  /** The open chat's history failed to load. */
+  historyFailed = false;
+  /** The conversation list failed to load: not the same as having none. */
+  inboxLoadFailed = false;
   /** A pending chat's conversation is being created by its first message. */
   creatingChat = false;
   /**
@@ -276,18 +281,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
         // endpoint here instead raced with that initial fetch and whichever
         // landed last won, so the list would sometimes end up holding the
         // old default page size with no way to reach anything older.
-        this.messageService.getEdgeMessagePage(
-          this.activeChat.id, this.chatToken, this.edgeChatUrl, this.HISTORY_PAGE_SIZE
-        ).subscribe({
-          next: (page) => {
-            this.hasMoreHistory = !!page?.has_more;
-            this.setEdgeMessages(page?.messages || []);
-          },
-          error: () => {
-            this.hasMoreHistory = false;
-            this.setEdgeMessages([]);
-          }
-        });
+        this.fetchHistory(String(this.activeChat.id));
       }
 
       this.cdr.markForCheck();
@@ -394,6 +388,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
           return false;
         });
         this.chats = [...pending, ...data];
+        this.inboxLoadFailed = false;
         // Apply current Hub unread state immediately after loading
         // so re-entering the page shows correct dots without waiting
         // for the next Hub event.
@@ -440,6 +435,10 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
       error: () => {
         this.loadingChats = false;
         this.refreshingInbox = false;
+        // Over a list already showing, a toast; with nothing to show, the
+        // error state with its retry, never the "no conversations" one.
+        if (this.chats.length > 0) this.toast.error(this.i18n.t('msg.inboxLoadFailed'));
+        else this.inboxLoadFailed = true;
         this.cdr.markForCheck();
       }
     });
@@ -574,6 +573,8 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
     this.hasMoreHistory = false;
     this.loadingOlder = false;
     this.oldestTimestamp = null;
+    // Before the pending-chat return below: that chat has no history to fail.
+    this.historyFailed = false;
     chat._hubUnread = false;
 
     // Not a conversation yet: no room, token or history to fetch. The last
@@ -611,21 +612,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
         // Fetch message history immediately via REST — don't wait for the
         // WebSocket connection to reach 'connected' (it may be delayed or
         // fail, leaving the message pane blank).
-        this.messageService.getEdgeMessagePage(
-          chat.id, this.chatToken, this.edgeChatUrl, this.HISTORY_PAGE_SIZE
-        ).subscribe({
-          next: (page) => {
-            if (this.activeChat?.id !== chat.id) return;
-            this.hasMoreHistory = !!page?.has_more;
-            this.setEdgeMessages(page?.messages || []);
-          },
-          error: (err) => {
-            console.error('[selectChat] getEdgeMessagePage failed:', err);
-            if (this.activeChat?.id !== chat.id) return;
-            this.hasMoreHistory = false;
-            this.setEdgeMessages([]);
-          }
-        });
+        this.fetchHistory(String(chat.id));
 
         this.messageService.connectEdgeChat(chat.id, this.chatToken, this.userId, this.edgeChatUrl);
       },
@@ -1034,6 +1021,45 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
       if (earliest === null || t < earliest) earliest = t;
     }
     return earliest;
+  }
+
+  /**
+   * The open chat's latest page of history. Both selectChat's eager fetch and
+   * the socket's first 'connected' use it, so a failure the first one hit is
+   * retried by the second.
+   */
+  private fetchHistory(chatId: string) {
+    this.messageService.getEdgeMessagePage(
+      chatId, this.chatToken, this.edgeChatUrl, this.HISTORY_PAGE_SIZE
+    ).subscribe({
+      next: (page) => {
+        if (String(this.activeChat?.id) !== chatId) return;
+        this.historyFailed = false;
+        this.hasMoreHistory = !!page?.has_more;
+        this.setEdgeMessages(page?.messages || []);
+      },
+      error: (err) => {
+        console.error('[fetchHistory] getEdgeMessagePage failed:', err);
+        if (String(this.activeChat?.id) !== chatId) return;
+        this.hasMoreHistory = false;
+        this.setEdgeMessages([]);
+        // An empty pane after a failed fetch would read as "no messages yet".
+        this.historyFailed = true;
+      }
+    });
+  }
+
+  retryHistory() {
+    if (!this.activeChat || !this.chatToken) return;
+    this.historyFailed = false;
+    this.loadingHistory = true;
+    this.fetchHistory(String(this.activeChat.id));
+  }
+
+  retryInbox() {
+    this.inboxLoadFailed = false;
+    this.loadingChats = true;
+    this.loadConversations();
   }
 
   private setEdgeMessages(edgeMsgsInput: any) {

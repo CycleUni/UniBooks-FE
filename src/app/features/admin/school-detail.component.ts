@@ -7,6 +7,8 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AdminService, AdminSchool, Paginated } from '../../core/services/admin.service';
 import { TPipe, I18nService } from '../../core/i18n.service';
+import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { ToastService } from '../../core/services/toast.service';
 import { parseAdminError } from '../../core/admin-error.util';
 import { TranslationEditorComponent, TranslationField } from './translation-editor.component';
@@ -17,7 +19,7 @@ import { CityOption } from '../../core/services/school-state.service';
 @Component({
   selector: 'app-admin-school-detail',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, TranslationEditorComponent, UiButton, UiDropdown],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, UiErrorState, UiSkeleton, TranslationEditorComponent, UiButton, UiDropdown],
   template: `
     <div class="section-head-row">
       <div>
@@ -25,6 +27,9 @@ import { CityOption } from '../../core/services/school-state.service';
         <ui-button size="sm" variant="outline" [regionLink]="['/admin', 'schools']">‹ {{ 'admin.backToList' | t }}</ui-button>
       </div>
     </div>
+
+    <ui-skeleton *ngIf="!school && !loadError" variant="form" [count]="4"></ui-skeleton>
+    <ui-error-state *ngIf="!school && loadError" [message]="loadError" (retry)="loadSchool()"></ui-error-state>
 
     <div class="detail-grid" *ngIf="school">
       <div class="panel">
@@ -119,12 +124,22 @@ export class AdminSchoolDetailComponent implements OnInit {
     });
   }
 
+  /** Why the last load failed; the page had no error branch at all. */
+  loadError = '';
+
   loadSchool() {
-    this.adminService.getSchool(this.schoolId).subscribe(data => {
-      this.school = data;
-      this.editData = { name: data.name, email_domain: data.email_domain, code: data.code, translations: data.translations || {} };
-      this.editCity = data.city || '';
-      this.cdr.markForCheck();
+    this.loadError = '';
+    this.adminService.getSchool(this.schoolId).subscribe({
+      next: data => {
+        this.school = data;
+        this.editData = { name: data.name, email_domain: data.email_domain, code: data.code, translations: data.translations || {} };
+        this.editCity = data.city || '';
+        this.cdr.markForCheck();
+      },
+      error: err => {
+        this.loadError = parseAdminError(err, this.i18n, 'admin.errLoadFailed');
+        this.cdr.markForCheck();
+      },
     });
   }
 

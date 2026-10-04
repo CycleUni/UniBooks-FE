@@ -12,13 +12,15 @@ import { TPipe, I18nService } from '../../core/i18n.service';
 import { PricePipe } from '../../shared/pipes/price.pipe';
 import { UiActionBar } from '../../shared/ui/action-bar.component';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
+import { UiEmpty } from '../../shared/ui/empty.component';
 import { RegionLinkService } from '../../core/region-link.service';
 
 
 @Component({
   selector: 'app-checkout',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, UiButton, UiActionBar, UiSkeleton, UiBookCover, TPipe, PricePipe],
+  imports: [CommonModule, RouterModule, FormsModule, UiButton, UiActionBar, UiSkeleton, UiErrorState, UiEmpty, UiBookCover, TPipe, PricePipe],
   template: `
       <main class="container container--form checkout-page">
         <h2>{{ 'checkout.title' | t }}</h2>
@@ -29,6 +31,17 @@ import { RegionLinkService } from '../../core/region-link.service';
           <ui-skeleton variant="list" [count]="1"></ui-skeleton>
           <ui-skeleton variant="report" [count]="1"></ui-skeleton>
         </ng-container>
+
+        <!-- The order form lives inside the grid below, so a failed load
+             used to leave this page as a bare title. -->
+        <ui-error-state *ngIf="!isLoading && loadFailed" [message]="'common.loadFailed' | t" (retry)="retryLoad()"></ui-error-state>
+        <ui-empty
+          *ngIf="!isLoading && notFound"
+          [message]="'listing.notFoundTitle' | t"
+          [description]="'listing.notFoundBody' | t"
+          [actionText]="'listing.notFoundAction' | t"
+          (onAction)="goSearch()"
+        ></ui-empty>
 
         <div *ngIf="!isLoading && listing" class="checkout-grid">
           <!-- Order Summary -->
@@ -136,6 +149,10 @@ import { RegionLinkService } from '../../core/region-link.service';
 export class CheckoutComponent implements OnInit {
   listing: any = null;
   isLoading = true;
+  /** The listing failed to load for a reason other than not existing. */
+  loadFailed = false;
+  /** No such listing (404). */
+  notFound = false;
   isSubmitting = false;
   errorKey = '';
   errorMsg = '';
@@ -177,12 +194,23 @@ export class CheckoutComponent implements OnInit {
         });
         this.cdr.markForCheck();
       },
-      error: () => {
+      error: (err) => {
         this.isLoading = false;
-        this.errorMsg = this.i18n.t('alert.bookNotFound');
+        if (err?.status === 404) this.notFound = true;
+        else this.loadFailed = true;
         this.cdr.markForCheck();
       }
     });
+  }
+
+  retryLoad() {
+    this.isLoading = true;
+    this.loadFailed = false;
+    this.loadListing();
+  }
+
+  goSearch() {
+    this.router.navigate(this.regionLink.path(['/search']));
   }
 
   onFormChange() {

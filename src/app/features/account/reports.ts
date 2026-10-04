@@ -1,11 +1,11 @@
 import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { forkJoin, of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { forkJoin } from 'rxjs';
 import { AccountService, ChatReportItem, ListingReportItem } from '../../core/services/account.service';
 import { TPipe } from '../../core/i18n.service';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
+import { UiErrorState } from '../../shared/ui/error-state.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
 import { UiEmpty } from '../../shared/ui/empty.component';
 import { DateTimeFormatPipe } from '../../shared/pipes/datetime-format.pipe';
@@ -33,7 +33,7 @@ export interface UserReportItem {
 @Component({
   selector: 'app-account-reports',
   standalone: true,
-  imports: [CommonModule, RouterModule, TPipe, UiSkeleton, UiPagination, UiEmpty, DateTimeFormatPipe],
+  imports: [CommonModule, RouterModule, TPipe, UiSkeleton, UiErrorState, UiPagination, UiEmpty, DateTimeFormatPipe],
   template: `
     <h2 class="section-heading">{{ 'acct.tabReports' | t }}</h2>
 
@@ -51,7 +51,13 @@ export interface UserReportItem {
 
     <ui-skeleton *ngIf="isLoading" variant="report" [count]="3"></ui-skeleton>
 
-    <div *ngIf="!isLoading">
+    <ui-error-state
+      *ngIf="!isLoading && loadFailed"
+      [message]="'acct.reportsLoadFailed' | t"
+      (retry)="loadReports(currentPage)"
+    ></ui-error-state>
+
+    <div *ngIf="!isLoading && !loadFailed">
       <ui-empty *ngIf="reports.length === 0" [message]="'acct.noReports' | t"></ui-empty>
 
       <div class="reports-list" *ngIf="reports.length > 0">
@@ -229,6 +235,8 @@ export class ReportsComponent implements OnInit {
   // True from the start: the first render must not show "no reports" before
   // the request has had a chance to answer.
   isLoading = true;
+  /** The last load failed: an empty list here is unknown, not "none". */
+  loadFailed = false;
   totalReports = 0;
   pageSize = 20;
   currentPage = 1;
@@ -246,22 +254,15 @@ export class ReportsComponent implements OnInit {
 
   loadReports(page = 1) {
     this.isLoading = true;
+    this.loadFailed = false;
     this.currentPage = page;
 
     if (this.activeFilter === 'all') {
       forkJoin({
-        listingRes: this.accountService.getMyListingReports(page).pipe(
-          catchError((err) => {
-            console.error('Failed to load listing reports', err);
-            return of({ count: 0, next: null, previous: null, results: [] as ListingReportItem[] });
-          })
-        ),
-        chatRes: this.accountService.getMyChatReports(page).pipe(
-          catchError((err) => {
-            console.error('Failed to load chat reports', err);
-            return of({ count: 0, next: null, previous: null, results: [] as ChatReportItem[] });
-          })
-        )
+        // No per-side fallback to an empty page: half the list passed off
+        // as all of it is worse than saying the load failed.
+        listingRes: this.accountService.getMyListingReports(page),
+        chatRes: this.accountService.getMyChatReports(page),
       }).subscribe({
         next: ({ listingRes, chatRes }) => {
           const listingItems: UserReportItem[] = (listingRes.results || []).map(r => ({
@@ -295,6 +296,7 @@ export class ReportsComponent implements OnInit {
           this.reports = [];
           this.totalReports = 0;
           this.isLoading = false;
+          this.loadFailed = true;
           this.cdr.markForCheck();
         }
       });
@@ -319,6 +321,7 @@ export class ReportsComponent implements OnInit {
           this.reports = [];
           this.totalReports = 0;
           this.isLoading = false;
+          this.loadFailed = true;
           this.cdr.markForCheck();
         }
       });
@@ -343,6 +346,7 @@ export class ReportsComponent implements OnInit {
           this.reports = [];
           this.totalReports = 0;
           this.isLoading = false;
+          this.loadFailed = true;
           this.cdr.markForCheck();
         }
       });
