@@ -1,11 +1,13 @@
 import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import { HttpClient, HttpParams, HttpContext } from '@angular/common/http';
 import { Observable, of, shareReplay, switchMap, take, tap, catchError, throwError } from 'rxjs';
+import { Router } from '@angular/router';
 import { I18nService } from '../i18n.service';
-import { Lang } from '../i18n';
-import { AuthStore } from '../auth.store';
+import { Lang, SUPPORTED_LANGS } from '../i18n';
+import { AuthStore, AuthUser } from '../auth.store';
+import { RegionService } from '../region.service';
 import { SKIP_AUTH } from '../auth.interceptor';
-import { isSameRegion } from '../region-path';
+import { isSameRegion, stripRegionPrefix } from '../region-path';
 export interface ChatReportItem {
   id: string;
   conversation?: {
@@ -129,6 +131,8 @@ export class AccountService {
   private i18n = inject(I18nService);
 
   private authStore = inject(AuthStore);
+  private regionService = inject(RegionService);
+  private router = inject(Router);
 
   constructor() {
     // The AuthStore now manages the lifecycle of /auth/me/ — it fetches on
@@ -152,30 +156,112 @@ export class AccountService {
       }
     });
 
-    // Tell the backend which language the site is being used in, so the
-    // notification emails it sends on its own (a chat message while away, a
-    // book request listed overnight) can follow it. Only when it differs
-    // from what the profile says: a page load in an unchanged language sends
-    // nothing, while switching language, or signing in on a device set to
-    // another one, is reported once.
+    // The region and language follow the member between devices. A sign-in
+    // brings back the ones saved last (applySavedPrefs); otherwise each is
+    // reported whenever it differs from what the profile says, so a page
+    // load in unchanged settings sends nothing. The language is also what
+    // the notification emails sent while the member is away (a chat message,
+    // a book request listed overnight) are written in.
     effect(() => {
-      const lang = this.i18n.lang();
       const user = this.authStore.user();
-      if (!user || user.site_language === lang) return;
-      const reporting = `${user.id}:${lang}`;
-      if (this.siteLanguageReported === reporting) return;
-      this.siteLanguageReported = reporting;
-      untracked(() => this.http.put('/auth/me/site-language/', { language: lang }).subscribe({
-        next: () => this.authStore.updateUser(u => ({ ...u, site_language: lang })),
-        // Best effort; the next page load or language change tries again.
-        error: () => {
-          if (this.siteLanguageReported === reporting) this.siteLanguageReported = null;
-        },
-      }));
+      const lang = this.i18n.lang();
+      const region = this.regionService.region();
+      if (!user) return;
+      untracked(() => {
+        if (this.authStore.takeSignIn() && this.applySavedPrefs(user)) return;
+        if (this.applyingSavedPrefs) return;
+        this.reportLanguage(user, lang);
+        this.reportRegion(user, region);
+      });
     });
   }
 
   private siteLanguageReported: string | null = null;
+  private siteRegionReported: string | null = null;
+  /** While a sign-in's saved settings are being applied: reporting the
+   *  device's own in the meantime would overwrite them. */
+  private applyingSavedPrefs = false;
+
+  /**
+   * Switches to the language and region saved on the account, on signing in.
+   * The language when the region in view offers it; the region only when the
+   * sign-in is heading to the account or home page — a link to a page in
+   * another region keeps that page. True when something is being applied.
+   */
+  private applySavedPrefs(user: AuthUser): boolean {
+    const current = this.regionService.region();
+    const savedRegion = (user.site_region ?? '').toLowerCase();
+    const switchRegion = !!savedRegion && savedRegion !== current && this.signInLandsOnAccount();
+    const regionCode = switchRegion ? savedRegion : current;
+    const offered = this.regionService.regions().find(r => r.code.toLowerCase() === regionCode)?.languages;
+    const savedLang = user.site_language as Lang;
+    const switchLang = SUPPORTED_LANGS.includes(savedLang)
+      && savedLang !== this.i18n.lang()
+      && (!offered || offered.includes(savedLang));
+    if (!switchLang && !switchRegion) return false;
+
+    this.applyingSavedPrefs = true;
+    (async () => {
+      try {
+        if (switchLang) {
+          // A language the member chose: the device-language offer would
+          // only suggest switching straight back.
+          this.i18n.settleSuggestion();
+          await this.i18n.setLang(savedLang);
+        }
+        // Reloads into the region (RegionService.setRegion).
+        if (switchRegion) this.regionService.setRegion(savedRegion);
+      } finally {
+        this.applyingSavedPrefs = false;
+      }
+    })();
+    return true;
+  }
+
+  /** Whether the sign-in ends on the account page or home: where it is now,
+   *  or, still on the sign-in page, where its returnUrl leads. */
+  private signInLandsOnAccount(): boolean {
+    const pathOf = (url: string) =>
+      stripRegionPrefix(url).split(/[?#]/)[0].replace(/\/$/, '') || '/';
+    let path = pathOf(this.router.url);
+    if (path === '/login' || path === '/register') {
+      const returnUrl = this.router.parseUrl(this.router.url).queryParams['returnUrl'];
+      if (!returnUrl) return true;
+      path = pathOf(String(returnUrl));
+    }
+    return path === '/' || path === '/account' || path.startsWith('/account/');
+  }
+
+  private reportLanguage(user: AuthUser, lang: Lang) {
+    if (user.site_language === lang) return;
+    const reporting = `${user.id}:${lang}`;
+    if (this.siteLanguageReported === reporting) return;
+    this.siteLanguageReported = reporting;
+    this.http.put('/auth/me/site-language/', { language: lang }).subscribe({
+      next: () => this.authStore.updateUser(u => ({ ...u, site_language: lang })),
+      // Best effort; the next page load or language change tries again.
+      error: () => {
+        if (this.siteLanguageReported === reporting) this.siteLanguageReported = null;
+      },
+    });
+  }
+
+  /** Only a region the member has verified a school email in is saved:
+   *  where they trade, not wherever they happen to be browsing. */
+  private reportRegion(user: AuthUser, region: string) {
+    const code = region.toUpperCase();
+    if (!user.regions?.includes(code) || user.site_region === code) return;
+    const reporting = `${user.id}:${code}`;
+    if (this.siteRegionReported === reporting) return;
+    this.siteRegionReported = reporting;
+    this.http.put('/auth/me/site-region/', { region: code }).subscribe({
+      next: () => this.authStore.updateUser(u => ({ ...u, site_region: code })),
+      error: () => {
+        if (this.siteRegionReported === reporting) this.siteRegionReported = null;
+      },
+    });
+  }
+
 
   /**
    * `opts` narrows and orders the caller's own listings (the account's

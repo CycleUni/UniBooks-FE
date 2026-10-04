@@ -39,6 +39,11 @@ export interface AuthUser {
   verifications?: RegionVerification[];
   /** The language the site was last used in, as last reported. */
   site_language?: string;
+  /** The verified region the site was last used in ('TW'), or '' when none
+   *  is saved or its verification has ended. */
+  site_region?: string;
+  /** Codes of the regions the user has a verified school email in ('TW'). */
+  regions?: string[];
   [key: string]: unknown;
 }
 
@@ -278,6 +283,21 @@ export class AuthStore {
     this.profileRetryIndex = 0;
   }
 
+  /**
+   * Set by a sign-in — a password, Google, a confirmed registration — and
+   * taken by AccountService when the profile it brings arrives: that is when
+   * the saved region and language are applied. A page load that restores a
+   * session, or a token refresh, keeps the device's own.
+   */
+  private signInPending = false;
+
+  /** Whether the profile now in `user` came with a sign-in; true once. */
+  takeSignIn(): boolean {
+    const pending = this.signInPending;
+    this.signInPending = false;
+    return pending;
+  }
+
   setAuth(data: { access: string; refresh?: string }) {
     if (typeof localStorage !== 'undefined') {
       try {
@@ -341,6 +361,7 @@ export class AuthStore {
     this._isAuthenticated.set(false);
     this._user.set(null);
     this.fetchedForToken = null;
+    this.signInPending = false;
     // Clear GA4 user identity on logout
     this.ga.setUserId(null);
     this.ga.clearUserProperties();
@@ -468,6 +489,7 @@ export class AuthStore {
     return this.http.post<any>('/auth/token/', { email, password }).pipe(
       tap(response => {
         if (response.access && response.refresh) {
+          this.signInPending = true;
           this.setAuth(response);
           this.ga.trackLogin('Password');
         }
@@ -501,6 +523,7 @@ export class AuthStore {
     return this.http.post<any>('/auth/google/', { credential }).pipe(
       tap(response => {
         if (response.access && response.refresh) {
+          this.signInPending = true;
           this.setAuth(response);
           this.ga.trackLogin('Google');
         }
@@ -537,6 +560,7 @@ export class AuthStore {
     return this.http.post<any>('/auth/verify-registration/', { token }).pipe(
       tap(response => {
         if (response.access && response.refresh) {
+          this.signInPending = true;
           this.setAuth(response);
           this.ga.trackEvent('sign_up_verified');
         }

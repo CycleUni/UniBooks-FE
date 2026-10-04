@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, TestRequest, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 
 import { AccountService } from './account.service';
 import { AuthStore } from '../auth.store';
@@ -260,3 +260,124 @@ describe('AccountService site language reporting', () => {
   });
 });
 
+
+describe('AccountService saved region and language', () => {
+  let httpMock: HttpTestingController;
+  let store: AuthStore;
+  let router: Router;
+  let lang: ReturnType<typeof signal<string>>;
+  let region: ReturnType<typeof signal<string>>;
+  let setLang: ReturnType<typeof vi.fn>;
+  let setRegion: ReturnType<typeof vi.fn>;
+  const regionReports = () => httpMock.match(req => req.url === '/auth/me/site-region/');
+  const languageReports = () => httpMock.match(req => req.url === '/auth/me/site-language/');
+
+  /** The profile arriving, after a sign-in or (signIn false) a restored session. */
+  function profile(user: Record<string, unknown>, signIn = false) {
+    (store as any)._isAuthenticated.set(true);
+    if (signIn) (store as any).signInPending = true;
+    (store as any)._user.set({ id: 1, email: 'a@b.c', site_language: '', site_region: '', regions: [], ...user });
+    TestBed.tick();
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    lang = signal('zh-TW');
+    region = signal('tw');
+    setLang = vi.fn(async (l: string) => lang.set(l));
+    setRegion = vi.fn((r: string) => region.set(r));
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([{ path: '**', children: [] }]),
+        RegionLinkService,
+        {
+          provide: RegionService,
+          useValue: {
+            region,
+            regions: () => [
+              { code: 'TW', languages: ['zh-TW', 'en'] },
+              { code: 'HK', languages: ['zh-HK', 'en'] },
+            ],
+            setRegion,
+          },
+        },
+        { provide: I18nService, useValue: { lang, t: (k: string) => k, setLang, settleSuggestion: vi.fn() } },
+      ],
+    });
+    httpMock = TestBed.inject(HttpTestingController);
+    store = TestBed.inject(AuthStore);
+    router = TestBed.inject(Router);
+    TestBed.inject(AccountService);
+    TestBed.tick();
+  });
+
+  it('reports a region the member is verified in', () => {
+    profile({ site_language: 'zh-TW', regions: ['TW'] });
+
+    const [report] = regionReports();
+    expect(report.request.body).toEqual({ region: 'TW' });
+    report.flush(null, { status: 204, statusText: 'No Content' });
+    TestBed.tick();
+
+    expect(store.user()?.site_region).toBe('TW');
+    expect(regionReports()).toEqual([]);
+  });
+
+  it('does not report a region the member is not verified in', () => {
+    profile({ site_language: 'zh-TW', regions: ['HK'] });
+    expect(regionReports()).toEqual([]);
+  });
+
+  it('brings back the saved language and region on signing in', async () => {
+    await router.navigateByUrl('/tw/account');
+    profile({ site_language: 'en', site_region: 'HK', regions: ['TW', 'HK'] }, true);
+    await Promise.resolve();
+    TestBed.tick();
+
+    expect(setLang).toHaveBeenCalledWith('en');
+    expect(setRegion).toHaveBeenCalledWith('hk');
+    // What was just applied is what the account says: nothing to report,
+    // and above all not the device's own language before the switch.
+    expect(languageReports()).toEqual([]);
+    expect(regionReports()).toEqual([]);
+  });
+
+  it('keeps the region of the page a sign-in was heading to', async () => {
+    await router.navigateByUrl('/tw/login?returnUrl=%2Ftw%2Flisting%2F5');
+    profile({ site_language: 'en', site_region: 'HK', regions: ['TW', 'HK'] }, true);
+    await Promise.resolve();
+
+    expect(setLang).toHaveBeenCalledWith('en');
+    expect(setRegion).not.toHaveBeenCalled();
+  });
+
+  it('skips a saved language the region in view does not offer', async () => {
+    await router.navigateByUrl('/tw/listing/5');
+    profile({ site_language: 'zh-HK', site_region: 'HK', regions: ['HK'] }, true);
+    await Promise.resolve();
+
+    expect(setLang).not.toHaveBeenCalled();
+    expect(setRegion).not.toHaveBeenCalled();
+  });
+
+  it('leaves a restored session in the device\'s own settings', async () => {
+    await router.navigateByUrl('/tw/account');
+    profile({ site_language: 'en', site_region: 'HK', regions: ['TW', 'HK'] });
+
+    expect(setLang).not.toHaveBeenCalled();
+    expect(setRegion).not.toHaveBeenCalled();
+    expect(languageReports()[0].request.body).toEqual({ language: 'zh-TW' });
+    expect(regionReports()[0].request.body).toEqual({ region: 'TW' });
+  });
+
+  it('reports the device\'s settings on a sign-in with nothing saved', async () => {
+    await router.navigateByUrl('/tw/account');
+    profile({ regions: ['TW'] }, true);
+
+    expect(setLang).not.toHaveBeenCalled();
+    expect(languageReports()[0].request.body).toEqual({ language: 'zh-TW' });
+    expect(regionReports()[0].request.body).toEqual({ region: 'TW' });
+  });
+});
