@@ -104,63 +104,6 @@ import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
       color: var(--ink-soft);
       max-width: 60ch;
     }
-
-    /* A native checkbox with role="switch", so keyboard, focus and screen
-       readers behave as they do for any form control; only its look changes. */
-    .switch {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      flex-shrink: 0;
-      min-height: var(--tap-min);
-      cursor: pointer;
-    }
-    .switch input {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      opacity: 0;
-      cursor: inherit;
-    }
-    .switch input:disabled {
-      cursor: progress;
-    }
-    .switch-track {
-      width: 40px;
-      height: 22px;
-      border-radius: 11px;
-      background: var(--line-strong);
-      display: inline-flex;
-      align-items: center;
-      padding: 2px;
-      box-sizing: border-box;
-      transition: background-color 0.15s ease;
-    }
-    .switch-thumb {
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: var(--paper);
-      transition: transform 0.15s ease;
-    }
-    .switch input:checked + .switch-track {
-      background: var(--accent);
-    }
-    .switch input:checked + .switch-track .switch-thumb {
-      transform: translateX(18px);
-    }
-    .switch input:disabled + .switch-track {
-      opacity: 0.6;
-    }
-    .switch input:focus-visible + .switch-track {
-      outline: 2px solid var(--accent);
-      outline-offset: 2px;
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .switch-track, .switch-thumb { transition: none; }
-    }
   `]
 })
 export class NotificationsComponent implements OnInit {

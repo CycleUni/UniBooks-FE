@@ -231,6 +231,11 @@ export const zhTW: Record<string, string> = {
   // Settings / Account
   'acct.defaultUser': '學生會員',
   'acct.avatarAlt': '大頭貼',
+  'acct.showAvatar': '公開顯示 Google 大頭貼',
+  'acct.showAvatarDesc': '關閉後，其他人在你的賣家頁面、刊登、訊息和訂單中只會看到你名字的第一個字，不會看到大頭貼。你自己仍然看得到。',
+  'acct.avatarShown': '其他人現在看得到你的大頭貼',
+  'acct.avatarHidden': '已對其他人隱藏你的大頭貼',
+  'acct.showAvatarSaveFailed': '無法更新大頭貼設定，請稍後再試。',
   'acct.avatarFallback': '學',
   'acct.noSchool': '尚未設定學校',
   'acct.statActive': '{n} 上架中',

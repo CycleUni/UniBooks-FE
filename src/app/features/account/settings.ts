@@ -49,6 +49,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
   verifyIsError = false;
   settingsIsError = false;
   isGoogleLinked = false;
+  avatarUrl = '';
+  /** Whether other users see the avatar; the owner always does. */
+  showAvatar = true;
+  savingShowAvatar = false;
 
   oldPassword = '';
   newPassword = '';
@@ -234,6 +238,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.verifications = data.verifications || [];
         this.hasPassword = data.has_password ?? true;
         this.isGoogleLinked = data.is_google_linked ?? false;
+        this.avatarUrl = data.avatar_url || '';
+        this.showAvatar = data.show_avatar ?? true;
         this.pendingEmail = data.pending_email ?? null;
         this.restorePendingVerificationState();
         if (this.verifications.length > 0) {
@@ -408,6 +414,34 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.isLoading = false;
         this.settingsIsError = true;
         this.lastSettingsError = err;
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  setShowAvatar(input: HTMLInputElement) {
+    const enabled = input.checked;
+    if (enabled === this.showAvatar) return;
+
+    // Move the switch straight away; put it back if the save fails, so it
+    // never claims a setting the server does not have.
+    const previous = this.showAvatar;
+    this.showAvatar = enabled;
+    this.savingShowAvatar = true;
+    this.cdr.markForCheck();
+
+    this.accountService.updateProfile({ show_avatar: enabled }).subscribe({
+      next: () => {
+        this.savingShowAvatar = false;
+        this.toast.success(this.i18n.t(enabled ? 'acct.avatarShown' : 'acct.avatarHidden'));
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.showAvatar = previous;
+        // [checked] may see no change to undo, so move the box back directly.
+        input.checked = previous;
+        this.savingShowAvatar = false;
+        this.toast.error(parseApiError(err, this.i18n, 'acct.showAvatarSaveFailed'));
         this.cdr.markForCheck();
       }
     });

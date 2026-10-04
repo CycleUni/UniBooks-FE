@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { SettingsComponent } from './settings';
 import { RegionService } from '../../core/region.service';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
@@ -161,6 +161,41 @@ describe('SettingsComponent', () => {
       component.onCancelEmailChange();
 
       expect(component.pendingEmail).toBeNull();
+    });
+  });
+
+  describe('hiding the Google avatar', () => {
+    function switchInput(checked: boolean) {
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = checked;
+      return input;
+    }
+
+    it('saves the new setting', () => {
+      const updateProfile = vi.fn(() => of({ id: 1, show_avatar: false }));
+      (component as any).accountService = { updateProfile };
+      (component as any).toast = { success: vi.fn(), error: vi.fn() };
+      component.showAvatar = true;
+
+      component.setShowAvatar(switchInput(false));
+
+      expect(updateProfile).toHaveBeenCalledWith({ show_avatar: false });
+      expect(component.showAvatar).toBe(false);
+      expect(component.savingShowAvatar).toBe(false);
+    });
+
+    it('moves the switch back when the save fails', () => {
+      (component as any).accountService = { updateProfile: () => throwError(() => ({ status: 500 })) };
+      (component as any).toast = { success: vi.fn(), error: vi.fn() };
+      component.showAvatar = true;
+      const input = switchInput(false);
+
+      component.setShowAvatar(input);
+
+      expect(component.showAvatar).toBe(true);
+      expect(input.checked).toBe(true);
+      expect(component.savingShowAvatar).toBe(false);
     });
   });
 });

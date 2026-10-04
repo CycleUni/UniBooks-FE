@@ -32,6 +32,7 @@ export interface AuthUser {
   no_show_count?: number;
   has_password?: boolean;
   avatar_url?: string;
+  show_avatar?: boolean;
   is_google_linked?: boolean;
   is_staff?: boolean;
   is_superuser?: boolean;

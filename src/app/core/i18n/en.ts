@@ -234,6 +234,11 @@ export const en: Record<string, string> = {
   // Settings / Account
   'acct.defaultUser': 'Student',
   'acct.avatarAlt': 'avatar',
+  'acct.showAvatar': 'Show my Google profile photo',
+  'acct.showAvatarDesc': 'When off, other people see the first letter of your name instead of your photo on your seller page, listings, messages and orders. You still see it.',
+  'acct.avatarShown': 'Your profile photo is now visible to others',
+  'acct.avatarHidden': 'Your profile photo is now hidden from others',
+  'acct.showAvatarSaveFailed': "Couldn't update your profile photo setting. Please try again.",
   'acct.avatarFallback': 'S',
   'acct.noSchool': 'School not set',
   'acct.statActive': '{n} active',

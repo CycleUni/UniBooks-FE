@@ -93,6 +93,8 @@ export interface UserProfile {
   no_show_count?: number;
   has_password?: boolean;
   avatar_url?: string;
+  /** Whether other users see avatar_url; the owner always gets it. */
+  show_avatar?: boolean;
   is_google_linked?: boolean;
   is_staff?: boolean;
   is_superuser?: boolean;
@@ -298,7 +300,7 @@ export class AccountService {
     this.cacheTimestamp = 0;
   }
 
-  updateProfile(data: { first_name?: string, last_name?: string, email?: string, last_seen_bought_orders_at?: string, last_seen_sold_orders_at?: string }): Observable<any> {
+  updateProfile(data: { first_name?: string, last_name?: string, email?: string, show_avatar?: boolean, last_seen_bought_orders_at?: string, last_seen_sold_orders_at?: string }): Observable<any> {
     return this.http.patch<any>('/auth/me/', data).pipe(
       tap(profile => {
         // A request to change the sign-in email answers with the pending

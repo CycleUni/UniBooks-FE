@@ -231,6 +231,11 @@ export const zhHK: Record<string, string> = {
   // Settings / Account
   'acct.defaultUser': '學生會員',
   'acct.avatarAlt': '頭像',
+  'acct.showAvatar': '公開顯示 Google 頭像',
+  'acct.showAvatarDesc': '關咗之後，其他人喺你嘅賣家頁面、刊登、訊息同訂單度只會見到你個名嘅第一個字，唔會見到頭像。你自己仲係睇到。',
+  'acct.avatarShown': '而家其他人睇到你嘅頭像',
+  'acct.avatarHidden': '已經對其他人隱藏你嘅頭像',
+  'acct.showAvatarSaveFailed': '更新唔到頭像設定，請遲啲再試。',
   'acct.avatarFallback': '學',
   'acct.noSchool': '尚未設定學校',
   'acct.statActive': '{n} 上架中',
