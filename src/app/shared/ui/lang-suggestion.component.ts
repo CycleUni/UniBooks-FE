@@ -94,6 +94,23 @@ const CRAWLER_UA = /bot|crawl|spider|slurp|lighthouse|headless/i;
         flex-wrap: wrap;
         gap: var(--space-2);
       }
+      /* Phones: the buttons wrap under the question, so the banner needs room
+         around and between its two rows, and the buttons share the full width
+         instead of huddling at the left. */
+      @media (max-width: 600px) {
+        .lang-suggestion-inner {
+          gap: var(--space-3);
+          padding-block: var(--space-4);
+        }
+        .lang-suggestion-actions {
+          flex: 1 1 100%;
+          gap: var(--space-3);
+        }
+        .lang-suggestion-actions ui-button {
+          flex: 1 1 0;
+          min-width: 0;
+        }
+      }
     `,
   ],
 })
