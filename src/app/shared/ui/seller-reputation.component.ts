@@ -12,6 +12,8 @@ import { TPipe } from '../../core/i18n.service';
  *
  * A seller nobody has reviewed yet reads "New seller", never "0 ★" — a zero
  * rating says *bad seller*, and that is not what an empty history means.
+ * "New seller" is only for a seller with no sales either: one who has sold
+ * but not been reviewed reads "N sales · No reviews yet".
  */
 @Component({
   selector: 'ui-seller-reputation',
@@ -21,49 +23,58 @@ import { TPipe } from '../../core/i18n.service';
     <span class="reputation" *ngIf="reviews > 0 && rating != null; else newSeller">
       <!-- A bare "★ 4.5" is read aloud as "black star four point five". -->
       <span class="stars" aria-hidden="true">★ {{ ratingText }}</span>
-      <span class="sr-only">{{ 'seller.ratingAria' | t:{rating: ratingText} }}</span>
+      <span class="sr-only">{{ 'seller.ratingAria' | t: { rating: ratingText } }}</span>
       <span class="sep" aria-hidden="true">·</span>
-      <span>{{ (reviews === 1 ? 'seller.reviewCountOne' : 'seller.reviewCount') | t:{n: reviews} }}</span>
+      <span>{{
+        (reviews === 1 ? 'seller.reviewCountOne' : 'seller.reviewCount') | t: { n: reviews }
+      }}</span>
       <ng-container *ngIf="sold > 0">
         <span class="sep" aria-hidden="true">·</span>
-        <span>{{ (sold === 1 ? 'seller.salesCountOne' : 'seller.salesCount') | t:{n: sold} }}</span>
+        <span>{{
+          (sold === 1 ? 'seller.salesCountOne' : 'seller.salesCount') | t: { n: sold }
+        }}</span>
       </ng-container>
     </span>
     <ng-template #newSeller>
-      <span class="reputation new-seller">
-        <span>{{ 'seller.newSeller' | t }}</span>
-        <ng-container *ngIf="sold > 0">
-          <span class="sep" aria-hidden="true">·</span>
-          <span>{{ (sold === 1 ? 'seller.salesCountOne' : 'seller.salesCount') | t:{n: sold} }}</span>
-        </ng-container>
+      <span class="reputation unreviewed" *ngIf="sold > 0; else noHistory">
+        <span>{{
+          (sold === 1 ? 'seller.salesCountOne' : 'seller.salesCount') | t: { n: sold }
+        }}</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span>{{ 'seller.noReviews' | t }}</span>
       </span>
     </ng-template>
+    <ng-template #noHistory>
+      <span class="reputation new-seller">{{ 'seller.newSeller' | t }}</span>
+    </ng-template>
   `,
-  styles: [`
-    :host {
-      display: inline;
-    }
-    .reputation {
-      font-size: var(--text-sm);
-      color: var(--muted);
-    }
-    .stars {
-      color: var(--ink);
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-    }
-    .sep {
-      margin: 0 4px;
-    }
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
-      white-space: nowrap;
-    }
-  `]
+  styles: [
+    `
+      :host {
+        display: inline;
+      }
+      .reputation {
+        font-size: var(--text-sm);
+        color: var(--muted);
+      }
+      .stars {
+        color: var(--ink);
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .sep {
+        margin: 0 4px;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+    `,
+  ],
 })
 export class UiSellerReputation {
   /** Average rating, or null for a seller with no rated reviews yet. */
@@ -73,8 +84,14 @@ export class UiSellerReputation {
 
   // Cached listing payloads from before these fields existed carry none of
   // them; treat that exactly like a seller with no history.
-  get reviews(): number { return this.reviewCount ?? 0; }
-  get sold(): number { return this.sales ?? 0; }
+  get reviews(): number {
+    return this.reviewCount ?? 0;
+  }
+  get sold(): number {
+    return this.sales ?? 0;
+  }
   /** Always one decimal, so 4 and 4.0 do not render as different ratings. */
-  get ratingText(): string { return (this.rating ?? 0).toFixed(1); }
+  get ratingText(): string {
+    return (this.rating ?? 0).toFixed(1);
+  }
 }
