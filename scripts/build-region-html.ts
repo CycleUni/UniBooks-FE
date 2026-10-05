@@ -377,6 +377,7 @@ function updateServiceWorkerHash(html: string): void {
  *
  * Desired order in the final file:
  *   /index.html  /  200          ← already in source file (must stay first)
+ *   /<region>  /<region>/  200   ← injected, one per region
  *   /<region>/<page>  /<region>/<page>  200    ← injected, one per page and region
  *   /<region>/*  /<region>/app-shell  200      ← injected, one per region
  *   /*  /index.html  200         ← SPA fallback (must stay last)
@@ -384,6 +385,11 @@ function updateServiceWorkerHash(html: string): void {
  * A page's rule rewrites it to itself: without it the region's /* rule would
  * answer the page with the shell, as Pages applies it ahead of an HTML file
  * matched by its pretty URL (a non-HTML file, like robots.txt, wins anyway).
+ *
+ * The region home's rule serves /tw as /tw/. Pages otherwise 308s /tw to the
+ * directory index, and the router writes the address back as /tw once the
+ * app is up, so the URL a visitor copies and shares always paid that redirect.
+ * Canonical and hreflang keep naming /tw/ (see regionUrl).
  */
 function injectRedirects(regions: string[]): void {
   if (!fs.existsSync(REDIRECTS_PATH)) {
@@ -394,11 +400,12 @@ function injectRedirects(regions: string[]): void {
 
   // Strip any previously injected region rules to ensure idempotency.
   const stripped = original.replace(
-    /^\/[a-z0-9-]+\/\S*\s+\/[a-z0-9-]+\/\S*\s+200\n?/gmi,
+    /^\/[a-z0-9-]+(\/\S*)?\s+\/[a-z0-9-]+\/\S*\s+200\n?/gmi,
     '',
   );
 
   const regionLines = [
+    ...regions.map((r) => `/${r}  /${r}/  200`),
     ...regions.flatMap((r) => SITEMAP_PAGES.map((page) => `/${r}${page || '/'}  /${r}${page || '/'}  200`)),
     ...regions.map((r) => `/${r}/*  /${r}/${SHELL_PAGE}  200`),
   ].join('\n');
