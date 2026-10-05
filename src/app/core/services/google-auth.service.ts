@@ -24,6 +24,8 @@ export class GoogleAuthService {
   private isInitializing = false;
   private isGoogleInitialized = false;
   private loadedLang = '';
+  /** Set once the Google button is pressed; see setupGoogle(). */
+  private buttonPressed = false;
 
   constructor() {
     effect(() => {
@@ -118,22 +120,43 @@ export class GoogleAuthService {
     this.loadGoogleScript().then(() => {
       if ((window as any).google && this.googleClientId) {
         if (!this.isGoogleInitialized) {
-          (window as any).google.accounts.id.initialize({
-            client_id: this.googleClientId,
-            callback: (window as any).handleGoogleCredential,
-            cancel_on_tap_outside: false
-          });
+          (window as any).google.accounts.id.initialize(this.initOptions());
           this.isGoogleInitialized = true;
         }
         
-        // Show One Tap prompt
-        (window as any).google.accounts.id.prompt();
+        // Show One Tap prompt — unless the button was pressed while the script
+        // loaded. Under FedCM the browser runs one sign-in dialog at a time, and
+        // a prompt arriving late cancelled the account chooser the button had
+        // just opened.
+        if (!this.buttonPressed) {
+          (window as any).google.accounts.id.prompt();
+        }
       }
       this.isInitializing = false;
     }).catch(err => {
       console.error('Failed to load Google SDK', err);
       this.isInitializing = false;
     });
+  }
+
+  // Whichever of setupGoogle / loadAndRenderButton runs first initializes
+  // GIS, and GIS keeps that first configuration, so both share one set of
+  // options. use_fedcm_for_prompt shows One Tap as the browser's own FedCM
+  // dialog ("Sign in to … with google.com") instead of Google's iframe, which
+  // keeps working once third-party cookies are gone; use_fedcm_for_button
+  // does the same for the "Continue with Google" button, which opens the
+  // browser's account chooser in place of Google's popup window. Browsers
+  // without FedCM fall back to the iframe and the popup. Under FedCM the
+  // browser owns the dialog, so cancel_on_tap_outside only affects that
+  // fallback.
+  private initOptions() {
+    return {
+      client_id: this.googleClientId,
+      callback: (window as any).handleGoogleCredential,
+      cancel_on_tap_outside: false,
+      use_fedcm_for_prompt: true,
+      use_fedcm_for_button: true
+    };
   }
 
   public renderButton(elementId: string) {
@@ -167,10 +190,7 @@ export class GoogleAuthService {
     this.loadGoogleScript().then(() => {
       if ((window as any).google && this.googleClientId) {
         if (!this.isGoogleInitialized) {
-          (window as any).google.accounts.id.initialize({
-            client_id: this.googleClientId,
-            callback: (window as any).handleGoogleCredential
-          });
+          (window as any).google.accounts.id.initialize(this.initOptions());
           this.isGoogleInitialized = true;
         }
         const container = document.getElementById(elementId);
@@ -184,7 +204,10 @@ export class GoogleAuthService {
 
           (window as any).google.accounts.id.renderButton(
             container,
-            { theme: btnTheme, size: 'large', type: 'standard', text: 'continue_with', locale: langCode, width: targetWidth }
+            {
+              theme: btnTheme, size: 'large', type: 'standard', text: 'continue_with', locale: langCode, width: targetWidth,
+              click_listener: () => { this.buttonPressed = true; }
+            }
           );
         }
       }
