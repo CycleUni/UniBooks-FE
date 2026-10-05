@@ -11,7 +11,8 @@ const envConfigFile = `
 export const environment = {
   production: false,
   backendUrl: '${process.env.NG_APP_BACKEND_URL || 'http://127.0.0.1:8000/api/v1'}',
-  gaMeasurementId: '${process.env.NG_APP_GA_MEASUREMENT_ID || ''}'
+  gaMeasurementId: '${process.env.NG_APP_GA_MEASUREMENT_ID || ''}',
+  googleClientId: '${process.env.GOOGLE_CLIENT_ID || ''}'
 };
 `;
 
@@ -19,7 +20,8 @@ const prodConfigFile = `
 export const environment = {
   production: true,
   backendUrl: '${process.env.NG_APP_BACKEND_URL || 'http://127.0.0.1:8000/api/v1'}',
-  gaMeasurementId: '${process.env.NG_APP_GA_MEASUREMENT_ID || ''}'
+  gaMeasurementId: '${process.env.NG_APP_GA_MEASUREMENT_ID || ''}',
+  googleClientId: '${process.env.GOOGLE_CLIENT_ID || ''}'
 };
 `;
 
@@ -65,7 +67,7 @@ if (process.env.NG_APP_ALLOWED_HOSTS) {
 // is — a deploy that does not opt in keeps working, with every other security
 // header intact.
 //
-// EDGE_CHAT_URL and R2_PUBLIC_URL deliberately carry no NG_APP_ prefix: they
+// EDGE_CHAT_URL, R2_PUBLIC_URL and GOOGLE_CLIENT_ID deliberately carry no NG_APP_ prefix: they
 // are the same values, in the same format, that Django is already configured
 // with, so a whole KEY=VALUE line can be copied between the two dashboards
 // rather than retyped under a second name. The prefix is kept only for

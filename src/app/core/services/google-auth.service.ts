@@ -6,6 +6,7 @@ import { ThemeService } from './theme.service';
 import { ToastService } from './toast.service';
 import { parseApiError } from '../api-error.util';
 import { whenPageSettled } from '../page-settled';
+import { environment } from '../../../environments/environment';
 
 
 @Injectable({
@@ -19,7 +20,9 @@ export class GoogleAuthService {
   private platformId = inject(PLATFORM_ID);
   private appRef = inject(ApplicationRef);
   
-  private googleClientId = '';
+  // Baked in at build time (GOOGLE_CLIENT_ID) so One Tap need not ask the
+  // backend for it first; a build without it fetches it from /auth/config/.
+  private googleClientId = environment.googleClientId || '';
   private isScriptLoaded = false;
   private isInitializing = false;
   private isGoogleInitialized = false;
