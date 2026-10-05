@@ -1,7 +1,7 @@
-import { Injectable, PLATFORM_ID, inject } from '@angular/core';
+import { Injectable, NgZone, PLATFORM_ID, inject } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { PreloadingStrategy, Route } from '@angular/router';
-import { Observable, of, timer } from 'rxjs';
+import { Observable, of } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 
 /**
@@ -19,6 +19,7 @@ import { switchMap } from 'rxjs/operators';
 @Injectable({ providedIn: 'root' })
 export class IdlePreloadingStrategy implements PreloadingStrategy {
   private platformId = inject(PLATFORM_ID);
+  private zone = inject(NgZone);
 
   /** How long after start-up before preloading may begin, at the earliest. */
   static readonly START_DELAY_MS = 2000;
@@ -27,9 +28,27 @@ export class IdlePreloadingStrategy implements PreloadingStrategy {
     if (!route.data?.['preload'] || !isPlatformBrowser(this.platformId) || !preloadAllowed()) {
       return of(null);
     }
-    return timer(IdlePreloadingStrategy.START_DELAY_MS).pipe(
+    return this.startDelay().pipe(
       switchMap(() => whenIdle()),
       switchMap(() => load()),
+    );
+  }
+
+  /**
+   * START_DELAY_MS, timed outside the zone. Inside it the pending timer kept
+   * the app from reporting stable until it fired, and One Tap and analytics
+   * (whenPageSettled) wait for stable — so every page load held them back by
+   * the full delay.
+   */
+  private startDelay(): Observable<void> {
+    return new Observable<void>(subscriber =>
+      this.zone.runOutsideAngular(() => {
+        const handle = setTimeout(
+          () => this.zone.run(() => { subscriber.next(); subscriber.complete(); }),
+          IdlePreloadingStrategy.START_DELAY_MS,
+        );
+        return () => clearTimeout(handle);
+      })
     );
   }
 }

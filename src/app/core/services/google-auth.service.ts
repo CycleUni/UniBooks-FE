@@ -24,6 +24,8 @@ export class GoogleAuthService {
   private isInitializing = false;
   private isGoogleInitialized = false;
   private loadedLang = '';
+  /** The script load in flight, so overlapping callers share it. */
+  private scriptLoading: { lang: string; promise: Promise<void> } | null = null;
   /** Set once the Google button is pressed; see setupGoogle(). */
   private buttonPressed = false;
 
@@ -56,8 +58,13 @@ export class GoogleAuthService {
     if (this.isScriptLoaded && (window as any).google && this.loadedLang === currentLang) {
       return Promise.resolve();
     }
-    
-    return new Promise((resolve, reject) => {
+    // Started early alongside the auth config (see initializeGoogleAuth); a
+    // second call while that load runs must not tear its script out.
+    if (this.scriptLoading?.lang === currentLang) {
+      return this.scriptLoading.promise;
+    }
+
+    const promise = new Promise<void>((resolve, reject) => {
       const existingScript = document.getElementById('google-jssdk');
       if (existingScript) {
         existingScript.remove();
@@ -80,6 +87,12 @@ export class GoogleAuthService {
       script.onerror = (e) => reject(e);
       document.head.appendChild(script);
     });
+    this.scriptLoading = { lang: currentLang, promise };
+    promise.then(
+      () => { if (this.scriptLoading?.promise === promise) this.scriptLoading = null; },
+      () => { if (this.scriptLoading?.promise === promise) this.scriptLoading = null; }
+    );
+    return promise;
   }
 
   public initializeGoogleAuth() {
@@ -97,6 +110,9 @@ export class GoogleAuthService {
     (window as any).handleGoogleCredential = (response: any) => this.handleGoogleCredential(response);
 
     if (!this.googleClientId) {
+      // Google's script does not need the client ID, so fetch both at once
+      // rather than one after the other; setupGoogle picks up this load.
+      this.loadGoogleScript().catch(() => {});
       this.authStore.getAuthConfig().subscribe({
         next: (config) => {
           if (config && config.google_client_id) {

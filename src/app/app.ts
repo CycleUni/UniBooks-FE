@@ -1,4 +1,4 @@
-import { Component, inject, signal, PLATFORM_ID, DestroyRef } from '@angular/core';
+import { Component, inject, signal, PLATFORM_ID, DestroyRef, NgZone } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { RouterOutlet, Router, NavigationEnd, NavigationError } from '@angular/router';
 import { TPipe } from './core/i18n.service';
@@ -105,6 +105,7 @@ export class App {
   private swUpdate = inject(SwUpdate);
   private destroyRef = inject(DestroyRef);
   private platformId = inject(PLATFORM_ID);
+  private zone = inject(NgZone);
 
   private router = inject(Router);
 
@@ -169,11 +170,15 @@ export class App {
         });
 
       // 1. Periodic update check: periodically poll for new versions while running.
-      interval(UPDATE_CHECK_INTERVAL_MS)
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe(() => {
-          this.checkForUpdate();
-        });
+      // The timer runs outside the zone: a pending interval inside it kept the
+      // app from ever reporting stable, so everything waiting on that — One Tap
+      // and analytics (whenPageSettled), the worker's registerWhenStable — sat
+      // out its full timeout on every page load.
+      this.zone.runOutsideAngular(() =>
+        interval(UPDATE_CHECK_INTERVAL_MS)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe(() => this.zone.run(() => this.checkForUpdate()))
+      );
 
       // 2. Visibility / resume check: check for updates when a background tab or PWA becomes visible again.
       if (isPlatformBrowser(this.platformId) && typeof document !== 'undefined') {

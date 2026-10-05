@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { PLATFORM_ID } from '@angular/core';
+import { NgZone, PLATFORM_ID } from '@angular/core';
 import { of } from 'rxjs';
 import { IdlePreloadingStrategy, preloadAllowed } from './idle-preloading.strategy';
 
@@ -21,6 +21,14 @@ describe('IdlePreloadingStrategy', () => {
 
     await vi.advanceTimersByTimeAsync(IdlePreloadingStrategy.START_DELAY_MS + 5000);
     expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  // A delay timed inside the zone kept the app from reporting stable, which
+  // held back everything waiting on stable (One Tap, analytics).
+  it('times the start-up delay outside the zone', () => {
+    const outside = vi.spyOn(TestBed.inject(NgZone), 'runOutsideAngular');
+    strategy.preload({ path: 'search', data: { preload: true } }, () => of('loaded')).subscribe();
+    expect(outside).toHaveBeenCalled();
   });
 
   it('never loads an unmarked route, such as the admin console', async () => {

@@ -1,4 +1,4 @@
-import { ApplicationRef } from '@angular/core';
+import { ApplicationRef, NgZone } from '@angular/core';
 
 /**
  * Resolves once the opening page is up and the browser has a moment to spare:
@@ -10,12 +10,15 @@ import { ApplicationRef } from '@angular/core';
  * the app's main bundle.
  *
  * Capped at MAX_WAIT_MS in case the app never reports stable (a request that
- * never ends), and shared, so every caller waits on the same moment.
+ * never ends), and shared, so every caller waits on the same moment. The cap's
+ * timer runs outside the zone: inside it, the timer was itself a pending task
+ * that kept the app from reporting stable, so every wait ran the full cap.
  */
 export function whenPageSettled(appRef: ApplicationRef): Promise<void> {
   let settled = SETTLED.get(appRef);
   if (!settled) {
-    settled = Promise.race([appRef.whenStable(), delay(MAX_WAIT_MS)]).then(whenIdle);
+    const cap = appRef.injector.get(NgZone).runOutsideAngular(() => delay(MAX_WAIT_MS));
+    settled = Promise.race([appRef.whenStable(), cap]).then(whenIdle);
     SETTLED.set(appRef, settled);
   }
   return settled;

@@ -1,8 +1,11 @@
 import { ApplicationRef } from '@angular/core';
 import { MAX_WAIT_MS, whenPageSettled } from './page-settled';
 
+const runOutsideAngular = vi.fn((fn: () => unknown) => fn());
+
 function fakeAppRef(stable: Promise<void>): ApplicationRef {
-  return { whenStable: () => stable } as unknown as ApplicationRef;
+  const zone = { runOutsideAngular };
+  return { whenStable: () => stable, injector: { get: () => zone } } as unknown as ApplicationRef;
 }
 
 describe('whenPageSettled', () => {
@@ -28,6 +31,14 @@ describe('whenPageSettled', () => {
 
     await vi.advanceTimersByTimeAsync(MAX_WAIT_MS + 3000);
     expect(settled).toHaveBeenCalledTimes(1);
+  });
+
+  // Inside the zone the cap's own timer counted as pending work, so the app
+  // could not report stable before the cap ran out.
+  it('starts the cap outside the zone', () => {
+    runOutsideAngular.mockClear();
+    whenPageSettled(fakeAppRef(new Promise(() => {})));
+    expect(runOutsideAngular).toHaveBeenCalledTimes(1);
   });
 
   it('hands every caller the same moment', () => {
