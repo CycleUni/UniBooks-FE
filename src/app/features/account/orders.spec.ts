@@ -319,3 +319,41 @@ describe('OrdersComponent platform cancels', () => {
     expect(component.platformCancelReason(order({ status: 'completed', cancel_reason: 'admin_override: x' }))).toBe('');
   });
 });
+
+describe('OrdersComponent search', () => {
+  let component: OrdersComponent;
+  const order = {
+    id: 'a1b2c3d4-0000', listing: 'l1', status: 'completed', buyer: 'u2', seller: 'u1',
+    listing_title: 'Principles of Economics', book_authors: 'N. Gregory Mankiw',
+    book_isbn: '9781305585126', seller_name: 'Alice Chen', buyer_name: 'Bob Lin',
+  };
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [OrdersComponent, HttpClientTestingModule, RouterTestingModule],
+    });
+    component = TestBed.createComponent(OrdersComponent).componentInstance;
+    component.boughtOrders = [{ ...order }];
+    component.soldOrders = [{ ...order }];
+  });
+
+  const found = (q: string) => {
+    component.searchQuery = q;
+    return component.filteredBoughtOrders.length;
+  };
+
+  it('matches number, title, author and ISBN as printed', () => {
+    expect(found('#a1b2')).toBe(1);
+    expect(found('economics')).toBe(1);
+    expect(found('mankiw')).toBe(1);
+    expect(found('978-1-305-58512-6')).toBe(1);
+    expect(found('calculus')).toBe(0);
+  });
+
+  it('matches the other party: the seller when buying, the buyer when selling', () => {
+    expect(found('alice')).toBe(1);
+    expect(found('bob')).toBe(0);
+    component.searchQuery = 'bob';
+    expect(component.filteredSoldOrders.length).toBe(1);
+  });
+});

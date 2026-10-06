@@ -17,6 +17,8 @@ export interface Order {
   /** The chat this order was arranged in; null if the viewer deleted it. */
   conversation_id?: string | null;
   listing_title?: string;
+  /** The book's authors, for searching; null once the listing is deleted. */
+  book_authors?: string | null;
   /** Null once the seller deletes the listing; the order keeps its snapshot. */
   listing: string | null;
   listing_ref?: string;

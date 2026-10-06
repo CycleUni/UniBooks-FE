@@ -434,22 +434,27 @@ export class OrdersComponent implements OnInit {
   private ga = inject(GoogleAnalyticsService);
 
   get filteredBoughtOrders() {
-    if (!this.searchQuery) return this.boughtOrders;
-    const rawQ = this.searchQuery.toLowerCase().trim();
-    const cleanQ = rawQ.replace(/^#/, '').trim();
-    return this.boughtOrders.filter(o => 
-      (o.listing_title && o.listing_title.toLowerCase().includes(rawQ)) ||
-      (o.id && String(o.id).includes(cleanQ))
-    );
+    return this.searchOrders(this.boughtOrders, o => o.seller_name);
   }
 
   get filteredSoldOrders() {
-    if (!this.searchQuery) return this.soldOrders;
-    const rawQ = this.searchQuery.toLowerCase().trim();
-    const cleanQ = rawQ.replace(/^#/, '').trim();
-    return this.soldOrders.filter(o => 
-      (o.listing_title && o.listing_title.toLowerCase().includes(rawQ)) ||
-      (o.id && String(o.id).includes(cleanQ))
+    return this.searchOrders(this.soldOrders, o => o.buyer_name);
+  }
+
+  /**
+   * Orders matching the search box: by number, book title, authors, ISBN
+   * (as printed, hyphens and all) or the other party's name.
+   */
+  private searchOrders(orders: Order[], otherParty: (o: Order) => string | undefined): Order[] {
+    const q = this.searchQuery.toLowerCase().trim();
+    if (!q) return orders;
+    const ref = q.replace(/^#/, '').trim();
+    const digits = q.replace(/[-\s]/g, '');
+    const has = (text: string | null | undefined) => !!text && text.toLowerCase().includes(q);
+    return orders.filter(o =>
+      has(o.listing_title) || has(o.book_authors) || has(otherParty(o))
+      || (!!ref && !!o.id && String(o.id).includes(ref))
+      || (!!digits && !!o.book_isbn && o.book_isbn.includes(digits))
     );
   }
 

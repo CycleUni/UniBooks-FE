@@ -77,7 +77,7 @@ import { UiButton } from '../../shared/ui/button.component';
           <td>{{ getRegionName(listing.region) }}</td>
           <td>{{ listing.book?.title }}</td>
           <td>{{ listing.seller?.email }}</td>
-          <td>{{ listing.school?.name }}</td>
+          <td>{{ listing.school?.display_name || listing.school?.name }}</td>
           <td>{{ listing.price | price: listing.currency }}</td>
           <td>
             <span class="admin-status-badge">{{ ('admin.listingStatus.' + listing.status) | t }}</span>

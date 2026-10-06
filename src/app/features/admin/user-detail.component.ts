@@ -17,7 +17,8 @@ import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { UiErrorState } from '../../shared/ui/error-state.component';
 import { UiButton } from '../../shared/ui/button.component';
 import { UiCheckbox } from '../../shared/ui/checkbox.component';
-import { UiDropdown } from '../../shared/ui/dropdown.component';
+import { DropdownOption, UiDropdown } from '../../shared/ui/dropdown.component';
+import { schoolKeywords } from '../../core/school-search';
 
 @Component({
   selector: 'app-admin-user-detail',
@@ -134,7 +135,7 @@ export class AdminUserDetailComponent implements OnInit {
   savedMsg = '';
 
   isActive = false;
-  schoolsByRegion: Record<string, { value: string; label: string }[]> = {};
+  schoolsByRegion: Record<string, DropdownOption[]> = {};
   verificationStates: Record<string, { school: string | number | ''; verified: boolean }> = {};
 
   newRegion = '';
@@ -258,13 +259,13 @@ export class AdminUserDetailComponent implements OnInit {
   private fetchSchoolPage(
     region: string,
     page: number,
-    accumulated: { value: string; label: string }[],
+    accumulated: DropdownOption[],
   ) {
     this.adminService.getSchools({ region, page, page_size: 100 }).subscribe({
       next: (res) => {
         const merged = [
           ...accumulated,
-          ...res.results.map(s => ({ value: String(s.id), label: s.display_name })),
+          ...res.results.map(s => ({ value: String(s.id), label: s.display_name, keywords: schoolKeywords(s) })),
         ];
 
         if (res.next && res.results.length > 0) {

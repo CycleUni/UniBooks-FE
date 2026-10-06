@@ -17,6 +17,7 @@ import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
 import { AdminBulkBarComponent } from './bulk-bar.component';
 import { AdminPickCellComponent } from './pick-cell.component';
 import { BulkController } from './bulk';
+import { keywordsMatch, schoolKeywords } from '../../core/school-search';
 
 @Component({
   selector: 'app-admin-advertisers-list',
@@ -178,10 +179,8 @@ export class AdminAdvertisersListComponent implements OnInit {
 
   get filteredSchools() {
     if (!this.schoolSearchQuery) return this.schools;
-    const q = this.schoolSearchQuery.toLowerCase();
-    return this.schools.filter(s => 
-      (s.display_name || s.name).toLowerCase().includes(q)
-    );
+    const q = this.schoolSearchQuery.trim().toLowerCase();
+    return this.schools.filter(s => keywordsMatch(schoolKeywords(s), q));
   }
 
   ngOnInit() {

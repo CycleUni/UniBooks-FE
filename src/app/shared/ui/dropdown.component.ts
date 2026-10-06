@@ -4,6 +4,7 @@ import { FormsModule, ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/f
 import { I18nService, TPipe } from '../../core/i18n.service';
 import { UiBottomSheet } from './bottom-sheet.component';
 import { isPhoneViewport } from '../../core/viewport';
+import { keywordsMatch } from '../../core/school-search';
 
 export interface DropdownOption {
   value: string;
@@ -12,6 +13,9 @@ export interface DropdownOption {
    *  Consecutive options sharing one form a group; typing the heading in
    *  the search box lists the whole group. */
   group?: string;
+  /** More text the search box matches besides the label, e.g. a school's
+   *  name in the other languages, its code and its email domain. */
+  keywords?: string[];
 }
 
 /** One line of the open list: an option, and the group heading above it if it starts one. */
@@ -398,7 +402,8 @@ export class UiDropdown implements ControlValueAccessor, AfterViewInit, OnDestro
     const base = (!this.searchable || !query)
       ? this.options
       : this.options.filter(o =>
-          o.label.toLowerCase().includes(query) || !!o.group?.toLowerCase().includes(query));
+          o.label.toLowerCase().includes(query) || !!o.group?.toLowerCase().includes(query)
+          || keywordsMatch(o.keywords, query));
     if (!this.pinSelected || !this.value) return { options: base, pinned: false };
     const idx = base.findIndex(o => o.value === this.value);
     if (idx <= 0) return { options: base, pinned: false };

@@ -19,6 +19,8 @@ export interface SchoolOption {
   /** Canonical English name. Only used to recognize values saved before codes. */
   name: string;
   display_name?: string;
+  /** Every name the school goes by, in every language, for searching. */
+  names?: string[];
   email_domain?: string;
   /** Code of the city the school is in; null when it has none. */
   city?: string | null;

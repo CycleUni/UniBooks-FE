@@ -228,7 +228,7 @@ export class AdminStatsAcademicsComponent {
   loading = true;
   /** Why the last load failed, shown with a retry in place of the section. */
   loadError = '';
-  schoolOptions: { id: number; label: string }[] = [];
+  schoolOptions: { id: number; label: string; keywords?: string[] }[] = [];
   /** Built when the schools load, not per check: the list is long and searchable. */
   schoolDropdown: DropdownOption[] = [];
 
@@ -421,11 +421,11 @@ export class AdminStatsAcademicsComponent {
         next: (res) => {
           this.schoolOptions = res.results
             .filter((r): r is BreakdownRow & { id: number } => r.id != null)
-            .map(r => ({ id: r.id, label: r.label }))
+            .map(r => ({ id: r.id, label: r.label, keywords: r.keywords }))
             .sort((a, b) => a.label.localeCompare(b.label, this.i18n.lang()));
           this.schoolDropdown = [
             { value: '', label: this.i18n.t('admin.stats.allSchools') },
-            ...this.schoolOptions.map(o => ({ value: String(o.id), label: o.label })),
+            ...this.schoolOptions.map(o => ({ value: String(o.id), label: o.label, keywords: o.keywords })),
           ];
           this.cdr.markForCheck();
         },

@@ -57,7 +57,8 @@ export interface AdminListing {
   id: string;
   book: { id: string; title: string };
   seller: { id: string | number; email: string };
-  school: { id: string | number; code?: string; name: string } | null;
+  /** display_name is in the page's language; name is the canonical English one. */
+  school: { id: string | number; code?: string; name: string; display_name?: string } | null;
   price: number;
   /** ISO 4217 code for this row, so a merged multi-region list formats each
    *  price in its own currency instead of the viewer's region default. */

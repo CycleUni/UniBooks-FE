@@ -149,6 +149,8 @@ export interface BreakdownRow {
   key?: string;
   /** Display name; '' for listings with no school / category. */
   label: string;
+  /** By school: its name in every language and its code, for the school filter's search. */
+  keywords?: string[];
   rank: number | null;
   active_listings: number;
   new_listings: number;

@@ -5,7 +5,7 @@ import { I18nService } from '../../core/i18n.service';
 describe('UiDropdown groups', () => {
   const options: DropdownOption[] = [
     { value: '', label: 'All Universities' },
-    { value: 'NTU', label: 'National Taiwan University', group: 'Taipei City' },
+    { value: 'NTU', label: 'National Taiwan University', group: 'Taipei City', keywords: ['國立臺灣大學', 'NTU', 'ntu.edu.tw'] },
     { value: 'NTNU', label: 'National Taiwan Normal University', group: 'Taipei City' },
     { value: 'NCKU', label: 'National Cheng Kung University', group: 'Tainan City' },
   ];
@@ -26,6 +26,14 @@ describe('UiDropdown groups', () => {
 
   const headings = (dropdown: UiDropdown) =>
     dropdown.optionRows.filter((r) => r.heading).map((r) => `${r.heading}:${r.opt.value}`);
+
+  it('matches an option by its keywords, e.g. a school name in another language', () => {
+    const dropdown = create();
+    dropdown.searchQuery = '臺灣大學';
+    expect(dropdown.filteredOptions.map((o) => o.value)).toEqual(['NTU']);
+    dropdown.searchQuery = 'ntu.edu';
+    expect(dropdown.filteredOptions.map((o) => o.value)).toEqual(['NTU']);
+  });
 
   it('heads each group once, on its first option', () => {
     const dropdown = create();

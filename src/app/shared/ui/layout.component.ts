@@ -24,6 +24,7 @@ import { UiAppBar } from './app-bar.component';
 import { UiLangSuggestion } from './lang-suggestion.component';
 import { NavigationHistoryService } from '../../core/services/navigation-history.service';
 import { TAB_SECTIONS } from '../../core/view-transitions';
+import { schoolKeywords } from '../../core/school-search';
 
 @Component({
   selector: 'ui-layout',
@@ -556,7 +557,7 @@ export class UiLayout implements OnDestroy {
    */
   private schoolOptionsByCity(schools: SchoolOption[], cities: CityOption[]): DropdownOption[] {
     const option = (s: SchoolOption, group?: string): DropdownOption =>
-      ({ value: s.code, label: s.display_name || s.name, group });
+      ({ value: s.code, label: s.display_name || s.name, group, keywords: schoolKeywords(s) });
     // A payload from before cities: nothing to group by.
     if (cities.length === 0) return schools.map(s => option(s));
     const known = new Set(cities.map(c => c.code));
