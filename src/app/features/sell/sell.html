@@ -84,8 +84,8 @@
               </span>
               <span class="info">
                 <span class="book-title-serif result-title">{{ result.title }}</span>
-                <span class="muted">{{ result.author || result.authors }}</span>
-                <span class="muted result-isbn">ISBN: {{ result.isbn }}</span>
+                <span class="muted" *ngIf="result.author || result.authors">{{ result.author || result.authors }}</span>
+                <span class="muted result-isbn" *ngIf="result.isbn">ISBN: {{ result.isbn }}</span>
               </span>
             </button>
             <div class="actions split mt-4" >
@@ -104,7 +104,7 @@
             </div>
             <div class="info flex-1" *ngIf="!bookPreview.isManual" >
               <h3 class="book-title-serif">{{ bookPreview.title }}</h3>
-              <p class="muted">{{ bookPreview.authors }}</p>
+              <p class="muted" *ngIf="bookPreview.authors">{{ bookPreview.authors }}</p>
               <div  class="mt-2">
                 <ui-button variant="ghost" (onClick)="clearSelection()"  style="padding: 4px 8px; font-size: var(--text-xs); height: auto;">{{ 'sell.reselect' | t }}</ui-button>
               </div>

@@ -44,6 +44,21 @@ describe('UiBookTile', () => {
     expect(title.textContent).toContain('Calculus: Early Transcendentals');
   });
 
+  it('shows the ISBN without a leading separator when the author is missing', () => {
+    component.isbn = '9786269293919';
+    fixture.detectChanges();
+    const meta = fixture.debugElement.query(By.css('.tile-meta')).nativeElement;
+    expect(meta.textContent.trim()).toBe('9786269293919');
+  });
+
+  it('separates the author and ISBN when both are present', () => {
+    component.author = 'Stewart';
+    component.isbn = '9786269293919';
+    fixture.detectChanges();
+    const meta = fixture.debugElement.query(By.css('.tile-meta')).nativeElement;
+    expect(meta.textContent.replace(/\s+/g, ' ').trim()).toBe('Stewart · 9786269293919');
+  });
+
   it('sellers mode: shows a price stamp and seller-count line', () => {
     component.mode = 'sellers';
     component.sellerCount = 4;

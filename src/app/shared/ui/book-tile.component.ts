@@ -83,7 +83,7 @@ import { UiBookCover } from './book-cover.component';
 
         <h3 class="tile-title book-title-serif">{{ title }}</h3>
         <span class="tile-meta" *ngIf="author || isbn">
-          <span *ngIf="author">{{ author }}</span><span *ngIf="isbn"> · {{ isbn }}</span>
+          <span *ngIf="author">{{ author }}</span><span *ngIf="isbn"><ng-container *ngIf="author"> · </ng-container>{{ isbn }}</span>
         </span>
 
         <span class="tile-sellers card-subtext" *ngIf="mode === 'sellers'">

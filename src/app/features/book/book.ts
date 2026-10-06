@@ -82,19 +82,19 @@ export { BOOK_SOURCE_LABEL_KEYS, bookSourceLabelKey } from '../../core/book-sour
           <div class="book-info">
             <h2 class="book-title">{{ book.title }}</h2>
             <div class="meta-list">
-              <div class="meta-row">
+              <div class="meta-row" *ngIf="book.authors">
                 <span class="meta-label">{{ 'book.author' | t }}</span>
                 <span class="meta-value">{{ book.authors }}</span>
               </div>
-              <div class="meta-row">
+              <div class="meta-row" *ngIf="publisherLabel">
                 <span class="meta-label">{{ 'book.publisher' | t }}</span>
                 <span class="meta-value">{{ publisherLabel }}</span>
               </div>
-              <div class="meta-row">
+              <div class="meta-row" *ngIf="book.published_date">
                 <span class="meta-label">{{ 'book.year' | t }}</span>
                 <span class="meta-value">{{ book.published_date }}</span>
               </div>
-              <div class="meta-row">
+              <div class="meta-row" *ngIf="book.isbn13">
                 <span class="meta-label">ISBN</span>
                 <span class="meta-value"  style="font-family: monospace;">{{ book.isbn13 }}</span>
               </div>

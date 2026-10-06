@@ -954,7 +954,6 @@ export const en: Record<string, string> = {
   'admin.errCurrencyCodeLocked': 'Currency code cannot be changed after creation.',
   'admin.editRegion': 'Edit region',
   'admin.editCurrency': 'Edit currency',
-  'home.unknownAuthor': 'Unknown author',
   'nav.regionSwitcher': 'Switch region',
   'search.errorTitle': 'Search is unavailable',
   'search.errorDesc': 'Something went wrong while searching. Please try again later.',

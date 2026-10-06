@@ -33,7 +33,7 @@ import { PricePipe } from '../pipes/price.pipe';
           </p>
         </ng-container>
         <ng-template #metaFallback>
-          <p class="meta">{{ metaInfo }}</p>
+          <p class="meta" *ngIf="metaInfo">{{ metaInfo }}</p>
         </ng-template>
         <p class="course" *ngIf="courseInfo">{{ courseInfo }}</p>
         <p class="note" *ngIf="noteInfo">{{ noteInfo }}</p>

@@ -70,7 +70,7 @@ import { isUserVerifiedIn } from '../../core/verification';
           <ui-listing-row
             *ngFor="let listing of listings"
             [title]="listing.book_title || listing.book?.title"
-            [metaInfo]="listing.book_authors || listing.book?.authors || ('home.unknownAuthor' | t)"
+            [metaInfo]="listing.book_authors || listing.book?.authors || ''"
             [courseInfo]="getCourseOrNoteInfo(listing)"
             [noteInfo]="listing.description ? (('sell.note' | t) + ': ' + listing.description) : undefined"
             [price]="listing.price"

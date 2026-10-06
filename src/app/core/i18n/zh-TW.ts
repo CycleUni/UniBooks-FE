@@ -956,7 +956,6 @@ export const zhTW: Record<string, string> = {
   'admin.errCurrencyCodeLocked': '幣別代碼建立後不可修改。',
   'admin.editRegion': '編輯地區',
   'admin.editCurrency': '編輯幣別',
-  'home.unknownAuthor': '作者不詳',
   'nav.regionSwitcher': '切換地區',
   'search.errorTitle': '搜尋暫時無法使用',
   'search.errorDesc': '搜尋時發生問題，請稍後再試。',

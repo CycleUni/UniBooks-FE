@@ -56,7 +56,7 @@ import { RegionLinkService } from '../../core/region-link.service';
               ></ui-book-cover>
               <div>
                 <h4 class="book-title-serif">{{ listing.book_title }}</h4>
-                <p class="muted">{{ listing.book_authors }}</p>
+                <p class="muted" *ngIf="listing.book_authors">{{ listing.book_authors }}</p>
                 <div class="price" #summaryPrice>{{ listing.price | price: listing.currency }}</div>
               </div>
             </div>

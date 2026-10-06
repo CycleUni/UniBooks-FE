@@ -44,7 +44,7 @@
         <!-- Right Column: Details & Actions -->
         <div class="details-col">
           <h1 class="book-title-serif">{{ listing.book_title }}</h1>
-          <p class="book-authors">{{ listing.book_authors }}</p>
+          <p class="book-authors" *ngIf="listing.book_authors">{{ listing.book_authors }}</p>
           
           <a [regionLink]="['/book']" [queryParams]="{ isbn: listing.isbn }" class="book-link" [innerHTML]="'sell.viewOtherListings' | t">
           </a>
@@ -91,7 +91,7 @@
               <span class="info-label">{{ 'sell.note' | t }}</span>
               <span class="info-value note-box">{{ listing.description }}</span>
             </div>
-            <div class="info-row">
+            <div class="info-row" *ngIf="listing.isbn">
               <span class="info-label">ISBN</span>
               <span class="info-value"  style="font-family: monospace;">{{ listing.isbn }}</span>
             </div>
