@@ -14,15 +14,23 @@ import { UiDropdown } from '../../shared/ui/dropdown.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
 import { AuthStore } from '../../core/auth.store';
 import { RegionService } from '../../core/region.service';
+import { AdminBulkBarComponent } from './bulk-bar.component';
+import { AdminPickCellComponent } from './pick-cell.component';
+import { BulkController } from './bulk';
 
 @Component({
   selector: 'app-admin-chat-reports-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiErrorState, UiButton, UiDropdown, UiPagination],
+  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiErrorState, UiButton, UiDropdown, UiPagination, AdminBulkBarComponent, AdminPickCellComponent],
   template: `
     <div class="admin-filters">
       <ui-dropdown [label]="'admin.colStatus' | t" [options]="statusOptions" [(ngModel)]="statusFilter" (ngModelChange)="reload()" [searchable]="false"></ui-dropdown>
     </div>
+
+    <admin-bulk-bar *ngIf="!loading && !loadError && statusFilter === 'open' && reports.length" [count]="bulk.selection.size" [busy]="bulk.busy" (clear)="bulk.selection.clear()">
+      <ui-button size="sm" [disabled]="bulk.busy || !bulk.selection.size" (onClick)="bulkAction('actioned')">{{ 'admin.bulk.handle' | t }}</ui-button>
+      <ui-button size="sm" variant="outline" [disabled]="bulk.busy || !bulk.selection.size" (onClick)="bulkAction('dismissed')">{{ 'admin.reportActionDismiss' | t }}</ui-button>
+    </admin-bulk-bar>
 
     <ui-skeleton *ngIf="loading" variant="table" [count]="5"></ui-skeleton>
 
@@ -31,6 +39,12 @@ import { RegionService } from '../../core/region.service';
     <table class="admin-table admin-table-clickable" *ngIf="!loading && !loadError">
       <thead>
         <tr>
+          <th *ngIf="statusFilter === 'open'" adminPick
+            [checked]="bulk.selection.allOf(pageIds)"
+            [indeterminate]="bulk.selection.size > 0 && !bulk.selection.allOf(pageIds)"
+            [disabled]="bulk.busy || !pageIds.length"
+            [label]="'admin.bulk.selectAll' | t"
+            (toggle)="bulk.selection.toggleAll(pageIds)"></th>
           <th>{{ 'admin.colRegion' | t }}</th>
           <th>{{ 'admin.colReporter' | t }}</th>
           <th>{{ 'admin.colReported' | t }}</th>
@@ -42,7 +56,12 @@ import { RegionService } from '../../core/region.service';
       </thead>
       <tbody>
         <ng-container *ngFor="let report of reports">
-          <tr class="report-row" (click)="toggleExpand(report)">
+          <tr class="report-row" (click)="toggleExpand(report)" [class.picked]="bulk.selection.has(report.id)">
+            <td *ngIf="statusFilter === 'open'" adminPick
+              [checked]="bulk.selection.has(report.id)"
+              [disabled]="bulk.busy || report.status !== 'open'"
+              [label]="'admin.bulk.selectRow' | t: { name: report.listing_title || report.id }"
+              (toggle)="bulk.selection.toggle(report.id)"></td>
             <td>{{ getRegionName(report.region) }}</td>
             <td>{{ report.reporter_email }}</td>
             <td>{{ report.reported_party_email }}</td>
@@ -55,7 +74,7 @@ import { RegionService } from '../../core/region.service';
             </td>
           </tr>
           <tr class="detail-row" *ngIf="expandedId === report.id">
-            <td colspan="7">
+            <td colspan="8">
               <div class="detail-content">
                 <div *ngIf="report.detail" class="report-detail">
                   <strong>{{ 'admin.reportDetailLabel' | t }}</strong> {{ report.detail }}
@@ -79,7 +98,7 @@ import { RegionService } from '../../core/region.service';
              entry, so this table is always scoped to one status and an empty
              result always means "none with this status", never "no reports". -->
         <tr *ngIf="reports.length === 0">
-          <td colspan="7" class="empty-note">{{ 'common.noMatches' | t }}</td>
+          <td colspan="8" class="empty-note">{{ 'common.noMatches' | t }}</td>
         </tr>
       </tbody>
     </table>
@@ -117,6 +136,11 @@ export class AdminChatReportsListComponent implements OnInit {
   /** Why the last load failed; the table would otherwise read as empty. */
   loadError = '';
   actingId: string | null = null;
+  bulk = new BulkController<string>(() => this.reload());
+
+  get pageIds(): string[] {
+    return this.reports.filter((r) => r.status === 'open').map((r) => r.id);
+  }
   expandedId: string | null = null;
   loadingMessages = false;
   /** Why the expanded report's messages failed to load; shown with a retry. */
@@ -156,6 +180,7 @@ export class AdminChatReportsListComponent implements OnInit {
   }
 
   reload() {
+    this.bulk.reset();
     this.loading = true;
     this.loadError = '';
     this.adminService.getChatReports(this.statusFilter, this.page, this.regionService.region().toUpperCase()).subscribe({
@@ -170,6 +195,14 @@ export class AdminChatReportsListComponent implements OnInit {
         this.loading = false;
         this.cdr.markForCheck();
       }
+    });
+  }
+
+  bulkAction(status: 'actioned' | 'dismissed') {
+    const n = this.bulk.selection.size;
+    this.bulk.run((id) => this.adminService.actionChatReport(id, status), {
+      confirm: this.i18n.t(status === 'actioned' ? 'admin.bulk.confirmHandleChatReports' : 'admin.bulk.confirmDismissReports', { n }),
+      confirmLabel: this.i18n.t(status === 'actioned' ? 'admin.bulk.handle' : 'admin.reportActionDismiss'),
     });
   }
 

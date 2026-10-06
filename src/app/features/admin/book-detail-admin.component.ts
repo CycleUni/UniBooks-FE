@@ -11,6 +11,9 @@ import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { UiErrorState } from '../../shared/ui/error-state.component';
 import { HasUnsavedChanges } from '../../core/unsaved-changes.guard';
 import { BookCoverPipe } from '../../shared/pipes/book-cover.pipe';
+import { UiButton } from '../../shared/ui/button.component';
+import { ConfirmService } from '../../core/services/confirm.service';
+import { ToastService } from '../../core/services/toast.service';
 import { AdminBookEditComponent } from './book-edit.component';
 import { STATS_PAGE_STYLES } from './stats-widgets';
 
@@ -24,6 +27,7 @@ import { STATS_PAGE_STYLES } from './stats-widgets';
     RouterModule,
     TPipe, UiSkeleton, UiErrorState,
     BookCoverPipe,
+    UiButton,
     AdminBookEditComponent,
   ],
   template: `
@@ -59,6 +63,29 @@ import { STATS_PAGE_STYLES } from './stats-widgets';
           </p>
         </div>
       </div>
+
+      <!-- A seller typed this book in. The admin looks its ISBN up in the
+           form below; a hit is saved with the catalogue's source and leaves
+           the queue, and only a miss is confirmed here. -->
+      <section *ngIf="b.source === 'manual'" class="card review-card" [class.pending]="b.pending_review">
+        <div class="section-head-row">
+          <h3>{{ 'admin.book.reviewTitle' | t }}</h3>
+          <span class="admin-status-badge" [class.warn]="b.pending_review" [class.ok]="!b.pending_review">{{
+            (b.pending_review ? 'admin.book.reviewPending' : 'admin.book.reviewConfirmed') | t
+          }}</span>
+        </div>
+        <ng-container *ngIf="b.pending_review; else confirmedNote">
+          <p class="card-note">{{ 'admin.book.reviewPendingNote' | t }}</p>
+          <ui-button size="sm" variant="primary" [disabled]="confirming" (onClick)="confirmManual()">{{
+            'admin.book.confirmManual' | t
+          }}</ui-button>
+        </ng-container>
+        <ng-template #confirmedNote>
+          <p class="card-note">{{
+            'admin.book.reviewConfirmedNote' | t: { date: (b.reviewed_at | date: 'yyyy/MM/dd HH:mm') ?? '' }
+          }}</p>
+        </ng-template>
+      </section>
 
       <admin-book-edit
         *ngIf="record"
@@ -113,6 +140,15 @@ import { STATS_PAGE_STYLES } from './stats-widgets';
         margin: 0 0 2px;
         color: var(--ink-soft);
       }
+      .review-card.pending {
+        border-color: var(--warn-ink);
+      }
+      .review-card .card-note {
+        margin: 8px 0 12px;
+      }
+      .review-card .card-note:last-child {
+        margin-bottom: 0;
+      }
       .book-info .meta {
         display: flex;
         flex-wrap: wrap;
@@ -130,6 +166,8 @@ export class AdminBookDetailComponent implements HasUnsavedChanges {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
+  private confirms = inject(ConfirmService);
+  private toast = inject(ToastService);
 
   bookId = Number(this.route.snapshot.paramMap.get('id'));
   book: AdminBook | null = null;
@@ -138,6 +176,7 @@ export class AdminBookDetailComponent implements HasUnsavedChanges {
   loading = true;
   /** Why the last load failed. */
   loadError = '';
+  confirming = false;
   @ViewChild(AdminBookEditComponent) private editor?: AdminBookEditComponent;
   private sub?: Subscription;
 
@@ -166,6 +205,28 @@ export class AdminBookDetailComponent implements HasUnsavedChanges {
   /** This book was folded into another; its page no longer exists. */
   openMerged(id: number) {
     this.router.navigate(['..', id], { relativeTo: this.route, replaceUrl: true });
+  }
+
+  async confirmManual() {
+    const b = this.book;
+    if (!b || this.confirming) return;
+    if (!(await this.confirms.ask(this.i18n.t('admin.book.confirmManualPrompt')))) return;
+    this.confirming = true;
+    this.cdr.markForCheck();
+    this.admin.confirmManualBook(b.id).subscribe({
+      next: (updated) => {
+        this.confirming = false;
+        // Only the review moved; the edit form keeps whatever is typed in it.
+        if (this.book?.id === updated.id) this.book = updated;
+        this.toast.success(this.i18n.t('admin.book.confirmedManual'));
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.confirming = false;
+        this.toast.error(parseAdminError(err, this.i18n, 'admin.errSaveFailed'));
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   load() {

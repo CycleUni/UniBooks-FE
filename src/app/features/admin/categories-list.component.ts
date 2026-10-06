@@ -16,11 +16,14 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
 import { UiTextarea } from '../../shared/ui/textarea.component';
 import { AuthStore } from '../../core/auth.store';
 import { RegionService } from '../../core/region.service';
+import { AdminBulkBarComponent } from './bulk-bar.component';
+import { AdminPickCellComponent } from './pick-cell.component';
+import { BulkController } from './bulk';
 
 @Component({
   selector: 'app-admin-categories-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, TranslationEditorComponent, BulkImportModalComponent, UiPagination, UiCheckbox, UiTextarea, UiButton, UiErrorState],
+  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, TranslationEditorComponent, BulkImportModalComponent, UiPagination, UiCheckbox, UiTextarea, UiButton, UiErrorState, AdminBulkBarComponent, AdminPickCellComponent],
   template: `
     <ng-container *ngIf="!showModal">
       <div class="section-head-row">
@@ -42,10 +45,22 @@ import { RegionService } from '../../core/region.service';
         [message]="loadError"
         (retry)="loadPage(currentPage)"
       ></ui-error-state>
+    <admin-bulk-bar *ngIf="!loadError && categoriesData?.results?.length" [count]="bulk.selection.size" [busy]="bulk.busy" (clear)="bulk.selection.clear()">
+      <ui-button size="sm" variant="outline" [disabled]="bulk.busy || !bulk.selection.size" (onClick)="bulkActive(true)">{{ 'admin.bulk.enable' | t }}</ui-button>
+      <ui-button size="sm" variant="outline" [disabled]="bulk.busy || !bulk.selection.size" (onClick)="bulkActive(false)">{{ 'admin.bulk.disable' | t }}</ui-button>
+      <ui-button size="sm" variant="danger" [disabled]="bulk.busy || !bulk.selection.size" (onClick)="bulkDelete()">{{ 'common.delete' | t }}</ui-button>
+    </admin-bulk-bar>
+
       <div class="table-container" *ngIf="categoriesData && !loadError">
         <table class="admin-table">
           <thead>
             <tr>
+              <th adminPick
+                [checked]="bulk.selection.allOf(pageIds)"
+                [indeterminate]="bulk.selection.size > 0 && !bulk.selection.allOf(pageIds)"
+                [disabled]="bulk.busy || !pageIds.length"
+                [label]="'admin.bulk.selectAll' | t"
+                (toggle)="bulk.selection.toggleAll(pageIds)"></th>
               <th>ID</th>
               <th>{{ 'admin.colRegion' | t }}</th>
               <th>{{ 'admin.catSlug' | t }}</th>
@@ -56,7 +71,12 @@ import { RegionService } from '../../core/region.service';
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let cat of categoriesData.results">
+            <tr *ngFor="let cat of categoriesData.results" [class.picked]="bulk.selection.has(cat.id)">
+              <td adminPick
+                [checked]="bulk.selection.has(cat.id)"
+                [disabled]="bulk.busy"
+                [label]="'admin.bulk.selectRow' | t: { name: cat.title }"
+                (toggle)="bulk.selection.toggle(cat.id)"></td>
               <td>{{ cat.id }}</td>
               <td>{{ getRegionName(cat.region) }}</td>
               <td>{{ cat.slug }}</td>
@@ -71,7 +91,7 @@ import { RegionService } from '../../core/region.service';
               </td>
             </tr>
             <tr *ngIf="categoriesData.results.length === 0">
-              <td colspan="7" class="empty-note">{{ 'common.noMatches' | t }}</td>
+              <td colspan="8" class="empty-note">{{ 'common.noMatches' | t }}</td>
             </tr>
           </tbody>
         </table>
@@ -162,6 +182,11 @@ export class AdminCategoriesListComponent implements OnInit {
   loading = true;
   /** Why the last load failed, or '' when it did not. */
   loadError = '';
+  bulk = new BulkController<number>(() => this.loadPage(this.currentPage));
+
+  get pageIds(): number[] {
+    return (this.categoriesData?.results ?? []).map((c) => c.id);
+  }
   currentPage = 1;
   total = 0;
   pageSize = 20;
@@ -187,6 +212,7 @@ export class AdminCategoriesListComponent implements OnInit {
   }
 
   loadPage(page: number) {
+    this.bulk.reset();
     this.currentPage = page;
     this.loadError = '';
     this.loading = true;
@@ -246,6 +272,22 @@ export class AdminCategoriesListComponent implements OnInit {
   }
 
   
+  bulkActive(active: boolean) {
+    const n = this.bulk.selection.size;
+    this.bulk.run((id) => this.adminService.updateCategory(id, { is_active: active }), {
+      confirm: this.i18n.t(active ? 'admin.bulk.confirmEnable' : 'admin.bulk.confirmDisable', { n }),
+      confirmLabel: this.i18n.t(active ? 'admin.bulk.enable' : 'admin.bulk.disable'),
+    });
+  }
+
+  bulkDelete() {
+    this.bulk.run((id) => this.adminService.deleteCategory(id), {
+      confirm: this.i18n.t('admin.bulk.confirmDelete', { n: this.bulk.selection.size }) + ' ' + this.i18n.t('admin.bulk.deleteCategoriesNote'),
+      danger: true,
+      confirmLabel: this.i18n.t('common.delete'),
+    });
+  }
+
   async deleteCategory(id: number) {
     const confirmed = await this.confirms.askDanger(this.i18n.t('admin.deleteCategoryConfirm'), {
       confirmLabel: this.i18n.t('common.delete'),

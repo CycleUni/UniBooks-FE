@@ -14,11 +14,14 @@ import { I18nService, TPipe } from '../../core/i18n.service';
 import { ToastService } from '../../core/services/toast.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
+import { AdminBulkBarComponent } from './bulk-bar.component';
+import { AdminPickCellComponent } from './pick-cell.component';
+import { BulkController } from './bulk';
 
 @Component({
   selector: 'app-admin-advertisers-list',
   standalone: true,
-  imports: [CommonModule, UiSkeleton, UiErrorState, RouterModule, FormsModule, TPipe, UiSearchBarComponent, UiPagination, UiCheckbox, UiButton],
+  imports: [CommonModule, UiSkeleton, UiErrorState, RouterModule, FormsModule, TPipe, UiSearchBarComponent, UiPagination, UiCheckbox, UiButton, AdminBulkBarComponent, AdminPickCellComponent],
   template: `
     <div class="section-head-row">
       <h2>{{ 'admin.navAdvertisers' | t }}</h2>
@@ -32,10 +35,22 @@ import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
     </div>
 
     <ui-error-state *ngIf="!loading && loadError" [message]="loadError" (retry)="loadPage(currentPage)"></ui-error-state>
+    <admin-bulk-bar *ngIf="!loading && !loadError && advertisersData?.results?.length" [count]="bulk.selection.size" [busy]="bulk.busy" (clear)="bulk.selection.clear()">
+      <ui-button size="sm" variant="outline" [disabled]="bulk.busy || !bulk.selection.size" (onClick)="bulkActive(true)">{{ 'admin.bulk.enable' | t }}</ui-button>
+      <ui-button size="sm" variant="outline" [disabled]="bulk.busy || !bulk.selection.size" (onClick)="bulkActive(false)">{{ 'admin.bulk.disable' | t }}</ui-button>
+      <ui-button size="sm" variant="danger" [disabled]="bulk.busy || !bulk.selection.size" (onClick)="bulkDelete()">{{ 'common.delete' | t }}</ui-button>
+    </admin-bulk-bar>
+
     <div class="table-container" *ngIf="!loading && !loadError && advertisersData">
       <table class="admin-table">
         <thead>
           <tr>
+            <th adminPick
+              [checked]="bulk.selection.allOf(pageIds)"
+              [indeterminate]="bulk.selection.size > 0 && !bulk.selection.allOf(pageIds)"
+              [disabled]="bulk.busy || !pageIds.length"
+              [label]="'admin.bulk.selectAll' | t"
+              (toggle)="bulk.selection.toggleAll(pageIds)"></th>
             <th>ID</th>
             <th>{{ 'admin.advertiserName' | t }}</th>
             <th>{{ 'admin.advertiserEmail' | t }}</th>
@@ -45,7 +60,12 @@ import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let adv of advertisersData.results">
+          <tr *ngFor="let adv of advertisersData.results" [class.picked]="bulk.selection.has(adv.id)">
+            <td adminPick
+              [checked]="bulk.selection.has(adv.id)"
+              [disabled]="bulk.busy"
+              [label]="'admin.bulk.selectRow' | t: { name: adv.company_name }"
+              (toggle)="bulk.selection.toggle(adv.id)"></td>
             <td>{{ adv.id }}</td>
             <td>{{ adv.company_name }}</td>
             <td>{{ adv.contact_email }}</td>
@@ -135,6 +155,11 @@ export class AdminAdvertisersListComponent implements OnInit {
   loading = true;
   /** Why the last load failed; the table would otherwise read as empty. */
   loadError = '';
+  bulk = new BulkController<string | number>(() => this.loadPage(this.currentPage));
+
+  get pageIds(): (string | number)[] {
+    return (this.advertisersData?.results ?? []).map((a) => a.id);
+  }
   schoolSearchQuery = '';
   q = '';
   
@@ -173,6 +198,7 @@ export class AdminAdvertisersListComponent implements OnInit {
   }
 
   loadPage(page: number) {
+    this.bulk.reset();
     this.currentPage = page;
     this.loading = true;
     this.loadError = '';
@@ -248,6 +274,22 @@ export class AdminAdvertisersListComponent implements OnInit {
         this.loadPage(this.currentPage);
       },
       error: (err) => this.toast.error(parseAdminError(err, this.i18n, 'admin.errSaveFailed'))
+    });
+  }
+
+  bulkActive(active: boolean) {
+    const n = this.bulk.selection.size;
+    this.bulk.run((id) => this.adminService.updateAdvertiser(id, { is_active: active }), {
+      confirm: this.i18n.t(active ? 'admin.bulk.confirmEnable' : 'admin.bulk.confirmDisable', { n }),
+      confirmLabel: this.i18n.t(active ? 'admin.bulk.enable' : 'admin.bulk.disable'),
+    });
+  }
+
+  bulkDelete() {
+    this.bulk.run((id) => this.adminService.deleteAdvertiser(id), {
+      confirm: this.i18n.t('admin.bulk.confirmDelete', { n: this.bulk.selection.size }),
+      danger: true,
+      confirmLabel: this.i18n.t('common.delete'),
     });
   }
 

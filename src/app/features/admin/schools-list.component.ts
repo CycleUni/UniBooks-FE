@@ -15,11 +15,14 @@ import { ConfirmService } from '../../core/services/confirm.service';
 import { RegionService } from '../../core/region.service';
 import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
 import { BulkImportModalComponent } from './bulk-import-modal.component';
+import { AdminBulkBarComponent } from './bulk-bar.component';
+import { AdminPickCellComponent } from './pick-cell.component';
+import { BulkController } from './bulk';
 
 @Component({
   selector: 'app-admin-schools-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiSearchBarComponent, BulkImportModalComponent, UiPagination, UiButton, UiErrorState, UiFocusTrapDirective],
+  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiSearchBarComponent, BulkImportModalComponent, UiPagination, UiButton, UiErrorState, UiFocusTrapDirective, AdminBulkBarComponent, AdminPickCellComponent],
   template: `
     <div class="section-head-row">
       <h2>{{ 'admin.navSchools' | t }}</h2>
@@ -41,10 +44,20 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
       [message]="'admin.errLoadFailed' | t"
       (retry)="loadPage(currentPage)"
     ></ui-error-state>
+    <admin-bulk-bar *ngIf="!loadFailed && schoolsData?.results?.length" [count]="bulk.selection.size" [busy]="bulk.busy" (clear)="bulk.selection.clear()">
+      <ui-button size="sm" variant="danger" [disabled]="bulk.busy || !bulk.selection.size" (onClick)="bulkDelete()">{{ 'common.delete' | t }}</ui-button>
+    </admin-bulk-bar>
+
     <div class="table-container" *ngIf="schoolsData && !loadFailed">
       <table class="admin-table">
         <thead>
           <tr>
+            <th adminPick
+              [checked]="bulk.selection.allOf(pageIds)"
+              [indeterminate]="bulk.selection.size > 0 && !bulk.selection.allOf(pageIds)"
+              [disabled]="bulk.busy || !pageIds.length"
+              [label]="'admin.bulk.selectAll' | t"
+              (toggle)="bulk.selection.toggleAll(pageIds)"></th>
             <th>ID</th>
             <th>{{ 'admin.schoolCode' | t }}</th>
             <th>{{ 'admin.schoolName' | t }}</th>
@@ -56,7 +69,12 @@ import { BulkImportModalComponent } from './bulk-import-modal.component';
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let school of schoolsData.results">
+          <tr *ngFor="let school of schoolsData.results" [class.picked]="bulk.selection.has(school.id)">
+            <td adminPick
+              [checked]="bulk.selection.has(school.id)"
+              [disabled]="bulk.busy || !!school.user_count"
+              [label]="'admin.bulk.selectRow' | t: { name: school.name }"
+              (toggle)="bulk.selection.toggle(school.id)"></td>
             <td>{{ school.id }}</td>
             <td><code>{{ school.code }}</code></td>
             <td>{{ school.name }}</td>
@@ -136,6 +154,11 @@ export class AdminSchoolsListComponent implements OnInit {
   schoolsData?: Paginated<AdminSchool>;
   loading = true;
   loadFailed = false;
+  bulk = new BulkController<string | number>(() => this.loadPage(this.currentPage));
+
+  get pageIds(): (string | number)[] {
+    return (this.schoolsData?.results ?? []).filter((s) => !s.user_count).map((s) => s.id);
+  }
   currentPage = 1;
   total = 0;
   pageSize = 20;
@@ -153,6 +176,7 @@ export class AdminSchoolsListComponent implements OnInit {
   }
 
   loadPage(page: number) {
+    this.bulk.reset();
     this.currentPage = page;
     this.loadFailed = false;
     this.loading = true;
@@ -174,6 +198,15 @@ export class AdminSchoolsListComponent implements OnInit {
   onSearch(q: string) {
     this.q = q;
     this.loadPage(1);
+  }
+
+  /** A school with members cannot be deleted, so it cannot be ticked. */
+  bulkDelete() {
+    this.bulk.run((id) => this.adminService.deleteSchool(id), {
+      confirm: this.i18n.t('admin.bulk.confirmDelete', { n: this.bulk.selection.size }),
+      danger: true,
+      confirmLabel: this.i18n.t('common.delete'),
+    });
   }
 
   async deleteSchool(school: AdminSchool) {

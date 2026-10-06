@@ -893,6 +893,76 @@ button:not(:disabled):active {
   background: var(--paper-warm);
 }
 
+/*
+ * 後台表格：多選欄。整格都是 label，點擊範圍至少 --tap-min；
+ * 列本身可點擊時，td 要攔下 click，勾選才不會打開該列。
+ */
+.admin-table th.pick,
+.admin-table td.pick {
+  width: 1%;
+  padding: 0;
+  cursor: default;
+}
+.admin-table .pick-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  cursor: pointer;
+}
+/* Drawn from tokens like ui-checkbox, not the browser's own box, which
+   stays white on the dark theme. */
+.admin-table .pick-box input {
+  appearance: none;
+  -webkit-appearance: none;
+  display: grid;
+  place-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xs);
+  background-color: var(--paper);
+  cursor: pointer;
+}
+.admin-table .pick-box input::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background-color: var(--btn-primary-ink);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+  transform: scale(0);
+  transition: transform var(--motion-fast) ease-in-out;
+}
+.admin-table .pick-box input:checked,
+.admin-table .pick-box input:indeterminate {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+.admin-table .pick-box input:checked::before {
+  transform: scale(1);
+}
+/* Part of the page ticked: a dash, as "select all" boxes show it. */
+.admin-table .pick-box input:indeterminate::before {
+  height: 2px;
+  clip-path: none;
+  transform: scale(1);
+}
+.admin-table .pick-box input:disabled {
+  background-color: var(--paper-warm);
+  border-color: var(--line);
+  cursor: not-allowed;
+}
+.admin-table .pick-box input:disabled:checked,
+.admin-table .pick-box input:disabled:indeterminate {
+  background-color: var(--muted);
+  border-color: var(--muted);
+}
+.admin-table tr.picked td {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
 .back-link { display: inline-block; margin-bottom: 16px; color: var(--muted); text-decoration: none; font-size: var(--text-base); }
 .back-link:hover { color: var(--accent); }
 
@@ -916,6 +986,7 @@ button:not(:disabled):active {
 .admin-status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: var(--text-xs); background: var(--paper-warm); color: var(--muted); }
 .admin-status-badge.locked { margin-left: 4px; background: var(--danger-light); color: var(--danger); }
 .admin-status-badge.active, .admin-status-badge.ok { background: var(--info-bg); color: var(--info-ink); }
+.admin-status-badge.warn { background: var(--warn-bg); color: var(--warn-ink); }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .admin-status-badge.active,

@@ -232,7 +232,14 @@ export interface AdminBook {
   created_at: string;
   active_listings: number;
   request_count: number;
+  /** When an admin confirmed no catalogue has this manual book. */
+  reviewed_at: string | null;
+  /** A manual book no admin has checked against the catalogues yet. */
+  pending_review: boolean;
 }
+
+/** The book list's `review` filter, over manually added books only. */
+export type AdminBookReviewFilter = 'pending' | 'confirmed';
 
 export interface AdminBookUpdate {
   /** Set when the book was folded into another one and no longer exists. */
@@ -351,12 +358,28 @@ export class AdminService {
     return this.http.patch<AdminSchool>(`/admin/schools/${id}/`, data);
   }
 
-  getBooks(opts: { page?: number; q?: string; region?: string } = {}): Observable<Paginated<AdminBook>> {
+  getBooks(opts: { page?: number; q?: string; region?: string; review?: AdminBookReviewFilter | '' } = {}): Observable<Paginated<AdminBook>> {
     return this.http.get<Paginated<AdminBook>>('/admin/books/', { params: buildParams(opts) });
   }
 
   getBook(id: number): Observable<AdminBook> {
     return this.http.get<AdminBook>(`/admin/books/${id}/`);
+  }
+
+  /** Records that no catalogue has this manual book, taking it out of review. */
+  confirmManualBook(id: number): Observable<AdminBook> {
+    return this.http.post<AdminBook>(`/admin/books/${id}/confirm-manual/`, {});
+  }
+
+  /** The same for several books; `confirmed` lists those this call confirmed
+   *  (others were not pending manual books, or not this admin's). */
+  confirmManualBooks(ids: number[]): Observable<{ confirmed: number[] }> {
+    return this.http.post<{ confirmed: number[] }>('/admin/books/confirm-manual/', { ids });
+  }
+
+  /** Puts confirmed manual books back in review; `reopened` lists those it did. */
+  reopenBookReviews(ids: number[]): Observable<{ reopened: number[] }> {
+    return this.http.post<{ reopened: number[] }>('/admin/books/reopen-review/', { ids });
   }
 
   lookupBook(id: number, isbn: string): Observable<AdminBookLookup> {

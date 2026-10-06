@@ -14,16 +14,25 @@ import { UiDropdown } from '../../shared/ui/dropdown.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
 import { AuthStore } from '../../core/auth.store';
 import { RegionService } from '../../core/region.service';
+import { AdminBulkBarComponent } from './bulk-bar.component';
+import { AdminPickCellComponent } from './pick-cell.component';
+import { BulkController } from './bulk';
+import { UiButton } from '../../shared/ui/button.component';
 
 @Component({
   selector: 'app-admin-users-list',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiErrorState, UiSearchBarComponent, UiDropdown, UiPagination],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiErrorState, UiSearchBarComponent, UiDropdown, UiPagination, UiButton, AdminBulkBarComponent, AdminPickCellComponent],
   template: `
     <div class="admin-filters">
       <ui-search-bar [placeholder]="'admin.searchUsers' | t" [value]="q" (search)="onSearch($event)"></ui-search-bar>
       <ui-dropdown [label]="'admin.filterActive' | t" [options]="activeOptions" [(ngModel)]="isActiveFilter" (ngModelChange)="reload()" [searchable]="false"></ui-dropdown>
     </div>
+
+    <admin-bulk-bar *ngIf="!loading && !loadError && users.length" [count]="bulk.selection.size" [busy]="bulk.busy" (clear)="bulk.selection.clear()">
+      <ui-button size="sm" variant="danger" [disabled]="bulk.busy || !bulk.selection.size" (onClick)="bulkActive(false)">{{ 'admin.bulk.deactivate' | t }}</ui-button>
+      <ui-button size="sm" variant="outline" [disabled]="bulk.busy || !bulk.selection.size" (onClick)="bulkActive(true)">{{ 'admin.bulk.activate' | t }}</ui-button>
+    </admin-bulk-bar>
 
     <ui-skeleton *ngIf="loading" variant="table" [count]="5"></ui-skeleton>
 
@@ -35,6 +44,12 @@ import { RegionService } from '../../core/region.service';
       <table class="admin-table admin-table-clickable" *ngIf="!loading && !loadError">
       <thead>
         <tr>
+          <th adminPick
+            [checked]="bulk.selection.allOf(pageIds)"
+            [indeterminate]="bulk.selection.size > 0 && !bulk.selection.allOf(pageIds)"
+            [disabled]="bulk.busy || !pageIds.length"
+            [label]="'admin.bulk.selectAll' | t"
+            (toggle)="bulk.selection.toggleAll(pageIds)"></th>
           <th>{{ 'admin.colRegion' | t }}</th>
           <th>{{ 'admin.colEmail' | t }}</th>
           <th>{{ 'admin.colName' | t }}</th>
@@ -44,7 +59,12 @@ import { RegionService } from '../../core/region.service';
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let user of users" [regionLink]="[user.id]">
+        <tr *ngFor="let user of users" [regionLink]="[user.id]" [class.picked]="bulk.selection.has(user.id)">
+          <td adminPick
+            [checked]="bulk.selection.has(user.id)"
+            [disabled]="bulk.busy"
+            [label]="'admin.bulk.selectRow' | t: { name: user.email }"
+            (toggle)="bulk.selection.toggle(user.id)"></td>
           <td>{{ formatRegions(user.regions) }}</td>
           <td>{{ user.email }}</td>
           <td>{{ user.display_name || (user.first_name + ' ' + user.last_name) }}</td>
@@ -57,7 +77,7 @@ import { RegionService } from '../../core/region.service';
           </td>
         </tr>
         <tr *ngIf="users.length === 0">
-          <td colspan="6" class="empty-note">{{ (hasFilters ? 'common.noMatches' : 'common.noData') | t }}</td>
+          <td colspan="7" class="empty-note">{{ (hasFilters ? 'common.noMatches' : 'common.noData') | t }}</td>
         </tr>
       </tbody>
     </table>
@@ -87,6 +107,11 @@ export class AdminUsersListComponent {
   loading = true;
   /** Why the last load failed; the table would otherwise read as empty. */
   loadError = '';
+  bulk = new BulkController<string | number>(() => this.reload());
+
+  get pageIds(): (string | number)[] {
+    return this.users.map((u) => u.id);
+  }
 
   /** Whether the table the admin is looking at is narrowed by anything. An
    *  empty result then means "nothing matched", which is a different fact
@@ -150,7 +175,17 @@ export class AdminUsersListComponent {
     this.reload();
   }
 
+  bulkActive(active: boolean) {
+    const n = this.bulk.selection.size;
+    this.bulk.run((id) => this.adminService.updateUser(id, { is_active: active }), {
+      confirm: this.i18n.t(active ? 'admin.bulk.confirmActivate' : 'admin.bulk.confirmDeactivate', { n }),
+      danger: !active,
+      confirmLabel: this.i18n.t(active ? 'admin.bulk.activate' : 'admin.bulk.deactivate'),
+    });
+  }
+
   reload() {
+    this.bulk.reset();
     this.loading = true;
     this.loadError = '';
     this.adminService.getUsers({ page: this.page, q: this.q, is_active: this.isActiveFilter, region: this.regionService.region().toUpperCase() }).subscribe({

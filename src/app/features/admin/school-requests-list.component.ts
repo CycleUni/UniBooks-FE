@@ -14,6 +14,9 @@ import { UiButton } from '../../shared/ui/button.component';
 import { UiDropdown } from '../../shared/ui/dropdown.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
 import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
+import { AdminBulkBarComponent } from './bulk-bar.component';
+import { AdminPickCellComponent } from './pick-cell.component';
+import { BulkController } from './bulk';
 
 const STATUSES: SchoolRequestStatus[] = ['pending', 'added', 'rejected'];
 
@@ -32,12 +35,18 @@ interface Draft {
 @Component({
   selector: 'app-admin-school-requests-list',
   standalone: true,
-  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiErrorState, UiButton, UiDropdown, UiPagination, UiSearchBarComponent],
+  imports: [RegionLinkDirective, CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiErrorState, UiButton, UiDropdown, UiPagination, UiSearchBarComponent, AdminBulkBarComponent, AdminPickCellComponent],
   template: `
     <div class="admin-filters">
       <ui-search-bar [placeholder]="'admin.searchSchoolRequests' | t" [value]="q" (search)="onSearch($event)"></ui-search-bar>
       <ui-dropdown [label]="'admin.colStatus' | t" [options]="statusFilterOptions" [(ngModel)]="statusFilter" (ngModelChange)="onFilterChange()" [searchable]="false"></ui-dropdown>
     </div>
+
+    <admin-bulk-bar *ngIf="!loading && !loadError && requests.length" [count]="bulk.selection.size" [busy]="bulk.busy" (clear)="bulk.selection.clear()">
+      <ui-button *ngFor="let s of statusOptions" size="sm" variant="outline" [disabled]="bulk.busy || !bulk.selection.size" (onClick)="bulkStatus(s.value)">{{
+        'admin.bulk.markAs' | t: { status: s.label }
+      }}</ui-button>
+    </admin-bulk-bar>
 
     <ui-skeleton *ngIf="loading" variant="table" [count]="5"></ui-skeleton>
 
@@ -47,6 +56,12 @@ interface Draft {
       <table class="admin-table" *ngIf="!loading && !loadError">
         <thead>
           <tr>
+            <th adminPick
+              [checked]="bulk.selection.allOf(pageIds)"
+              [indeterminate]="bulk.selection.size > 0 && !bulk.selection.allOf(pageIds)"
+              [disabled]="bulk.busy || !pageIds.length"
+              [label]="'admin.bulk.selectAll' | t"
+              (toggle)="bulk.selection.toggleAll(pageIds)"></th>
             <th class="nowrap">{{ 'admin.colRegion' | t }}</th>
             <th>{{ 'admin.colSchool' | t }}</th>
             <th>{{ 'admin.colWebsite' | t }}</th>
@@ -57,7 +72,12 @@ interface Draft {
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let req of requests; trackBy: trackById">
+          <tr *ngFor="let req of requests; trackBy: trackById" [class.picked]="bulk.selection.has(req.id)">
+            <td adminPick
+              [checked]="bulk.selection.has(req.id)"
+              [disabled]="bulk.busy"
+              [label]="'admin.bulk.selectRow' | t: { name: req.school_name }"
+              (toggle)="bulk.selection.toggle(req.id)"></td>
             <td class="nowrap">{{ getRegionName(req.region) }}</td>
             <td class="text-cell">{{ req.school_name }}</td>
             <!-- Typed by a member of the public: opened in a new tab with no
@@ -92,7 +112,7 @@ interface Draft {
             </td>
           </tr>
           <tr *ngIf="requests.length === 0">
-            <td colspan="7" class="empty-note">{{ (hasFilters ? 'common.noMatches' : 'common.noData') | t }}</td>
+            <td colspan="8" class="empty-note">{{ (hasFilters ? 'common.noMatches' : 'common.noData') | t }}</td>
           </tr>
         </tbody>
       </table>
@@ -131,6 +151,11 @@ export class AdminSchoolRequestsListComponent implements OnInit {
   /** Why the last load failed; the table would otherwise read as empty. */
   loadError = '';
   savingId: number | null = null;
+  bulk = new BulkController<number>(() => this.reload());
+
+  get pageIds(): number[] {
+    return this.requests.map((r) => r.id);
+  }
 
   get hasFilters(): boolean {
     return !!(this.q || this.statusFilter);
@@ -187,6 +212,7 @@ export class AdminSchoolRequestsListComponent implements OnInit {
   }
 
   reload() {
+    this.bulk.reset();
     this.loading = true;
     this.loadError = '';
     this.adminService.getSchoolRequests({
@@ -208,6 +234,16 @@ export class AdminSchoolRequestsListComponent implements OnInit {
         this.loading = false;
         this.cdr.markForCheck();
       }
+    });
+  }
+
+  bulkStatus(status: SchoolRequestStatus) {
+    this.bulk.run((id) => this.adminService.updateSchoolRequest(id, { status }), {
+      confirm: this.i18n.t('admin.bulk.confirmMarkAs', {
+        n: this.bulk.selection.size,
+        status: this.i18n.t('admin.schoolRequestStatus.' + status),
+      }),
+      confirmLabel: this.i18n.t('admin.bulk.markAs', { status: this.i18n.t('admin.schoolRequestStatus.' + status) }),
     });
   }
 

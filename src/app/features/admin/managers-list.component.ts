@@ -13,16 +13,24 @@ import { ConfirmService } from '../../core/services/confirm.service';
 import { UiSearchBarComponent } from '../../shared/ui/search-bar.component';
 import { UiDropdown } from '../../shared/ui/dropdown.component';
 import { UiPagination } from '../../shared/ui/pagination.component';
+import { AdminBulkBarComponent } from './bulk-bar.component';
+import { AdminPickCellComponent } from './pick-cell.component';
+import { BulkController } from './bulk';
+import { UiButton } from '../../shared/ui/button.component';
 
 @Component({
   selector: 'app-admin-managers-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiErrorState, UiSearchBarComponent, UiDropdown, UiPagination],
+  imports: [CommonModule, RouterModule, FormsModule, TPipe, UiSkeleton, UiErrorState, UiSearchBarComponent, UiDropdown, UiPagination, UiButton, AdminBulkBarComponent, AdminPickCellComponent],
   template: `
     <div class="admin-filters">
       <ui-search-bar [placeholder]="'admin.searchManagers' | t" [value]="q" (search)="onSearch($event)"></ui-search-bar>
       <ui-dropdown [label]="'admin.filterActive' | t" [options]="activeOptions" [(ngModel)]="isActiveFilter" (ngModelChange)="reload()" [searchable]="false"></ui-dropdown>
     </div>
+
+    <admin-bulk-bar *ngIf="!loading && !loadError && isSuperuser && users.length" [count]="bulk.selection.size" [busy]="bulk.busy" (clear)="bulk.selection.clear()">
+      <ui-button size="sm" variant="danger" [disabled]="bulk.busy || !bulk.selection.size" (onClick)="bulkRevoke()">{{ 'admin.revokeAdmin' | t }}</ui-button>
+    </admin-bulk-bar>
 
     <ui-skeleton *ngIf="loading" variant="table" [count]="5"></ui-skeleton>
 
@@ -34,6 +42,12 @@ import { UiPagination } from '../../shared/ui/pagination.component';
       <table class="admin-table" *ngIf="!loading && !loadError">
       <thead>
         <tr>
+          <th adminPick
+            [checked]="bulk.selection.allOf(pageIds)"
+            [indeterminate]="bulk.selection.size > 0 && !bulk.selection.allOf(pageIds)"
+            [disabled]="bulk.busy || !pageIds.length"
+            [label]="'admin.bulk.selectAll' | t"
+            (toggle)="bulk.selection.toggleAll(pageIds)"></th>
           <th>{{ 'admin.colEmail' | t }}</th>
           <th>{{ 'admin.colName' | t }}</th>
           <th>{{ 'admin.colSchool' | t }}</th>
@@ -42,7 +56,12 @@ import { UiPagination } from '../../shared/ui/pagination.component';
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let user of users">
+        <tr *ngFor="let user of users" [class.picked]="bulk.selection.has(user.id)">
+          <td adminPick
+            [checked]="bulk.selection.has(user.id)"
+            [disabled]="bulk.busy || !canRevoke(user)"
+            [label]="'admin.bulk.selectRow' | t: { name: user.email }"
+            (toggle)="bulk.selection.toggle(user.id)"></td>
           <td>{{ user.email }}</td>
           <td>{{ user.display_name || (user.first_name + ' ' + user.last_name) }}</td>
           <td>{{ user.school_name }}</td>
@@ -62,7 +81,7 @@ import { UiPagination } from '../../shared/ui/pagination.component';
           </td>
         </tr>
         <tr *ngIf="users.length === 0">
-          <td colspan="5" class="empty-note">{{ (hasFilters ? 'common.noMatches' : 'common.noData') | t }}</td>
+          <td colspan="6" class="empty-note">{{ (hasFilters ? 'common.noMatches' : 'common.noData') | t }}</td>
         </tr>
       </tbody>
     </table>
@@ -128,6 +147,11 @@ export class AdminManagersListComponent implements OnInit {
   loading = true;
   /** Why the last load failed; the table would otherwise read as empty. */
   loadError = '';
+  bulk = new BulkController<string | number>(() => this.reload());
+
+  get pageIds(): (string | number)[] {
+    return this.users.filter((u) => this.canRevoke(u)).map((u) => u.id);
+  }
 
   /** Whether the table the admin is looking at is narrowed by anything. An
    *  empty result then means "nothing matched", which is a different fact
@@ -170,6 +194,7 @@ export class AdminManagersListComponent implements OnInit {
   }
 
   reload() {
+    this.bulk.reset();
     this.loading = true;
     this.loadError = '';
     this.adminService.getUsers({ page: this.page, q: this.q, is_active: this.isActiveFilter }).subscribe({
@@ -184,6 +209,19 @@ export class AdminManagersListComponent implements OnInit {
         this.loading = false;
         this.cdr.markForCheck();
       }
+    });
+  }
+
+  /** Only admin rights can be taken in bulk; granting stays one at a time. */
+  canRevoke(user: AdminUser): boolean {
+    return this.canManage(user) && !!user.is_staff;
+  }
+
+  bulkRevoke() {
+    this.bulk.run((id) => this.adminService.toggleManager(id, false), {
+      confirm: this.i18n.t('admin.bulk.confirmRevokeAdmin', { n: this.bulk.selection.size }),
+      danger: true,
+      confirmLabel: this.i18n.t('admin.revokeAdmin'),
     });
   }
 
