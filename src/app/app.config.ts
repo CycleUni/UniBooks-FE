@@ -1,5 +1,6 @@
-import { ApplicationConfig, provideZoneChangeDetection, isDevMode, APP_INITIALIZER } from '@angular/core';
-import { provideRouter, withInMemoryScrolling, withRouterConfig, withPreloading, withViewTransitions } from '@angular/router';
+import { ApplicationConfig, provideZoneChangeDetection, isDevMode, APP_INITIALIZER, ErrorHandler, inject, provideAppInitializer } from '@angular/core';
+import * as Sentry from '@sentry/angular';
+import { Router, provideRouter, withInMemoryScrolling, withRouterConfig, withPreloading, withViewTransitions } from '@angular/router';
 import { IdlePreloadingStrategy } from './core/idle-preloading.strategy';
 import { onViewTransitionCreated } from './core/view-transitions';
 import { provideHttpClient, withInterceptorsFromDi, HTTP_INTERCEPTORS } from '@angular/common/http';
@@ -39,6 +40,11 @@ export const appConfig: ApplicationConfig = {
       deps: [I18nService],
       multi: true
     },
+    // Unhandled errors and route changes go to Sentry (a no-op until
+    // Sentry.init runs in main.ts, which needs NG_APP_SENTRY_DSN).
+    { provide: ErrorHandler, useValue: Sentry.createErrorHandler() },
+    { provide: Sentry.TraceService, deps: [Router] },
+    provideAppInitializer(() => { inject(Sentry.TraceService); }),
     // sw.js wraps ngsw-worker.js, leaving other origins to the browser.
     provideServiceWorker('sw.js', {
       enabled: !isDevMode(),

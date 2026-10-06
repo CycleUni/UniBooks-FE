@@ -113,7 +113,13 @@ describe('public/_headers', () => {
       // any request left. set-env.js rebuilds this line on real deployments.
       const setEnv = fs.readFileSync(path.join(process.cwd(), 'scripts/set-env.js'), 'utf-8');
       expect(setEnv).toContain("const IMPORT_LIST_SOURCE = 'https://raw.githubusercontent.com/CycleUni/';");
-      expect(setEnv).toMatch(/const connect = \[[^\]]*IMPORT_LIST_SOURCE\]/);
+      expect(setEnv).toMatch(/const connect = \[[^\]]*IMPORT_LIST_SOURCE/);
+    });
+
+    it('lets Sentry post error reports', () => {
+      const setEnv = fs.readFileSync(path.join(process.cwd(), 'scripts/set-env.js'), 'utf-8');
+      expect(setEnv).toContain("const SENTRY_INGEST = 'https://*.ingest.us.sentry.io';");
+      expect(setEnv).toMatch(/const connect = \[[^\]]*SENTRY_INGEST\]/);
     });
 
     it('does not let a wildcard reach script-src', () => {

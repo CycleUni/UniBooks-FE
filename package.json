@@ -20,6 +20,7 @@
     "@angular/platform-browser": "^22.1.6",
     "@angular/router": "^22.1.6",
     "@angular/service-worker": "^22.1.6",
+    "@sentry/angular": "^11.4.0",
     "barcode-detector": "^3.2.2",
     "browser-image-compression": "^2.0.2",
     "chart.js": "^4.5.1",

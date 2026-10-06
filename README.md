@@ -114,6 +114,12 @@ export const REGION_TO_LANG: Record<string, Lang> = {
 在 `.env` 填入 `NG_APP_GA_MEASUREMENT_ID`（格式 `G-XXXXXXXXXX`）。留空時完全
 不會載入追蹤碼，所有事件也不會送出。
 
+### Sentry 錯誤回報
+
+在 `.env` 填入 `NG_APP_SENTRY_DSN`（公開的上報位址，非機密）。留空時 Sentry 不啟用。
+初始化在 `src/main.ts`，未處理的錯誤與路由效能由 `app.config.ts` 的 ErrorHandler / TraceService 回報；
+CSP 的 `connect-src` 已由 `scripts/set-env.js` 放行 `*.ingest.us.sentry.io`。
+
 ### 送出的事件
 
 | 事件 | 觸發時機 | 主要參數 |

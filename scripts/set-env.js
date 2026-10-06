@@ -12,6 +12,7 @@ export const environment = {
   production: false,
   backendUrl: '${process.env.NG_APP_BACKEND_URL || 'http://127.0.0.1:8000/api/v1'}',
   gaMeasurementId: '${process.env.NG_APP_GA_MEASUREMENT_ID || ''}',
+  sentryDsn: '${process.env.NG_APP_SENTRY_DSN || ''}',
   googleClientId: '${process.env.GOOGLE_CLIENT_ID || ''}'
 };
 `;
@@ -21,6 +22,7 @@ export const environment = {
   production: true,
   backendUrl: '${process.env.NG_APP_BACKEND_URL || 'http://127.0.0.1:8000/api/v1'}',
   gaMeasurementId: '${process.env.NG_APP_GA_MEASUREMENT_ID || ''}',
+  sentryDsn: '${process.env.NG_APP_SENTRY_DSN || ''}',
   googleClientId: '${process.env.GOOGLE_CLIENT_ID || ''}'
 };
 `;
@@ -122,8 +124,11 @@ function r2UploadOrigin(rawId) {
 // CycleUni's own files rather than everything raw.githubusercontent.com serves.
 const IMPORT_LIST_SOURCE = 'https://raw.githubusercontent.com/CycleUni/';
 
+// Sentry error reports and replays are POSTed to the project's ingest host.
+const SENTRY_INGEST = 'https://*.ingest.us.sentry.io';
+
 function buildCsp({ backendOrigin, chatOrigin, mediaOrigin, uploadOrigin }) {
-  const connect = ["'self'", backendOrigin, chatOrigin, chatOrigin && chatOrigin.replace(/^https:/, 'wss:'), uploadOrigin, 'https://accounts.google.com', IMPORT_LIST_SOURCE];
+  const connect = ["'self'", backendOrigin, chatOrigin, chatOrigin && chatOrigin.replace(/^https:/, 'wss:'), uploadOrigin, 'https://accounts.google.com', IMPORT_LIST_SOURCE, SENTRY_INGEST];
   const img = ["'self'", 'data:', 'blob:', mediaOrigin, 'https://lh3.googleusercontent.com'];
   return [
     "default-src 'self'",
