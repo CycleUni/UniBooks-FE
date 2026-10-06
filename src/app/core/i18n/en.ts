@@ -120,6 +120,8 @@ export const en: Record<string, string> = {
   'search.showResults': 'Show Results',
   'search.scanBarcode': 'Scan a barcode',
   'search.scanHint': 'Point the camera at the barcode on the back of the book.',
+  'scanner.torchOn': 'Turn on the flashlight',
+  'scanner.torchOff': 'Turn off the flashlight',
   'search.recentSearches': 'Recent searches',
   'search.clearRecent': 'Clear',
   'search.removeRecent': 'Remove {q} from recent searches',

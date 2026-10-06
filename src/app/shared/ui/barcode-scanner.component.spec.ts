@@ -1,4 +1,4 @@
-import { createScanConfirmer, selectBestRearCamera } from './barcode-scanner.component';
+import { createScanConfirmer, selectBestRearCamera, visibleVideoRegion } from './barcode-scanner.component';
 import { isValidIsbnChecksum } from '../../core/isbn';
 
 describe('selectBestRearCamera', () => {
@@ -71,5 +71,20 @@ describe('createScanConfirmer', () => {
     expect(confirmed('9780134685991')).toBe(false);
     expect(confirmed('9780134685991')).toBe(false);
     expect(confirmed('9780134685991')).toBe(true);
+  });
+});
+
+describe('visibleVideoRegion', () => {
+  it('takes the centre band of a portrait video shown in a 16:9 frame', () => {
+    // A phone's 480x640 portrait stream in a 352x198 frame: full width, centre 270 rows.
+    expect(visibleVideoRegion(480, 640, 352, 198)).toEqual({ x: 0, y: 185, width: 480, height: 270 });
+  });
+
+  it('takes the centre columns of a video wider than the frame', () => {
+    expect(visibleVideoRegion(1920, 1080, 400, 400)).toEqual({ x: 420, y: 0, width: 1080, height: 1080 });
+  });
+
+  it('takes the whole video when the shapes match', () => {
+    expect(visibleVideoRegion(1280, 720, 320, 180)).toEqual({ x: 0, y: 0, width: 1280, height: 720 });
   });
 });

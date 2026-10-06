@@ -117,6 +117,8 @@ export const zhTW: Record<string, string> = {
   'search.showResults': '顯示結果',
   'search.scanBarcode': '掃描條碼',
   'search.scanHint': '將鏡頭對準書背的條碼。',
+  'scanner.torchOn': '開啟手電筒',
+  'scanner.torchOff': '關閉手電筒',
   'search.recentSearches': '最近搜尋',
   'search.clearRecent': '清除',
   'search.removeRecent': '從最近搜尋移除「{q}」',
