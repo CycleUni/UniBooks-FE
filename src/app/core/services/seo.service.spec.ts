@@ -71,11 +71,13 @@ describe('SeoService', () => {
     expect(canonical()).toBe(`${location.origin}/tw/book?isbn=9781449319793`);
     expect(meta('property="og:image"')).toBe(`${location.origin}/api/cover?src=x`);
     expect(meta('name="twitter:card"')).toBe('summary_large_image');
+    expect(meta('property="og:image:width"')).toBeNull();
 
     await visit('/tw/search?q=java');
     expect(document.title).toBe('Find Books · UniBooks');
-    expect(meta('property="og:image"')).toBeNull();
-    expect(meta('name="twitter:card"')).toBe('summary');
+    expect(meta('property="og:image"')).toBe(`${location.origin}/og-image.png`);
+    expect(meta('property="og:image:width"')).toBe('1200');
+    expect(meta('name="twitter:card"')).toBe('summary_large_image');
   });
 
   it('points the canonical at the path without its query by default', async () => {

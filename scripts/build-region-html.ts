@@ -80,6 +80,11 @@ async function loadStrings(lang: Lang): Promise<Strings> {
   return exportedStrings[0];
 }
 
+/** The site's link-preview card (scripts/generate-icons.js). */
+const OG_IMAGE_PATH = '/og-image.png';
+const OG_IMAGE_WIDTH = 1200;
+const OG_IMAGE_HEIGHT = 630;
+
 function ogLocaleFor(lang: Lang): string {
   return lang === 'en' ? 'en_US' : lang.replace('-', '_');
 }
@@ -256,7 +261,10 @@ function buildHtml(
   );
 
   const ogUrl = region ? regionUrl(region, page ?? '') : `${SITE_ORIGIN}/`;
-  const ogImage = `${SITE_ORIGIN}/icons/icon-512x512.png`;
+  // The 1200x630 card npm run icons draws; the square app icon stays the
+  // Organization logo, which Google wants square.
+  const ogImage = `${SITE_ORIGIN}${OG_IMAGE_PATH}`;
+  const logo = `${SITE_ORIGIN}/icons/icon-512x512.png`;
   const ogLocale = ogLocaleFor(locale);
 
   // A region page's own file names itself as canonical and its copy in
@@ -296,7 +304,7 @@ function buildHtml(
         "@id": ORGANIZATION_ID,
         "name": SITE_NAME,
         "url": `${SITE_ORIGIN}/`,
-        "logo": ogImage,
+        "logo": logo,
         "description": description,
         "sameAs": ["https://github.com/CycleUni"]
       },
@@ -334,6 +342,9 @@ function buildHtml(
     `<meta property="og:description" content="${escapeHtml(description)}">`,
     `<meta property="og:url" content="${escapeHtml(ogUrl)}">`,
     `<meta property="og:image" content="${escapeHtml(ogImage)}">`,
+    `<meta property="og:image:width" content="${OG_IMAGE_WIDTH}">`,
+    `<meta property="og:image:height" content="${OG_IMAGE_HEIGHT}">`,
+    `<meta property="og:image:alt" content="${escapeHtml(SITE_NAME)}">`,
     `<meta property="og:locale" content="${ogLocale}">`,
     `<meta name="twitter:card" content="summary_large_image">`,
     // "<" escaped so no string in the block can close the script element.

@@ -20,7 +20,8 @@ export interface PageSeo {
   /** Region-prefixed path plus the query that identifies the page, e.g.
    *  `/tw/book?isbn=9781449319793`. Defaults to the current path with no query. */
   canonicalPath?: string;
-  /** Absolute or root-relative image URL for og:image. */
+  /** Absolute or root-relative image URL for og:image. Defaults to the
+   *  site's 1200x630 card. */
   image?: string;
   noindex?: boolean;
 }
@@ -112,13 +113,21 @@ export class SeoService {
     this.meta.updateTag({ property: 'og:title', content: fullTitle });
     this.meta.updateTag({ property: 'og:description', content: description });
     this.meta.updateTag({ property: 'og:url', content: canonical });
+    // The same card scripts/build-region-html.ts writes into the HTML, so a
+    // page without an image of its own does not drop the preview picture.
+    const image = new URL(seo.image || '/og-image.png', origin || undefined).toString();
+    this.meta.updateTag({ property: 'og:image', content: image });
+    this.meta.updateTag({ name: 'twitter:card', content: 'summary_large_image' });
     if (seo.image) {
-      const image = new URL(seo.image, origin || undefined).toString();
-      this.meta.updateTag({ property: 'og:image', content: image });
-      this.meta.updateTag({ name: 'twitter:card', content: 'summary_large_image' });
+      // A page's own image (a book cover) has a size of its own, which the
+      // card's width and height would misdescribe.
+      this.meta.removeTag('property="og:image:width"');
+      this.meta.removeTag('property="og:image:height"');
+      this.meta.removeTag('property="og:image:alt"');
     } else {
-      this.meta.removeTag('property="og:image"');
-      this.meta.updateTag({ name: 'twitter:card', content: 'summary' });
+      this.meta.updateTag({ property: 'og:image:width', content: '1200' });
+      this.meta.updateTag({ property: 'og:image:height', content: '630' });
+      this.meta.updateTag({ property: 'og:image:alt', content: SITE_NAME });
     }
 
     if (seo.noindex) {

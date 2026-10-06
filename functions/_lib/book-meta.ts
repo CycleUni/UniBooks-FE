@@ -215,7 +215,9 @@ export function headTags(meta: BookMeta): string {
     tag('property', 'og:description', meta.description),
     tag('property', 'og:url', meta.canonical),
     ...(meta.image ? [tag('property', 'og:image', meta.image)] : []),
-    tag('name', 'twitter:card', meta.image ? 'summary_large_image' : 'summary'),
+    // Without a cover the page keeps the site's 1200x630 card, which is
+    // just as wide as a cover would be shown.
+    tag('name', 'twitter:card', 'summary_large_image'),
   ].join('');
 }
 

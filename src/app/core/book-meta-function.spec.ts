@@ -182,7 +182,7 @@ describe('book link-preview Function', () => {
         'content="&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt; · UniBooks"',
       );
       expect(tags).toContain('content="O&#39;Reilly &amp; &lt;b&gt;"');
-      expect(tags).toContain('<meta name="twitter:card" content="summary">');
+      expect(tags).toContain('<meta name="twitter:card" content="summary_large_image">');
       expect(tags).not.toContain('og:image');
     });
   });

@@ -36,7 +36,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 /** The page's own copies, removed before the book's are appended: with two
  *  canonicals a search engine may ignore both, and preview fetchers differ
  *  on which of two og:title tags they read. The site's og:image stays when
- *  the book has no cover, so its preview still has a picture. */
+ *  the book has no cover, with its size and alt, so its preview still has
+ *  the site's card. */
 const REPLACED_HEAD_TAGS = [
   'link[rel="canonical"]',
   'link[rel="alternate"][hreflang]',
@@ -49,7 +50,7 @@ function inject(page: Response, meta: BookMeta, status: number): Response {
   for (const selector of REPLACED_HEAD_TAGS) {
     rewriter = rewriter.on(selector, {
       element(el) {
-        if (!meta.image && el.getAttribute('property') === 'og:image') return;
+        if (!meta.image && el.getAttribute('property')?.startsWith('og:image')) return;
         el.remove();
       },
     });
