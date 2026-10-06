@@ -112,6 +112,19 @@ export class AuthFormComponent implements OnInit, AfterViewInit {
     return suffixes.length ? ` (${suffixes.join(', ')})` : '';
   }
 
+  get googleReady(): boolean {
+    return this.googleAuth.buttonReady();
+  }
+
+  get googleSigningIn(): boolean {
+    return this.googleAuth.signingIn();
+  }
+
+  /** Opening the account chooser or signing in: either way, show a spinner. */
+  get googleBusy(): boolean {
+    return this.googleAuth.opening() || this.googleAuth.signingIn();
+  }
+
   get authMessage(): string {
     if (this.clientAuthError) return this.i18n.t(this.clientAuthError);
     if (!this.lastAuthError) return '';

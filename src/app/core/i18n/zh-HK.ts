@@ -210,6 +210,7 @@ export const zhHK: Record<string, string> = {
   'auth.errNoEmail': '這個 Google 帳戶沒有可用的電郵，請改用電郵與密碼登入。',
   'auth.errEmailNotVerified': 'Google 尚未驗證這個帳戶的電郵，無法用它登入。',
   'auth.errGoogleLoginFailed': 'Google 登入失敗，請再試一次。',
+  'auth.googleSigningIn': '正在以 Google 登入…',
   'auth.errMissingCredential': '缺少 Google 登入憑證，請再登入一次。',
   'auth.errRegisterFailed': '註冊失敗，請檢查填寫的內容。',
   'auth.errInvalidCredentials': '電郵或密碼錯誤',

@@ -45,7 +45,7 @@ describe('AuthFormComponent', () => {
       login: vi.fn().mockReturnValue(of({})),
       register: vi.fn().mockReturnValue(of({}))
     };
-    mockGoogle = { renderButton: vi.fn() };
+    mockGoogle = { renderButton: vi.fn(), buttonReady: signal(true), opening: signal(false), signingIn: signal(false) };
     mockRouter = {
       navigate: vi.fn().mockResolvedValue(true),
       navigateByUrl: vi.fn().mockResolvedValue(true),
@@ -106,6 +106,41 @@ describe('AuthFormComponent', () => {
     build('register');
     await new Promise(r => setTimeout(r, 0));
     expect(mockGoogle.renderButton).toHaveBeenCalledWith('google-btn');
+  });
+
+  // Google draws the button itself, so nothing on the page used to answer
+  // a press or the wait after picking an account.
+  describe('Google loading states', () => {
+    const q = (sel: string) => fixture.nativeElement.querySelector(sel);
+
+    it('holds the button\'s place until Google has drawn it', () => {
+      mockGoogle.buttonReady.set(false);
+      build('login');
+      expect(q('.google-placeholder')).toBeTruthy();
+
+      mockGoogle.buttonReady.set(true);
+      fixture.detectChanges();
+      expect(q('.google-placeholder')).toBeNull();
+    });
+
+    it('shows a spinner, letting clicks through, while the account chooser opens', () => {
+      build('login');
+      expect(q('.google-veil')).toBeNull();
+
+      mockGoogle.opening.set(true);
+      fixture.detectChanges();
+      expect(q('.google-veil .spinner')).toBeTruthy();
+      expect(q('.google-veil').classList).not.toContain('blocking');
+    });
+
+    it('says it is signing in, and blocks a second press, while the backend answers', () => {
+      build('register');
+      mockGoogle.signingIn.set(true);
+      fixture.detectChanges();
+      expect(q('.google-veil').classList).toContain('blocking');
+      expect(q('.google-veil').textContent).toContain('auth.googleSigningIn');
+      expect(q('.google-wrap').getAttribute('aria-busy')).toBe('true');
+    });
   });
 
   describe('field semantics', () => {

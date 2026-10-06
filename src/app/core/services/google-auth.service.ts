@@ -1,4 +1,4 @@
-import { ApplicationRef, Injectable, inject, PLATFORM_ID, effect } from '@angular/core';
+import { ApplicationRef, Injectable, NgZone, inject, PLATFORM_ID, effect, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { AuthStore } from '../auth.store';
 import { I18nService } from '../i18n.service';
@@ -19,7 +19,26 @@ export class GoogleAuthService {
   private toast = inject(ToastService);
   private platformId = inject(PLATFORM_ID);
   private appRef = inject(ApplicationRef);
-  
+  private zone = inject(NgZone);
+
+  /** How long the button shows it is opening the account chooser. GIS says
+   *  nothing when that dialog is dismissed, so the state cannot wait for it. */
+  static readonly OPENING_MS = 4000;
+
+  /** The Google button is drawn; until then the auth page holds its place. */
+  readonly buttonReady = signal(false);
+  /** The button was pressed and the browser's account chooser is on its way.
+   *  Without it the press looked like nothing happened for the second or so
+   *  the browser takes to show the dialog. */
+  readonly opening = signal(false);
+  /** A Google credential is with the backend. Stays set after a success, as
+   *  the auth page is about to leave; cleared on failure or sign-out. */
+  readonly signingIn = signal(false);
+  private openingTimer: ReturnType<typeof setTimeout> | null = null;
+  private signingInToast = 0;
+  private buttonElementId = '';
+  private wasAuthenticated = false;
+
   // Baked in at build time (GOOGLE_CLIENT_ID) so One Tap need not ask the
   // backend for it first; a build without it fetches it from /auth/config/.
   private googleClientId = environment.googleClientId || '';
@@ -37,6 +56,10 @@ export class GoogleAuthService {
       // Re-initialize or re-prompt when auth state or language changes
       this.i18n.lang();
       const isAuth = this.authStore.isAuthenticated();
+      // Only on signing out: this also re-runs on a language change, which
+      // must not drop the state mid sign-in.
+      if (this.wasAuthenticated && !isAuth) this.signingIn.set(false);
+      this.wasAuthenticated = isAuth;
       
       if (isAuth && isPlatformBrowser(this.platformId)) {
         // User just logged in (via Google or password) — mark session
@@ -180,6 +203,10 @@ export class GoogleAuthService {
 
   public renderButton(elementId: string) {
     if (!isPlatformBrowser(this.platformId)) return;
+    this.buttonElementId = elementId;
+    // A re-render (language, theme) draws over the button already there; only
+    // an empty container — a fresh visit to the page — needs the placeholder.
+    if (!document.getElementById(elementId)?.firstChild) this.buttonReady.set(false);
     
     // Bind global handler just in case
     (window as any).handleGoogleCredential = (response: any) => this.handleGoogleCredential(response);
@@ -225,18 +252,56 @@ export class GoogleAuthService {
             container,
             {
               theme: btnTheme, size: 'large', type: 'standard', text: 'continue_with', locale: langCode, width: targetWidth,
-              click_listener: () => { this.buttonPressed = true; }
+              click_listener: () => this.zone.run(() => this.onButtonPressed())
             }
           );
+          this.buttonReady.set(true);
         }
       }
     });
   }
 
+  private onButtonPressed() {
+    this.buttonPressed = true;
+    this.opening.set(true);
+    if (this.openingTimer) clearTimeout(this.openingTimer);
+    this.openingTimer = setTimeout(() => {
+      this.openingTimer = null;
+      this.opening.set(false);
+    }, GoogleAuthService.OPENING_MS);
+  }
+
+  private clearOpening() {
+    if (this.openingTimer) clearTimeout(this.openingTimer);
+    this.openingTimer = null;
+    this.opening.set(false);
+  }
+
+  /** GIS calls back from its own frame, outside Angular's zone. */
   private handleGoogleCredential(response: any) {
+    this.zone.run(() => this.signInWithCredential(response));
+  }
+
+  private signInWithCredential(response: any) {
     if (response && response.credential) {
+      this.clearOpening();
+      this.signingIn.set(true);
+      // The auth page shows this on its button; anywhere else One Tap was
+      // the only thing on screen, and it closes as soon as an account is
+      // picked, so say what is happening until the backend answers.
+      if (!this.buttonElementId || !document.getElementById(this.buttonElementId)) {
+        this.signingInToast = this.toast.info(this.i18n.t('auth.googleSigningIn'), 0);
+      }
+      const dismissToast = () => {
+        if (this.signingInToast) this.toast.dismiss(this.signingInToast);
+        this.signingInToast = 0;
+      };
       this.authStore.loginWithGoogle(response.credential).subscribe({
         next: () => {
+          dismissToast();
+          // A reply without tokens signs no one in, and nothing would then
+          // clear the state the auth page is showing.
+          if (!this.authStore.isAuthenticated()) this.signingIn.set(false);
           // Mark session so One Tap won't show again this session
           sessionStorage.setItem('google_one_tap_done', '1');
           // Cancel One Tap UI immediately
@@ -251,6 +316,8 @@ export class GoogleAuthService {
           // only place that knows about returnUrl anyway.
         },
         error: (err) => {
+          dismissToast();
+          this.signingIn.set(false);
           console.error('Google login failed', err);
           // The button lives outside any one page, so a failure here used to
           // reach nobody but the console — the user pressed "continue with

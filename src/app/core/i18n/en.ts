@@ -213,6 +213,7 @@ export const en: Record<string, string> = {
   'auth.errNoEmail': 'That Google account has no usable email. Sign in with an email and password instead.',
   'auth.errEmailNotVerified': 'Google has not verified the email on that account, so it cannot be used to sign in here.',
   'auth.errGoogleLoginFailed': 'Google sign-in failed. Please try again.',
+  'auth.googleSigningIn': 'Signing in with Google…',
   'auth.errMissingCredential': 'The Google sign-in credential is missing. Please sign in again.',
   'auth.errRegisterFailed': 'Sign-up failed. Check the details you entered.',
   'auth.errInvalidCredentials': 'Email or password incorrect.',

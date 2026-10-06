@@ -23,7 +23,7 @@
         {{ (isLoading ? 'auth.loggingIn' : 'auth.login') | t }}
       </ui-button>
 
-      <div id="google-btn"  class="mt-4" style="display: flex; justify-content: center;"></div>
+      <ng-container *ngTemplateOutlet="googleTpl"></ng-container>
 
       <div class="auth-toggle">
         {{ 'auth.noAccount' | t }}<a regionLink="/register" [queryParams]="linkQueryParams">{{ 'auth.clickToRegister' | t }}</a>
@@ -72,7 +72,7 @@
         {{ (isLoading ? 'auth.registering' : 'auth.register') | t }}
       </ui-button>
 
-      <div id="google-btn"  class="mt-4" style="display: flex; justify-content: center;"></div>
+      <ng-container *ngTemplateOutlet="googleTpl"></ng-container>
 
       <div class="auth-toggle">
         {{ 'auth.hasAccount' | t }}<a regionLink="/login" [queryParams]="linkQueryParams">{{ 'auth.backToLogin' | t }}</a>
@@ -88,6 +88,23 @@
          the fields it was about, and nothing tied it to them for a screen
          reader. The id is what the fields' aria-describedby points at; alert
          for a failure so it is announced, status for the post-sign-up notice. -->
+    <!-- Google draws its own button into #google-btn, so the loading states
+         sit around it: a placeholder until it is drawn, and a veil over it
+         while the account chooser opens and while the backend signs in.
+         Without them a press, or the wait after picking an account, showed
+         nothing at all. -->
+    <ng-template #googleTpl>
+      <div class="google-wrap mt-4" [attr.aria-busy]="googleBusy">
+        <div id="google-btn" class="google-btn"></div>
+        <div *ngIf="!googleReady" class="google-placeholder" aria-hidden="true"></div>
+        <div *ngIf="googleBusy" class="google-veil" [class.blocking]="googleSigningIn">
+          <span class="spinner" aria-hidden="true"></span>
+          <span *ngIf="googleSigningIn">{{ 'auth.googleSigningIn' | t }}</span>
+        </div>
+        <span class="sr-only" role="status">{{ googleSigningIn ? ('auth.googleSigningIn' | t) : '' }}</span>
+      </div>
+    </ng-template>
+
     <ng-template #messageTpl>
       <div *ngIf="authMessage" [id]="MESSAGE_ID" class="inline-msg" [class.error]="authIsError" [attr.role]="authIsError ? 'alert' : 'status'">
         {{ authMessage }}
