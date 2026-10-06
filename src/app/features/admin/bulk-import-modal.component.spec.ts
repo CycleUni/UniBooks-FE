@@ -1,7 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { SimpleChange } from '@angular/core';
 import { of } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
-import { BulkImportModalComponent } from './bulk-import-modal.component';
+import { BulkImportModalComponent, defaultSchoolsJsonUrl } from './bulk-import-modal.component';
 import { AdminService } from '../../core/services/admin.service';
 import { RegionService } from '../../core/region.service';
 
@@ -145,5 +146,36 @@ describe('BulkImportModalComponent', () => {
 
     expect(html.textContent).toContain('"name": "Original"');
     expect(html.textContent).not.toContain('"name": "Mutated"');
+  });
+
+  function open() {
+    component.show = true;
+    component.ngOnChanges({ show: new SimpleChange(false, true, false) });
+  }
+
+  it('fills in the region\'s SchoolList URL when the school import opens', () => {
+    open();
+
+    expect(component.jsonUrl).toBe('https://raw.githubusercontent.com/CycleUni/SchoolList/refs/heads/main/schools.TW.json');
+  });
+
+  it('derives the URL from any region code', () => {
+    expect(defaultSchoolsJsonUrl('hk')).toBe('https://raw.githubusercontent.com/CycleUni/SchoolList/refs/heads/main/schools.HK.json');
+  });
+
+  it('keeps a URL the admin typed', () => {
+    component.jsonUrl = 'https://example.com/mine.json';
+
+    open();
+
+    expect(component.jsonUrl).toBe('https://example.com/mine.json');
+  });
+
+  it('leaves the URL empty for the category import', () => {
+    component.endpoint = 'categories';
+
+    open();
+
+    expect(component.jsonUrl).toBe('');
   });
 });

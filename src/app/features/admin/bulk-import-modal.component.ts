@@ -1,5 +1,5 @@
 import { UiButton } from '../../shared/ui/button.component';
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, Output, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -9,6 +9,15 @@ import { I18nService, TPipe } from '../../core/i18n.service';
 import { translateApiError } from '../../core/api-error.util';
 import { UiTextarea } from '../../shared/ui/textarea.component';
 import { UiFocusTrapDirective } from '../../shared/ui/focus-trap.directive';
+
+/**
+ * The CycleUni/SchoolList fixture published for each region:
+ * schools.TW.json, schools.HK.json, ... A regional admin importing the whole
+ * schools.json would only see the other regions' rows come back forbidden.
+ */
+export function defaultSchoolsJsonUrl(region: string): string {
+  return `https://raw.githubusercontent.com/CycleUni/SchoolList/refs/heads/main/schools.${region.toUpperCase()}.json`;
+}
 
 @Component({
   selector: 'app-bulk-import-modal',
@@ -135,7 +144,7 @@ import { UiFocusTrapDirective } from '../../shared/ui/focus-trap.directive';
     .new { color: var(--success); }
   `]
 })
-export class BulkImportModalComponent {
+export class BulkImportModalComponent implements OnChanges {
   readonly PREVIEW_ITEM_LIMIT = 50;
 
   @Input() show = false;
@@ -172,6 +181,21 @@ export class BulkImportModalComponent {
     }], null, 2);
   }
 
+  /**
+   * Opening the school import fills in this region's SchoolList URL, so
+   * importing the maintained list is Fetch then Preview. A URL the admin typed
+   * is kept; one we filled in earlier follows the region the modal opens in.
+   */
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!changes['show'] || !this.show || this.endpoint !== 'schools') return;
+    const url = defaultSchoolsJsonUrl(this.regionService.region());
+    if (!this.jsonUrl || this.jsonUrl === this.filledUrl) {
+      this.jsonUrl = url;
+      this.filledUrl = url;
+    }
+  }
+
+  private filledUrl = '';
   private adminService = inject(AdminService);
   private regionService = inject(RegionService);
   private http = inject(HttpClient);

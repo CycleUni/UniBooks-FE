@@ -117,8 +117,13 @@ function r2UploadOrigin(rawId) {
   return `https://${id}.r2.cloudflarestorage.com`;
 }
 
+// The admin bulk import fetches its default lists from the CycleUni GitHub
+// repositories (SchoolList's schools.<REGION>.json). The path keeps it to
+// CycleUni's own files rather than everything raw.githubusercontent.com serves.
+const IMPORT_LIST_SOURCE = 'https://raw.githubusercontent.com/CycleUni/';
+
 function buildCsp({ backendOrigin, chatOrigin, mediaOrigin, uploadOrigin }) {
-  const connect = ["'self'", backendOrigin, chatOrigin, chatOrigin && chatOrigin.replace(/^https:/, 'wss:'), uploadOrigin, 'https://accounts.google.com'];
+  const connect = ["'self'", backendOrigin, chatOrigin, chatOrigin && chatOrigin.replace(/^https:/, 'wss:'), uploadOrigin, 'https://accounts.google.com', IMPORT_LIST_SOURCE];
   const img = ["'self'", 'data:', 'blob:', mediaOrigin, 'https://lh3.googleusercontent.com'];
   return [
     "default-src 'self'",

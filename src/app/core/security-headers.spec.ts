@@ -107,6 +107,15 @@ describe('public/_headers', () => {
       expect(setEnv).toMatch(/"style-src [^"]*https:\/\/accounts\.google\.com\/gsi\/style[^"]*"/);
     });
 
+    it('lets the admin import fetch the CycleUni lists', () => {
+      // The school import fills in raw.githubusercontent.com/CycleUni/SchoolList/...;
+      // with connect-src naming only the API, the browser blocked it before
+      // any request left. set-env.js rebuilds this line on real deployments.
+      const setEnv = fs.readFileSync(path.join(process.cwd(), 'scripts/set-env.js'), 'utf-8');
+      expect(setEnv).toContain("const IMPORT_LIST_SOURCE = 'https://raw.githubusercontent.com/CycleUni/';");
+      expect(setEnv).toMatch(/const connect = \[[^\]]*IMPORT_LIST_SOURCE\]/);
+    });
+
     it('does not let a wildcard reach script-src', () => {
       // img-src/connect-src carry wildcards in the committed fallback (see the
       // file's comment); script-src must never be among them, in any state.
