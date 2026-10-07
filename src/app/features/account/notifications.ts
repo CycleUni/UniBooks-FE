@@ -170,7 +170,7 @@ export class NotificationsComponent implements OnInit {
   }
 
   private syncPushOn() {
-    this.pushOn.set(!!this.settings()?.new_message_push && this.push.isEnabledHere(this.authStore.user()?.id));
+    this.pushOn.set(!!this.settings()?.push && this.push.isEnabledHere(this.authStore.user()?.id));
   }
 
   load() {
@@ -268,7 +268,7 @@ export class NotificationsComponent implements OnInit {
       }
     }
 
-    this.accountService.updateNotificationSettings({ new_message_push: enabled }).subscribe({
+    this.accountService.updateNotificationSettings({ push: enabled }).subscribe({
       next: async (saved) => {
         this.settings.set(saved);
         if (!enabled) await this.push.disable();
@@ -280,7 +280,7 @@ export class NotificationsComponent implements OnInit {
         // Turned on in the browser but not saved: take the browser back out,
         // so the switch never claims what the server does not have.
         if (enabled) this.push.disable();
-        input.checked = previous.new_message_push && this.push.isEnabledHere(userId);
+        input.checked = previous.push && this.push.isEnabledHere(userId);
         this.syncPushOn();
         this.saving.set(false);
         this.toast.error(parseApiError(err, this.i18n, 'acct.notifySaveFailed'));

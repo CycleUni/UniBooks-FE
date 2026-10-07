@@ -39,8 +39,8 @@ describe('NotificationsComponent', () => {
 
   beforeEach(() => {
     account = {
-      getNotificationSettings: vi.fn(() => of({ new_message_email: true, new_message_push: true, email_language: 'auto', site_language: 'zh-TW' })),
-      updateNotificationSettings: vi.fn((changes: any) => of({ new_message_email: true, new_message_push: true, email_language: 'auto', site_language: 'zh-TW', ...changes })),
+      getNotificationSettings: vi.fn(() => of({ new_message_email: true, push: true, email_language: 'auto', site_language: 'zh-TW' })),
+      updateNotificationSettings: vi.fn((changes: any) => of({ new_message_email: true, push: true, email_language: 'auto', site_language: 'zh-TW', ...changes })),
     };
     // Push is off the page unless a test turns it on.
     push = {
@@ -232,7 +232,7 @@ describe('NotificationsComponent', () => {
       await flip();
 
       expect(push.enable).toHaveBeenCalledWith(7);
-      expect(account.updateNotificationSettings).toHaveBeenCalledWith({ new_message_push: true });
+      expect(account.updateNotificationSettings).toHaveBeenCalledWith({ push: true });
       expect(pushToggle()!.checked).toBe(true);
       expect(toast.success).toHaveBeenCalledWith('acct.notifySaved');
     });
@@ -277,7 +277,7 @@ describe('NotificationsComponent', () => {
 
       await flip();
 
-      expect(account.updateNotificationSettings).toHaveBeenCalledWith({ new_message_push: false });
+      expect(account.updateNotificationSettings).toHaveBeenCalledWith({ push: false });
       expect(push.disable).toHaveBeenCalled();
       expect(pushToggle()!.checked).toBe(false);
     });
