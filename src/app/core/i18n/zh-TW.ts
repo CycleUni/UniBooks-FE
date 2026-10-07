@@ -506,6 +506,8 @@ export const zhTW: Record<string, string> = {
   'sell.successManageHint': '如需修改或下架此刊登，請前往：',
   'sell.backHome': '回首頁',
   'sell.notFoundIsbn': '找不到此 ISBN 的書籍，請手動輸入書名與作者。',
+  'sell.notFoundText': '找不到符合的書籍。建議改用書本背面的 ISBN 條碼搜尋，或手動輸入書名與作者。',
+  'sell.textSearchIsbnHint': '找不到想要的書？可以改用書本背面的 ISBN 條碼搜尋，結果會更準確。',
   'sell.upstreamTimeout': '外部圖書資料庫連線逾時，請再試一次。',
   'sell.networkError': '查詢書籍時發生網路錯誤，請稍後再試。',
   'sell.listFailed': '上架失敗：{msg}',

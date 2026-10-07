@@ -534,7 +534,7 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
         } else {
           this.searchResults = [];
           this.enterManually();
-          this.apiError = this.i18n.t('sell.notFoundIsbn');
+          this.apiError = this.i18n.t(this.isTextQuery ? 'sell.notFoundText' : 'sell.notFoundIsbn');
         }
         this.cdr.markForCheck();
       },
@@ -549,6 +549,11 @@ export class Sell implements OnInit, OnDestroy, HasUnsavedChanges {
         this.cdr.markForCheck();
       }
     });
+  }
+
+  /** A title or author search rather than an ISBN: the one that can be retried by ISBN. */
+  get isTextQuery(): boolean {
+    return !!this.searchQuery && !cleanAndValidateIsbn(this.searchQuery);
   }
 
   /** Whether the Search Book button is on offer — Enter follows the same rule. */

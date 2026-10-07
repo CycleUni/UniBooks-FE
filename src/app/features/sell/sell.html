@@ -88,6 +88,7 @@
                 <span class="muted result-isbn" *ngIf="result.isbn">ISBN: {{ result.isbn }}</span>
               </span>
             </button>
+            <p class="muted mt-4" *ngIf="isTextQuery">{{ 'sell.textSearchIsbnHint' | t }}</p>
             <div class="actions split mt-4" >
               <ui-button variant="ghost" (onClick)="enterManually()">{{ 'sell.enterManually' | t }}</ui-button>
             </div>

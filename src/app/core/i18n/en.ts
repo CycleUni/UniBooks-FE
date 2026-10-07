@@ -510,6 +510,8 @@ export const en: Record<string, string> = {
   'sell.successManageHint': 'To edit or remove this listing, go to',
   'sell.backHome': 'Back to Home',
   'sell.notFoundIsbn': 'Book with this ISBN not found. Please enter the title and author manually.',
+  'sell.notFoundText': 'No matching books found. Try searching by the ISBN on the back of the book, or enter the title and author manually.',
+  'sell.textSearchIsbnHint': 'Can’t find your book? Try searching by the ISBN on the back cover for a more accurate match.',
   'sell.upstreamTimeout': 'External book database timed out. Please try again.',
   'sell.networkError': 'A network error occurred while searching for the book. Please try again later.',
   'sell.listFailed': 'Listing failed: {msg}',
