@@ -9,6 +9,7 @@ import { routes } from './app.routes';
 import { AuthInterceptor } from './core/auth.interceptor';
 import { ApiUrlInterceptor } from './core/api-url.interceptor';
 import { RetryInterceptor } from './core/retry.interceptor';
+import { ErrorReportInterceptor } from './core/error-report.interceptor';
 import { provideServiceWorker } from '@angular/service-worker';
 import { I18nService } from './core/i18n.service';
 
@@ -32,6 +33,8 @@ export const appConfig: ApplicationConfig = {
     ),
     provideHttpClient(withInterceptorsFromDi()),
     { provide: HTTP_INTERCEPTORS, useClass: ApiUrlInterceptor, multi: true },
+    // Outside Retry so a GET is reported once, after its retries.
+    { provide: HTTP_INTERCEPTORS, useClass: ErrorReportInterceptor, multi: true },
     { provide: HTTP_INTERCEPTORS, useClass: RetryInterceptor, multi: true },
     { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true }, 
     {
