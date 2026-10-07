@@ -10,6 +10,8 @@ import { parseApiError } from '../../core/api-error.util';
 import { UiErrorState } from '../../shared/ui/error-state.component';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
+import { AuthStore } from '../../core/auth.store';
+import { PushAvailability, PushService } from '../../core/services/push.service';
 
 /**
  * /account/notifications — the account page's Notifications section.
@@ -51,6 +53,28 @@ import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
             aria-labelledby="notify-new-message-label"
             aria-describedby="notify-new-message-desc"
             (change)="setNewMessageEmail($any($event.target))"
+          />
+          <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+        </label>
+      </li>
+      <li class="notification-row" *ngIf="pushAvailability() !== 'unavailable'">
+        <div class="notification-text">
+          <span class="notification-label" id="notify-push-label">{{ 'acct.notifyPush' | t }}</span>
+          <p class="notification-desc" id="notify-push-desc">{{ 'acct.notifyPushDesc' | t }}</p>
+          <p class="notification-desc notification-hint" role="note" *ngIf="pushAvailability() === 'blocked'">{{ 'acct.notifyPushBlocked' | t }}</p>
+          <p class="notification-desc notification-hint" role="note" *ngIf="pushAvailability() === 'needs-install'">{{ 'acct.notifyPushNeedsInstall' | t }}</p>
+        </div>
+        <label class="switch">
+          <input
+            type="checkbox"
+            role="switch"
+            data-testid="push-switch"
+            [checked]="pushOn()"
+            [disabled]="saving() || pushAvailability() === 'blocked' || pushAvailability() === 'needs-install'"
+            [attr.aria-checked]="pushOn()"
+            aria-labelledby="notify-push-label"
+            aria-describedby="notify-push-desc"
+            (change)="setNewMessagePush($any($event.target))"
           />
           <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
         </label>
@@ -100,6 +124,9 @@ import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
       font-weight: 600;
       color: var(--ink);
     }
+    .notification-hint {
+      color: var(--ink);
+    }
     .notification-desc {
       margin: var(--space-2) 0 0;
       font-size: var(--text-sm);
@@ -112,6 +139,13 @@ export class NotificationsComponent implements OnInit {
   private accountService = inject(AccountService);
   private toast = inject(ToastService);
   private i18n = inject(I18nService);
+  private push = inject(PushService);
+  private authStore = inject(AuthStore);
+
+  /** What this device can do about push; the row is hidden while 'unavailable'. */
+  readonly pushAvailability = signal<PushAvailability>('unavailable');
+  /** On means the account switch is on AND this browser is registered. */
+  readonly pushOn = signal(false);
 
   readonly settings = signal<NotificationSettings | null>(null);
   readonly loading = signal(true);
@@ -129,6 +163,14 @@ export class NotificationsComponent implements OnInit {
 
   ngOnInit() {
     this.load();
+    this.push.availability().then((availability) => {
+      this.pushAvailability.set(availability);
+      this.syncPushOn();
+    });
+  }
+
+  private syncPushOn() {
+    this.pushOn.set(!!this.settings()?.new_message_push && this.push.isEnabledHere(this.authStore.user()?.id));
   }
 
   load() {
@@ -137,6 +179,7 @@ export class NotificationsComponent implements OnInit {
     this.accountService.getNotificationSettings().subscribe({
       next: (settings) => {
         this.settings.set(settings);
+        this.syncPushOn();
         this.loading.set(false);
         this.refreshing = false;
       },
@@ -199,6 +242,46 @@ export class NotificationsComponent implements OnInit {
         // the optimistic value, [checked] sees no change and leaves the box
         // where the click put it.
         input.checked = previous.new_message_email;
+        this.saving.set(false);
+        this.toast.error(parseApiError(err, this.i18n, 'acct.notifySaveFailed'));
+      },
+    });
+  }
+
+  async setNewMessagePush(input: HTMLInputElement) {
+    const enabled = input.checked;
+    const previous = this.settings();
+    const userId = this.authStore.user()?.id;
+    if (!previous || userId === undefined) return;
+
+    this.saving.set(true);
+    if (enabled) {
+      // The browser's permission prompt and the token come first: the account
+      // switch should only turn on once this browser can really receive.
+      const result = await this.push.enable(userId);
+      if (result !== 'enabled') {
+        input.checked = false;
+        this.saving.set(false);
+        if (result === 'denied') this.pushAvailability.set(await this.push.availability());
+        this.toast.error(this.i18n.t(result === 'denied' ? 'acct.notifyPushDenied' : 'acct.notifyPushFailed'));
+        return;
+      }
+    }
+
+    this.accountService.updateNotificationSettings({ new_message_push: enabled }).subscribe({
+      next: async (saved) => {
+        this.settings.set(saved);
+        if (!enabled) await this.push.disable();
+        this.syncPushOn();
+        this.saving.set(false);
+        this.toast.success(this.i18n.t('acct.notifySaved'));
+      },
+      error: (err) => {
+        // Turned on in the browser but not saved: take the browser back out,
+        // so the switch never claims what the server does not have.
+        if (enabled) this.push.disable();
+        input.checked = previous.new_message_push && this.push.isEnabledHere(userId);
+        this.syncPushOn();
         this.saving.set(false);
         this.toast.error(parseApiError(err, this.i18n, 'acct.notifySaveFailed'));
       },

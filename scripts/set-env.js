@@ -124,11 +124,16 @@ function r2UploadOrigin(rawId) {
 // CycleUni's own files rather than everything raw.githubusercontent.com serves.
 const IMPORT_LIST_SOURCE = 'https://raw.githubusercontent.com/CycleUni/';
 
+// Firebase Cloud Messaging: the SDK registers the browser with these two hosts
+// to get a push token (the messages themselves arrive over the browser's push
+// service, which is not a page connection).
+const FIREBASE_REGISTRATION = ['https://fcmregistrations.googleapis.com', 'https://firebaseinstallations.googleapis.com'];
+
 // Sentry error reports and replays are POSTed to the project's ingest host.
 const SENTRY_INGEST = 'https://*.ingest.us.sentry.io';
 
 function buildCsp({ backendOrigin, chatOrigin, mediaOrigin, uploadOrigin }) {
-  const connect = ["'self'", backendOrigin, chatOrigin, chatOrigin && chatOrigin.replace(/^https:/, 'wss:'), uploadOrigin, 'https://accounts.google.com', IMPORT_LIST_SOURCE, SENTRY_INGEST];
+  const connect = ["'self'", backendOrigin, chatOrigin, chatOrigin && chatOrigin.replace(/^https:/, 'wss:'), uploadOrigin, 'https://accounts.google.com', IMPORT_LIST_SOURCE, ...FIREBASE_REGISTRATION, SENTRY_INGEST];
   const img = ["'self'", 'data:', 'blob:', mediaOrigin, 'https://lh3.googleusercontent.com'];
   return [
     "default-src 'self'",

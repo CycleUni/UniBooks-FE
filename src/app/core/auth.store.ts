@@ -5,6 +5,7 @@ import { tap, catchError, filter, take, finalize, shareReplay } from 'rxjs/opera
 import { Observable, of, throwError } from 'rxjs';
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationSkipped, Router } from '@angular/router';
 import { GoogleAnalyticsService } from './services/google-analytics.service';
+import { PushService } from './services/push.service';
 import { RegionLinkService } from './region-link.service';
 import { isSameRegion } from './region-path';
 import { isUserVerifiedIn } from './verification';
@@ -181,6 +182,9 @@ export class AuthStore {
         this.cancelProfileRetry();
         this._user.set(profile);
         this.profileFetchedAt = Date.now();
+        // A week-old push token is sent to the backend again (a no-op for an
+        // account that never turned push on in this browser).
+        void this.injector.get(PushService).refreshRegistration(profile.id);
         // Identify user in GA4 for User Explorer & cross-device reports
         this.ga.setUserId(profile.id);
         this.ga.setUserProperties({
@@ -585,6 +589,9 @@ export class AuthStore {
   }
 
   logout(): Observable<any> {
+    // Before the session goes: the device removal still needs the access token,
+    // and a signed-out browser should stop receiving this account's messages.
+    void this.injector.get(PushService).unregisterThisDevice();
     const refresh = this.getRefreshToken();
     if (refresh) {
       return this.http.post('/auth/logout/', { refresh }).pipe(

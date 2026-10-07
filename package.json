@@ -24,6 +24,7 @@
     "barcode-detector": "^3.2.2",
     "browser-image-compression": "^2.0.2",
     "chart.js": "^4.5.1",
+    "firebase": "^12.19.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "^0.16.3"

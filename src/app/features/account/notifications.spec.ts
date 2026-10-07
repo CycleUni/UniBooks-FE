@@ -9,10 +9,18 @@ import { AccountService } from '../../core/services/account.service';
 import { ToastService } from '../../core/services/toast.service';
 import { I18nService } from '../../core/i18n.service';
 import { UiDropdown } from '../../shared/ui/dropdown.component';
+import { AuthStore } from '../../core/auth.store';
+import { PushService } from '../../core/services/push.service';
 
 describe('NotificationsComponent', () => {
   let fixture: ComponentFixture<NotificationsComponent>;
   let account: { getNotificationSettings: ReturnType<typeof vi.fn>; updateNotificationSettings: ReturnType<typeof vi.fn> };
+  let push: {
+    availability: ReturnType<typeof vi.fn>;
+    isEnabledHere: ReturnType<typeof vi.fn>;
+    enable: ReturnType<typeof vi.fn>;
+    disable: ReturnType<typeof vi.fn>;
+  };
   let toast: { success: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
 
   const el = () => fixture.nativeElement as HTMLElement;
@@ -31,8 +39,15 @@ describe('NotificationsComponent', () => {
 
   beforeEach(() => {
     account = {
-      getNotificationSettings: vi.fn(() => of({ new_message_email: true, email_language: 'auto', site_language: 'zh-TW' })),
-      updateNotificationSettings: vi.fn((changes: any) => of({ new_message_email: true, email_language: 'auto', site_language: 'zh-TW', ...changes })),
+      getNotificationSettings: vi.fn(() => of({ new_message_email: true, new_message_push: true, email_language: 'auto', site_language: 'zh-TW' })),
+      updateNotificationSettings: vi.fn((changes: any) => of({ new_message_email: true, new_message_push: true, email_language: 'auto', site_language: 'zh-TW', ...changes })),
+    };
+    // Push is off the page unless a test turns it on.
+    push = {
+      availability: vi.fn(() => Promise.resolve('unavailable')),
+      isEnabledHere: vi.fn(() => false),
+      enable: vi.fn(() => Promise.resolve('enabled')),
+      disable: vi.fn(() => Promise.resolve()),
     };
     toast = { success: vi.fn(), error: vi.fn() };
     TestBed.configureTestingModule({
@@ -40,6 +55,8 @@ describe('NotificationsComponent', () => {
       providers: [
         { provide: AccountService, useValue: account },
         { provide: ToastService, useValue: toast },
+        { provide: PushService, useValue: push },
+        { provide: AuthStore, useValue: { user: signal({ id: 7 }) } },
         {
           provide: I18nService,
           useValue: {
@@ -175,5 +192,100 @@ describe('NotificationsComponent', () => {
     expect(account.getNotificationSettings).toHaveBeenCalledTimes(2);
     expect(fixture.componentInstance.refreshing).toBe(false);
   });
-});
 
+  describe('push notifications', () => {
+    const pushToggle = () => el().querySelector('input[data-testid="push-switch"]') as HTMLInputElement | null;
+    const flip = async () => {
+      const input = pushToggle()!;
+      input.checked = !input.checked;
+      input.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+    const createWith = async (availability: string, enabledHere = false) => {
+      push.availability.mockResolvedValue(availability);
+      push.isEnabledHere.mockReturnValue(enabledHere);
+      create();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+
+    it('shows no push row when push is unavailable here', async () => {
+      await createWith('unavailable');
+      expect(pushToggle()).toBeNull();
+    });
+
+    it('shows the switch on only when the account setting and this browser are both on', async () => {
+      await createWith('ready', true);
+      expect(pushToggle()!.checked).toBe(true);
+    });
+
+    it('shows the switch off when this browser has not been set up, whatever the account says', async () => {
+      await createWith('ready', false);
+      expect(pushToggle()!.checked).toBe(false);
+    });
+
+    it('asks the browser first, and saves the account setting once it can receive', async () => {
+      await createWith('ready', false);
+      push.isEnabledHere.mockReturnValue(true);
+
+      await flip();
+
+      expect(push.enable).toHaveBeenCalledWith(7);
+      expect(account.updateNotificationSettings).toHaveBeenCalledWith({ new_message_push: true });
+      expect(pushToggle()!.checked).toBe(true);
+      expect(toast.success).toHaveBeenCalledWith('acct.notifySaved');
+    });
+
+    it('leaves it off and says so when the permission prompt is refused', async () => {
+      await createWith('ready', false);
+      push.enable.mockResolvedValue('denied');
+      push.availability.mockResolvedValue('blocked');
+
+      await flip();
+
+      expect(account.updateNotificationSettings).not.toHaveBeenCalled();
+      expect(pushToggle()!.checked).toBe(false);
+      expect(toast.error).toHaveBeenCalledWith('acct.notifyPushDenied');
+      expect(el().textContent).toContain('acct.notifyPushBlocked');
+    });
+
+    it('leaves it off and says so when the browser cannot be set up', async () => {
+      await createWith('ready', false);
+      push.enable.mockResolvedValue('failed');
+
+      await flip();
+
+      expect(account.updateNotificationSettings).not.toHaveBeenCalled();
+      expect(toast.error).toHaveBeenCalledWith('acct.notifyPushFailed');
+    });
+
+    it('takes the browser back out when the account setting cannot be saved', async () => {
+      await createWith('ready', false);
+      account.updateNotificationSettings.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
+
+      await flip();
+
+      expect(push.disable).toHaveBeenCalled();
+      expect(pushToggle()!.checked).toBe(false);
+      expect(toast.error).toHaveBeenCalledWith('acct.notifySaveFailed');
+    });
+
+    it('turning it off saves the setting and removes this browser', async () => {
+      await createWith('ready', true);
+      push.isEnabledHere.mockReturnValue(false);
+
+      await flip();
+
+      expect(account.updateNotificationSettings).toHaveBeenCalledWith({ new_message_push: false });
+      expect(push.disable).toHaveBeenCalled();
+      expect(pushToggle()!.checked).toBe(false);
+    });
+
+    it.each(['blocked', 'needs-install'])('disables the switch and explains why when %s', async (availability) => {
+      await createWith(availability);
+      expect(pushToggle()!.disabled).toBe(true);
+      expect(el().querySelector('[role="note"]')).not.toBeNull();
+    });
+  });
+});

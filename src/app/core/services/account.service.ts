@@ -73,6 +73,8 @@ export type EmailLanguage = 'auto' | Lang;
 export interface NotificationSettings {
   /** Email about a chat message that arrives while not on the site. */
   new_message_email: boolean;
+  /** Push notification about the same, to every browser the member enabled it in. */
+  new_message_push: boolean;
   /** The one language notification emails are written in. */
   email_language: EmailLanguage;
   /** Read-only: the site language 'auto' currently resolves to. */

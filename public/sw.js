@@ -19,4 +19,56 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
+// Push notifications (Firebase Cloud Messaging). The server sends data-only
+// messages, so this builds the notification — in the language the server
+// chose — and Angular's worker, which only shows ones carrying a
+// `notification` field, leaves them alone. FCM wraps the data it was given,
+// so the fields sit under `data`; the bare shape is accepted too.
+//
+// A notification is always shown: browsers require it of a push subscription
+// that promised to be user-visible, and show a generic "site updated in the
+// background" one of their own when it is skipped. The server already holds
+// back from users who have the site open.
+self.addEventListener('push', (event) => {
+  let payload = null;
+  try {
+    payload = event.data ? event.data.json() : null;
+  } catch (e) {
+    return;
+  }
+  const data = payload && (payload.data || payload);
+  if (!data || !data.title) return;
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body || '',
+      icon: '/icons/icon-192x192.png',
+      badge: '/icons/icon-96x96.png',
+      // One notification per conversation: a second message replaces the
+      // first instead of stacking.
+      tag: data.link || 'unibooks',
+      data: { link: data.link || '/' },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const link = (event.notification.data && event.notification.data.link) || '/';
+  // Same-origin only: the link comes from a push payload.
+  const target = new URL(link, self.location.origin);
+  if (target.origin !== self.location.origin) return;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      for (const w of windows) {
+        if (new URL(w.url).origin === self.location.origin && 'focus' in w) {
+          return w.focus().then((focused) => ('navigate' in focused ? focused.navigate(target.href) : undefined));
+        }
+      }
+      return self.clients.openWindow(target.href);
+    })
+  );
+});
+
 importScripts('./ngsw-worker.js');
