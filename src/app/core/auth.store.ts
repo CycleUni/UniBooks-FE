@@ -1,4 +1,5 @@
-import { DestroyRef, Injectable, Injector, signal, inject, untracked, runInInjectionContext } from '@angular/core';
+import { DestroyRef, Injectable, Injector, signal, inject, untracked, runInInjectionContext, effect } from '@angular/core';
+import * as Sentry from '@sentry/angular';
 import { HttpClient } from '@angular/common/http';
 import { tap, catchError, filter, take, finalize, shareReplay } from 'rxjs/operators';
 import { Observable, of, throwError } from 'rxjs';
@@ -69,6 +70,13 @@ export class AuthStore {
   private destroyed = false;
 
   constructor() {
+    // Tie Sentry errors to the signed-in account by id only — never email or
+    // name — so we can tell one user hitting a bug ten times from ten users.
+    effect(() => {
+      const id = this._user()?.id;
+      Sentry.setUser(id == null ? null : { id: String(id) });
+    });
+
     if (typeof localStorage !== 'undefined') {
       const token = localStorage.getItem('access_token');
       if (token) {
