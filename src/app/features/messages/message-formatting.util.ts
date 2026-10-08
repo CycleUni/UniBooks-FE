@@ -87,36 +87,52 @@ export function formatInboxTime(dateString: string | null | undefined, lang: 'en
   return `${date.getFullYear()}/${monthDay}`;
 }
 
+// The control tokens a meetup card is drawn for. Matched at the start of the
+// body only: that is where the server puts them, and the only position the
+// chat refuses from a user (CFEdgeChat's isSystemMessage). Matched anywhere,
+// "ok [SYSTEM:order.notify.seller_approved]" typed by the other party drew an
+// official "seller approved" card.
+const MEETUP_CARD_TOKENS = [
+  '[MEETUP_REQUEST]',
+  '[MEETUP_ACCEPT]',
+  '[MEETUP_DECLINE]',
+  '[MEETUP_CANCEL]',
+  '[SYSTEM:order.notify.meetup_requested]',
+  '[SYSTEM:order.notify.meetup_accepted]',
+  '[SYSTEM:order.notify.meetup_declined]',
+  '[SYSTEM:order.notify.meetup_cancelled]',
+  '[SYSTEM:order.notify.seller_approved]',
+  '[SYSTEM:order.notify.seller_rejected]',
+  '[SYSTEM:order.notify.cancelled_by_buyer]',
+  '[SYSTEM:order.notify.cancelled_by_seller]',
+  '[SYSTEM:order.notify.delivered]',
+  '[SYSTEM:order.notify.meetup_updated]',
+] as const;
+
+const MEETUP_DETAILS_TOKENS = [
+  '[SYSTEM:order.notify.seller_approved]',
+  '[SYSTEM:order.notify.meetup_accepted]',
+  '[MEETUP_ACCEPT]',
+  '[SYSTEM:order.notify.meetup_updated]',
+] as const;
+
+function startsWithAny(body: string, tokens: readonly string[]): boolean {
+  return tokens.some(token => body.startsWith(token));
+}
+
 /** Whether a raw message body is one of the meetup-flow control messages
  * (request/accept/decline/cancel). Generic [SYSTEM:xxx] messages (e.g. order
  * cancellation notices) are NOT meetup cards and should render as normal messages. */
 export function isMeetupRequest(body: string): boolean {
   if (!body) return false;
-  return body.includes('[MEETUP_REQUEST]') ||
-    body.includes('[MEETUP_ACCEPT]') ||
-    body.includes('[MEETUP_DECLINE]') ||
-    body.includes('[MEETUP_CANCEL]') ||
-    // Only match meetup-related SYSTEM messages, not generic ones
-    body.includes('[SYSTEM:order.notify.meetup_requested]') ||
-    body.includes('[SYSTEM:order.notify.meetup_accepted]') ||
-    body.includes('[SYSTEM:order.notify.meetup_declined]') ||
-    body.includes('[SYSTEM:order.notify.meetup_cancelled]') ||
-    body.includes('[SYSTEM:order.notify.seller_approved]') ||
-    body.includes('[SYSTEM:order.notify.seller_rejected]') ||
-    body.includes('[SYSTEM:order.notify.cancelled_by_buyer]') ||
-    body.includes('[SYSTEM:order.notify.cancelled_by_seller]') ||
-    body.includes('[SYSTEM:order.notify.delivered]') ||
-    body.includes('[SYSTEM:order.notify.meetup_updated]');
+  return startsWithAny(body, MEETUP_CARD_TOKENS);
 }
 
 /** Whether a message is a card that carries the agreed meetup time/place:
  * the seller's accept, or a later edit of the details. */
 export function isMeetupDetailsMessage(body: string): boolean {
   if (!body) return false;
-  return body.includes('[SYSTEM:order.notify.seller_approved]') ||
-    body.includes('[SYSTEM:order.notify.meetup_accepted]') ||
-    body.includes('[MEETUP_ACCEPT]') ||
-    body.includes('[SYSTEM:order.notify.meetup_updated]');
+  return startsWithAny(body, MEETUP_DETAILS_TOKENS);
 }
 
 /** The i18n key of a `[SYSTEM:<key>] …` message, or null for any other body. */

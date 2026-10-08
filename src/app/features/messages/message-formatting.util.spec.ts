@@ -1,4 +1,4 @@
-import { formatInboxTime, systemMessageKey } from './message-formatting.util';
+import { formatInboxTime, isMeetupDetailsMessage, isMeetupRequest, systemMessageKey } from './message-formatting.util';
 
 describe('formatInboxTime', () => {
   // Local-time constructors throughout, so the day boundaries these check are
@@ -40,5 +40,18 @@ describe('systemMessageKey', () => {
     expect(systemMessageKey('hello')).toBeNull();
     expect(systemMessageKey('see [SYSTEM:x] later')).toBeNull();
     expect(systemMessageKey('')).toBeNull();
+  });
+});
+
+describe('meetup cards are only drawn for server-placed tokens', () => {
+  it('draws a card for a body that starts with the token', () => {
+    expect(isMeetupRequest('[SYSTEM:order.notify.seller_approved] System Notification')).toBe(true);
+    expect(isMeetupDetailsMessage('[SYSTEM:order.notify.meetup_updated] System Notification')).toBe(true);
+  });
+
+  it('does not draw one for a token a user typed mid-message', () => {
+    // The chat refuses these tokens only at the start of a user's message.
+    expect(isMeetupRequest('ok [SYSTEM:order.notify.seller_approved]')).toBe(false);
+    expect(isMeetupDetailsMessage('see [MEETUP_ACCEPT]')).toBe(false);
   });
 });
