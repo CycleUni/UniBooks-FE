@@ -5,6 +5,7 @@ import { filter } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { RegionService } from '../region.service';
 import { whenPageSettled } from '../page-settled';
+import { redactSensitiveUrl } from '../sensitive-url';
 
 @Injectable({
   providedIn: 'root'
@@ -59,8 +60,12 @@ export class GoogleAnalyticsService {
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
     ).subscribe((event: any) => {
+      // Both redacted: gtag reports page_location (the full address) with
+      // every page view, so the reset and email-change links' tokens reached
+      // GA even though page_path was the only thing set here.
       gtag('config', gaId, {
-        page_path: event.urlAfterRedirects
+        page_path: redactSensitiveUrl(event.urlAfterRedirects),
+        page_location: redactSensitiveUrl(window.location.href),
       });
     });
   }

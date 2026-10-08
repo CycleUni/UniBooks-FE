@@ -10,11 +10,12 @@ import { AuthStore } from '../../core/auth.store';
 import { isSameRegion } from '../../core/region-path';
 import { ToastService } from '../../core/services/toast.service';
 import { ConfirmService } from '../../core/services/confirm.service';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { parseApiError } from '../../core/api-error.util';
 import { SchoolRequestFormComponent } from './school-request-form.component';
 import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { UiErrorState } from '../../shared/ui/error-state.component';
+import { clearSensitiveParams } from '../../core/sensitive-url';
 
 /** The verification answer that means "valid campus address, unknown campus". */
 const SCHOOL_NOT_SUPPORTED = 'acct.errSchoolNotSupported';
@@ -152,6 +153,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   private toast = inject(ToastService);
   private confirms = inject(ConfirmService);
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private resendCountdownTimer: ReturnType<typeof setInterval> | null = null;
   private profileUserId: string | null = null;
 
@@ -201,6 +203,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     // is not signed in, which is why the endpoint takes the token as proof.
     const token = this.route.snapshot.queryParamMap.get('email_change_token');
     if (token) {
+      clearSensitiveParams(this.router, this.route);
       this.confirmEmailChange(token);
     }
   }

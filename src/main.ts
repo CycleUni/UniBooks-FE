@@ -3,6 +3,13 @@ import * as Sentry from '@sentry/angular';
 import { appConfig } from './app/app.config';
 import { App } from './app/app';
 import { environment } from './environments/environment';
+import { redactSensitiveUrl } from './app/core/sensitive-url';
+
+function scrubEventUrls<T extends Sentry.Event>(event: T): T {
+  if (event.request?.url) event.request.url = redactSensitiveUrl(event.request.url);
+  if (event.transaction) event.transaction = redactSensitiveUrl(event.transaction);
+  return event;
+}
 
 // Initialised before Angular so errors thrown during bootstrap are captured.
 // With no DSN configured Sentry stays off.
@@ -19,6 +26,19 @@ if (environment.sentryDsn) {
     // details stay masked. Sample sessions lightly, but keep every error.
     replaysSessionSampleRate: 0.05,
     replaysOnErrorSampleRate: 1.0,
+    // Reset and email-change links carry their token in the address, and
+    // every event records the page URL; see core/sensitive-url.
+    beforeSend: (event) => scrubEventUrls(event),
+    beforeSendTransaction: (event) => scrubEventUrls(event),
+    beforeBreadcrumb: (breadcrumb) => {
+      const data = breadcrumb.data;
+      if (data) {
+        for (const field of ['from', 'to', 'url']) {
+          if (typeof data[field] === 'string') data[field] = redactSensitiveUrl(data[field]);
+        }
+      }
+      return breadcrumb;
+    },
   });
 }
 

@@ -8,6 +8,7 @@ import { FormsModule } from '@angular/forms';
 import { AuthStore } from '../../core/auth.store';
 import { I18nService, TPipe } from '../../core/i18n.service';
 import { RegionLinkService } from '../../core/region-link.service';
+import { clearSensitiveParams } from '../../core/sensitive-url';
 
 
 @Component({
@@ -108,6 +109,7 @@ export class VerifyEmail implements OnInit {
       const token = params['token'];
       if (token) {
         this.inputToken = token;
+        clearSensitiveParams(this.router, this.route);
         this.submitVerify();
       }
     });

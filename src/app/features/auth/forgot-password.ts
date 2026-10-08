@@ -7,6 +7,7 @@ import { FormsModule } from '@angular/forms';
 import { AuthStore } from '../../core/auth.store';
 import { I18nService, TPipe } from '../../core/i18n.service';
 import { RegionLinkService } from '../../core/region-link.service';
+import { clearSensitiveParams } from '../../core/sensitive-url';
 
 
 @Component({
@@ -119,7 +120,12 @@ export class ForgotPassword implements OnInit {
 
   ngOnInit() {
     this.route.queryParams.subscribe(params => {
-      this.token = params['token'] || '';
+      // Kept once read: the address bar loses it right after (see
+      // clearSensitiveParams), which fires this again without it.
+      if (params['token']) {
+        this.token = params['token'];
+        clearSensitiveParams(this.router, this.route);
+      }
       this.cdr.markForCheck();
     });
   }
