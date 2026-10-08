@@ -865,6 +865,7 @@ export const en: Record<string, string> = {
   'admin.deleteWithOrdersHint': 'This listing has {count} order(s) in progress. Deleting it cancels them and notifies the buyer and seller. Please give a reason.',
   'admin.locked': 'Locked',
   'listing.errAdminLocked': 'This listing has been locked by UniBooks and cannot be modified.',
+  'listing.errStatusNotAllowed': 'This status can’t be set right now. A listing held by an accepted order changes with the order.',
   'admin.noSchool': 'No school',
   'admin.staffBadge': 'Staff',
   'admin.save': 'Save',
