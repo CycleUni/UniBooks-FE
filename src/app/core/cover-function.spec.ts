@@ -68,6 +68,33 @@ describe('/api/cover caching', () => {
     expect(res.headers.get('cache-control')).toBe('public, max-age=10');
   });
 
+  it('never serves an upstream that answered with something other than an image', async () => {
+    const page = '<html><script>alert(1)</script></html>'.padEnd(5000, ' ');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(page, { status: 200, headers: { 'content-type': 'text/html' } })));
+    const res = await get(OL);
+    expect(res.status).toBe(404);
+  });
+
+  it('sends a found cover with nosniff and a locked-down CSP', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => image()));
+    const res = await get(OL);
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('content-security-policy')).toContain("default-src 'none'");
+  });
+
+  it('caches by src alone, so an extra parameter cannot force a fresh fetch', async () => {
+    const fetchMock = vi.fn(async () => image());
+    vi.stubGlobal('fetch', fetchMock);
+    const run = async (extra: string) => {
+      const request = new Request(`https://cycleunife.pages.dev/api/cover?src=${encodeURIComponent(OL)}${extra}`);
+      await handleCover(request, { cache: (globalThis as any).caches.default, fetch: (url: string) => fetch(url), waitUntil: (p: Promise<unknown>) => { pending.push(p); } });
+      await Promise.all(pending);
+    };
+    await run('&ngsw-bypass=');
+    await run('&x=123');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('serves a repeat request from the edge cache without going upstream', async () => {
     const fetchMock = vi.fn(async () => new Response(null, { status: 404 }));
     vi.stubGlobal('fetch', fetchMock);

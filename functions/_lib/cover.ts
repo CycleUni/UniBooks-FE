@@ -97,6 +97,28 @@ function upstreamError(request: Request, deps: CoverDeps): Response {
   }));
 }
 
+/**
+ * The cover to serve, or null when the upstream did not answer with an image.
+ *
+ * Served from this site's own origin and cached for a year, so it must never
+ * be anything a browser would run: an allowlisted host answering some path
+ * with HTML would otherwise have been served as HTML from unibooks.app. Pages'
+ * _headers do not apply to a Function's own responses, hence the headers here.
+ */
+function coverResponse(body: ArrayBuffer, upstream: Response): Response | null {
+  const contentType = upstream.headers.get('content-type') || 'image/jpeg';
+  if (!contentType.toLowerCase().startsWith('image/')) return null;
+  return new Response(body, {
+    status: 200,
+    headers: {
+      'Content-Type': contentType,
+      'Cache-Control': `public, max-age=${COVER_MAX_AGE_SECONDS}, immutable`,
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; sandbox",
+    },
+  });
+}
+
 /** Store `response` in the edge cache under `request`, and return it. */
 function cached(request: Request, deps: CoverDeps, response: Response): Response {
   deps.waitUntil(deps.cache.put(request, response.clone()));
@@ -125,6 +147,10 @@ export async function handleCover(request: Request, deps: CoverDeps): Promise<Re
       },
     });
   }
+
+  // Cached under src alone. Keyed on the whole URL, any extra parameter
+  // (&x=<random>) missed the cache and re-ran up to three upstream fetches.
+  request = new Request(`${requestUrl.origin}${requestUrl.pathname}?src=${encodeURIComponent(src)}`);
 
   const hit = await deps.cache.match(request);
   if (hit) {
@@ -208,14 +234,8 @@ export async function handleCover(request: Request, deps: CoverDeps): Promise<Re
         return missingCover(request, deps);
       }
 
-      const contentType = upstreamResponse.headers.get('content-type') || 'image/jpeg';
-      const response = new Response(bodyBuffer, {
-        status: 200,
-        headers: {
-          'Content-Type': contentType,
-          'Cache-Control': `public, max-age=${COVER_MAX_AGE_SECONDS}, immutable`,
-        },
-      });
+      const response = coverResponse(bodyBuffer, upstreamResponse);
+      if (!response) return missingCover(request, deps);
       return cached(request, deps, response);
     } catch {
       // A network failure says nothing about whether the cover exists, so it
@@ -278,14 +298,8 @@ export async function handleCover(request: Request, deps: CoverDeps): Promise<Re
           continue;
         }
 
-        const contentType = upstreamResponse.headers.get('content-type') || 'image/jpeg';
-        const response = new Response(bodyBuffer, {
-          status: 200,
-          headers: {
-            'Content-Type': contentType,
-            'Cache-Control': `public, max-age=${COVER_MAX_AGE_SECONDS}, immutable`,
-          },
-        });
+        const response = coverResponse(bodyBuffer, upstreamResponse);
+        if (!response) continue;
         return cached(request, deps, response);
       }
     } catch {
