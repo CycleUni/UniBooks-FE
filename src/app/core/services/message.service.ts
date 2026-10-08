@@ -5,6 +5,7 @@ import { Observable, Subject, BehaviorSubject, Subscription, from } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { isTransientHttpFailure } from '../http-failure';
+import { decodeJwtPayload } from '../jwt';
 
 // Debug logging only outside production, to keep the prod console noise-free.
 function devLog(...args: unknown[]): void {
@@ -22,8 +23,8 @@ function devError(...args: unknown[]): void {
 /** Seconds until a JWT's `exp`, or 0 when it cannot be read. */
 function tokenSecondsLeft(token: string): number {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return typeof payload.exp === 'number' ? payload.exp - Date.now() / 1000 : 0;
+    const payload = decodeJwtPayload(token);
+    return typeof payload?.['exp'] === 'number' ? payload['exp'] - Date.now() / 1000 : 0;
   } catch {
     return 0;
   }
@@ -567,10 +568,8 @@ export class MessageService {
         if (!this.hubOpenWanted) return;
         this.hubOpenOwed = false;
         this.cancelHubOpenRetry();
-        let userId = '';
-        try {
-          userId = String(JSON.parse(atob(res.token.split('.')[1])).user_id ?? '');
-        } catch { /* unreadable token: nothing to connect as */ }
+        // Unreadable token: nothing to connect as.
+        const userId = String(decodeJwtPayload(res.token)?.['user_id'] ?? '');
         if (!userId) return;
         this.connectHub(res.token, userId, res.edge_chat_url);
       },

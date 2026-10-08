@@ -35,6 +35,7 @@ import { UiSkeleton } from '../../shared/ui/skeleton.component';
 import { UiErrorState } from '../../shared/ui/error-state.component';
 import { UiPullToRefresh } from '../../shared/ui/pull-to-refresh.component';
 import { PendingChatStore, PENDING_CHAT_PREFIX, isPendingChat, pendingChatFromListing } from './pending-chats';
+import { decodeJwtPayload } from '../../core/jwt';
 
 /** Listing statuses on which no new conversation can be started. */
 const LISTING_GONE_STATUSES = ['removed', 'sold'];
@@ -601,10 +602,8 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
 
         this.chatToken = res.token;
         this.edgeChatUrl = res.edge_chat_url;
-        try {
-          const payload = JSON.parse(atob(res.token.split('.')[1]));
-          this.userId = payload.user_id;
-        } catch (e) { }
+        const tokenUserId = decodeJwtPayload(res.token)?.['user_id'];
+        if (tokenUserId != null) this.userId = String(tokenUserId);
 
         // Not marked read here any more: the room socket marks it on open
         // (MessageService.connectEdgeChat), with no REST call or preflight.
