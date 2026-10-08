@@ -417,8 +417,14 @@ export class AccountService {
     return this.http.post<any>('/auth/email/change/cancel/', {});
   }
 
+  /** Changing the password ends every other session; the response carries
+   *  this device's fresh token pair, which replaces the revoked one. */
   changePassword(data: { old_password?: string, new_password?: string }): Observable<any> {
-    return this.http.post<any>('/auth/password/', data);
+    return this.http.post<any>('/auth/password/', data).pipe(
+      tap(res => {
+        if (res?.access) this.authStore.setAuth({ access: res.access, refresh: res.refresh });
+      }),
+    );
   }
 
   removePassword(data: { password?: string }): Observable<any> {
