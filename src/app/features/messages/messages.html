@@ -106,7 +106,7 @@
             <!-- A chat not started yet: the seller sees nothing until the
                  buyer sends something (PendingChatStore). -->
             <p class="pending-hint" *ngIf="activeChat.pending && messages.length === 0">{{ 'msg.pendingHint' | t:{name: activeChat.other_party} }}</p>
-            <div class="msg-bubble" *ngFor="let msg of messages" [class.self]="msg.is_mine" [class.failed]="msg.failed" [class.meetup-card]="isMeetupRequest(msg.body)" [class.image-msg]="msg.message_type === 'image'">
+            <div class="msg-bubble" *ngFor="let msg of messages; trackBy: trackMessage" [class.self]="msg.is_mine" [class.failed]="msg.failed" [class.meetup-card]="isMeetupRequest(msg.body)" [class.image-msg]="msg.message_type === 'image'">
               <ng-container *ngIf="isMeetupRequest(msg.body); else normalMsg">
                 <ui-meetup-card
                   [body]="msg.body"

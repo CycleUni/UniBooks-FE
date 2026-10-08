@@ -153,6 +153,11 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
 
   constructor(private route: ActivatedRoute) { }
 
+  /** Keeps each bubble's DOM across updates: the list is replaced with a new
+   *  array on every message, ack and deletion, and without this every bubble
+   *  (images included) was torn down and rebuilt each time. */
+  trackMessage = (_index: number, msg: { id: string }) => msg.id;
+
   ngOnInit() {
     this.loadConversations();
 

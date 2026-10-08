@@ -44,7 +44,7 @@ import { UiSellerReputation } from './seller-reputation.component';
 
       <ng-template #body>
         <span class="listing-photo-container">
-          <img *ngIf="(item.photo_url || item.photos?.[0]) && !imageBroken" [src]="item.photo_url || item.photos?.[0]" alt="" (error)="onImageError()" />
+          <img *ngIf="(item.photo_url || item.photos?.[0]) && !imageBroken" [src]="item.photo_url || item.photos?.[0]" alt="" loading="lazy" decoding="async" (error)="onImageError()" />
           <span *ngIf="!item.photo_url && !item.photos?.length || imageBroken">{{ 'book.noPhoto' | t }}</span>
         </span>
         <span class="listing-header">
