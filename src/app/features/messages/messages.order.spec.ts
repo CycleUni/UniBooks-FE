@@ -31,6 +31,7 @@ describe('Messages WebSocket ordering & temp-id reconciliation', () => {
       disconnectEdgeChat: vi.fn(),
       sendEdgeMessage: vi.fn(() => true),
       roomUpdates$: EMPTY,
+      roomTokenRefreshed$: EMPTY,
       conversationUnreadState$: { subscribe: () => ({ unsubscribe() {} }), value: new Map() },
       realTimeMessages$: realTimeMessagesSubject.asObservable(),
       realTimeDeletions$: EMPTY,

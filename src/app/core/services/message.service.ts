@@ -107,6 +107,9 @@ export class MessageService {
   public sendErrors$ = new Subject<string>();
 
   public connectionState$ = new BehaviorSubject<'connected' | 'reconnecting' | 'disconnected'>('disconnected');
+  /** A room token minted on reconnect; the open conversation's REST calls
+   *  (history, older pages) use it in place of the expired one. */
+  public roomTokenRefreshed$ = new Subject<{ roomId: string; token: string }>();
 
   // Single per-user notification connection, independent of whichever
   // conversation (if any) is currently open via connectEdgeChat/ws above.
@@ -405,14 +408,37 @@ export class MessageService {
       }
       this.reconnectAttempts++;
       if (this.currentRoomId && this.currentToken && this.currentUserId && this.currentEdgeChatUrl) {
-        this.connectEdgeChat(
-          this.currentRoomId,
-          this.currentToken,
-          this.currentUserId,
-          this.currentEdgeChatUrl
-        );
+        this.reconnectRoom(this.currentRoomId, this.currentToken, this.currentUserId, this.currentEdgeChatUrl);
       }
     }, delay);
+  }
+
+  /**
+   * Reconnect the open room, minting a fresh room token first when the one
+   * held is about to expire or has. The room closes a socket whose token
+   * has expired (CFEdgeChat, close code 4001), and reconnecting with that
+   * same token could only be refused, every attempt, until the user left
+   * the conversation and came back. Same reuse rule as the hub's.
+   */
+  private reconnectRoom(roomId: string, staleToken: string, userId: string, edgeChatUrl: string): void {
+    if (tokenSecondsLeft(staleToken) > MessageService.TOKEN_REUSE_MIN_SECONDS) {
+      this.connectEdgeChat(roomId, staleToken, userId, edgeChatUrl);
+      return;
+    }
+    this.getChatToken(roomId).subscribe({
+      next: (res) => {
+        // The user may have opened another conversation meanwhile.
+        if (this.currentRoomId !== roomId) return;
+        this.connectEdgeChat(roomId, res.token, userId, res.edge_chat_url || edgeChatUrl);
+        this.roomTokenRefreshed$.next({ roomId, token: res.token });
+      },
+      error: () => {
+        // Retried later, like a dropped connection: the next attempt mints
+        // again, or the visitor returning to the page resumes it.
+        if (this.currentRoomId !== roomId) return;
+        this.scheduleReconnect();
+      },
+    });
   }
 
   disconnectEdgeChat(intentional: boolean = true) {

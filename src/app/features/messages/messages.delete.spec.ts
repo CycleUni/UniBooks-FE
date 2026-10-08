@@ -30,6 +30,7 @@ describe('Messages - Delete Single Message', () => {
       sendEdgeMessage: vi.fn(() => true),
       deleteEdgeMessage: vi.fn(),
       roomUpdates$: EMPTY,
+      roomTokenRefreshed$: EMPTY,
       conversationUnreadState$: { subscribe: () => ({ unsubscribe() {} }), value: new Map() },
       realTimeMessages$: EMPTY,
       realTimeDeletions$: EMPTY,

@@ -128,6 +128,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
   private errorSubscription?: Subscription;
   private connectionSubscription?: Subscription;
   private roomUpdateSubscription?: Subscription;
+  private roomTokenSubscription?: Subscription;
   private unreadStateSubscription?: Subscription;
   private queryParamsSubscription?: Subscription;
   private location = inject(Location);
@@ -154,6 +155,12 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
 
   ngOnInit() {
     this.loadConversations();
+
+    // A reconnect minted a new room token because the old one expired; the
+    // history calls below must use it too.
+    this.roomTokenSubscription = this.messageService.roomTokenRefreshed$.subscribe(({ roomId, token }) => {
+      if (String(this.activeChat?.id) === roomId) this.chatToken = token;
+    });
 
     // Live "new activity" events for every conversation this user is part
     // of, from the single per-user hub connection — not just the one that's
@@ -371,6 +378,7 @@ export class Messages implements OnInit, AfterViewChecked, OnDestroy {
     if (this.roomUpdateSubscription) {
       this.roomUpdateSubscription.unsubscribe();
     }
+    this.roomTokenSubscription?.unsubscribe();
     this.queryParamsSubscription?.unsubscribe();
     if (this.unreadStateSubscription) {
       this.unreadStateSubscription.unsubscribe();

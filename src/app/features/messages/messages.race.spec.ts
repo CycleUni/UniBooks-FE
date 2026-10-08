@@ -48,6 +48,7 @@ describe('Messages.selectChat — out-of-order response race', () => {
       disconnectEdgeChat: vi.fn(),
       // Unused by selectChat(), but referenced elsewhere in the component.
       roomUpdates$: EMPTY,
+      roomTokenRefreshed$: EMPTY,
       conversationUnreadState$: { subscribe: () => ({ unsubscribe() {} }), value: new Map() },
       realTimeMessages$: EMPTY,
       realTimeDeletions$: EMPTY,

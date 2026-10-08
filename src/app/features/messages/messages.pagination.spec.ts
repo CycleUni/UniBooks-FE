@@ -32,6 +32,7 @@ describe('Messages — history pagination', () => {
       connectEdgeChat: vi.fn(),
       disconnectEdgeChat: vi.fn(),
       roomUpdates$: EMPTY,
+      roomTokenRefreshed$: EMPTY,
       conversationUnreadState$: { subscribe: () => ({ unsubscribe() {} }), value: new Map() },
       realTimeMessages$: EMPTY,
       realTimeDeletions$: EMPTY,

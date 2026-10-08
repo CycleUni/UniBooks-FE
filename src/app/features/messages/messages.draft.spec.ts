@@ -27,6 +27,7 @@ describe('Messages draft persistence', () => {
       disconnectEdgeChat: vi.fn(),
       sendEdgeMessage: vi.fn(() => true),
       roomUpdates$: EMPTY,
+      roomTokenRefreshed$: EMPTY,
       conversationUnreadState$: { subscribe: () => ({ unsubscribe() {} }), value: new Map() },
       realTimeMessages$: EMPTY,
       realTimeDeletions$: EMPTY,

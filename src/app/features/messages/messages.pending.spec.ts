@@ -50,6 +50,7 @@ describe('Messages pending chats', () => {
       connectEdgeChat: vi.fn(),
       disconnectEdgeChat: vi.fn(),
       roomUpdates$: EMPTY,
+      roomTokenRefreshed$: EMPTY,
       conversationUnreadState$: new BehaviorSubject(new Map()),
       realTimeMessages$: EMPTY,
       realTimeDeletions$: EMPTY,

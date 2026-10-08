@@ -43,6 +43,7 @@ describe('Messages ?chat= URL sync', () => {
       connectEdgeChat: vi.fn(),
       disconnectEdgeChat: vi.fn(),
       roomUpdates$: roomUpdates,
+      roomTokenRefreshed$: EMPTY,
       conversationUnreadState$: new BehaviorSubject(new Map()),
       realTimeMessages$: EMPTY,
       realTimeDeletions$: EMPTY,
