@@ -7,6 +7,7 @@ import { UiButton } from '../../shared/ui/button.component';
 import { UiInput } from '../../shared/ui/input.component';
 import { UiFocusTrapDirective } from '../../shared/ui/focus-trap.directive';
 import { OrderService } from '../../core/services/order.service';
+import { parseApiError } from '../../core/api-error.util';
 
 @Component({
   selector: 'app-review-modal',
@@ -105,11 +106,7 @@ export class ReviewModalComponent {
       },
       error: (err) => {
         this.isSubmitting = false;
-        const ratingCode = err.error?.rating?.[0];
-        this.errorMsg = err.error?.detail
-          || err.error?.non_field_errors?.[0]
-          || (typeof ratingCode === 'string' ? this.i18n.t(ratingCode) : '')
-          || 'Failed to submit review.';
+        this.errorMsg = parseApiError(err, this.i18n, 'order.errReviewFailed');
         this.cdr.markForCheck();
       }
     });
