@@ -128,10 +128,11 @@
         <span class="avatar-visibility-label" id="show-avatar-label">{{ 'acct.showAvatar' | t }}</span>
         <p class="avatar-visibility-desc" id="show-avatar-desc">{{ 'acct.showAvatarDesc' | t }}</p>
       </div>
-      <label class="switch">
+      <label class="switch" [class.is-busy]="savingShowAvatar">
         <input
           type="checkbox"
           role="switch"
+          [attr.aria-busy]="savingShowAvatar"
           [checked]="showAvatar"
           [disabled]="savingShowAvatar"
           [attr.aria-checked]="showAvatar"

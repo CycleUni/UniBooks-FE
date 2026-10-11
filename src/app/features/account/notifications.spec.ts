@@ -109,11 +109,13 @@ describe('NotificationsComponent', () => {
 
     click();
     expect(toggle()!.disabled).toBe(true);
+    expect(toggle()!.closest('label')!.classList.contains('is-busy')).toBe(true);
 
     pending.next({ new_message_email: false });
     pending.complete();
     fixture.detectChanges();
     expect(toggle()!.disabled).toBe(false);
+    expect(toggle()!.closest('label')!.classList.contains('is-busy')).toBe(false);
   });
 
   it('offers a retry when the settings cannot be loaded', () => {
@@ -235,6 +237,37 @@ describe('NotificationsComponent', () => {
       expect(account.updateNotificationSettings).toHaveBeenCalledWith({ push: true });
       expect(pushToggle()!.checked).toBe(true);
       expect(toast.success).toHaveBeenCalledWith('acct.notifySaved');
+    });
+
+    it('shows the push switch working, not greyed out, while the permission prompt is open', async () => {
+      await createWith('ready', false);
+      let answer!: (result: string) => void;
+      push.enable.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+
+      const input = pushToggle()!;
+      input.checked = true;
+      input.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      const label = input.closest('label')!;
+      expect(label.classList.contains('is-busy')).toBe(true);
+      expect(input.getAttribute('aria-busy')).toBe('true');
+      expect(input.disabled).toBe(true);
+      // The other switch is held still but not marked as the one working.
+      expect(toggle()!.closest('label')!.classList.contains('is-busy')).toBe(false);
+
+      answer('failed');
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(label.classList.contains('is-busy')).toBe(false);
+      expect(input.getAttribute('aria-busy')).toBe('false');
+    });
+
+    it('does not mark a switch that is disabled for good as working', async () => {
+      await createWith('blocked');
+      const input = pushToggle()!;
+      expect(input.disabled).toBe(true);
+      expect(input.closest('label')!.classList.contains('is-busy')).toBe(false);
     });
 
     it('leaves it off and says so when the permission prompt is refused', async () => {

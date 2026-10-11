@@ -43,10 +43,11 @@ import { PushAvailability, PushService } from '../../core/services/push.service'
           <span class="notification-label" id="notify-new-message-label">{{ 'acct.notifyNewMessageEmail' | t }}</span>
           <p class="notification-desc" id="notify-new-message-desc">{{ 'acct.notifyNewMessageEmailDesc' | t }}</p>
         </div>
-        <label class="switch">
+        <label class="switch" [class.is-busy]="busy() === 'email'">
           <input
             type="checkbox"
             role="switch"
+            [attr.aria-busy]="busy() === 'email'"
             [checked]="current.new_message_email"
             [disabled]="saving()"
             [attr.aria-checked]="current.new_message_email"
@@ -64,11 +65,12 @@ import { PushAvailability, PushService } from '../../core/services/push.service'
           <p class="notification-desc notification-hint" role="note" *ngIf="pushAvailability() === 'blocked'">{{ 'acct.notifyPushBlocked' | t }}</p>
           <p class="notification-desc notification-hint" role="note" *ngIf="pushAvailability() === 'needs-install'">{{ 'acct.notifyPushNeedsInstall' | t }}</p>
         </div>
-        <label class="switch">
+        <label class="switch" [class.is-busy]="busy() === 'push'">
           <input
             type="checkbox"
             role="switch"
             data-testid="push-switch"
+            [attr.aria-busy]="busy() === 'push'"
             [checked]="pushOn()"
             [disabled]="saving() || pushAvailability() === 'blocked' || pushAvailability() === 'needs-install'"
             [attr.aria-checked]="pushOn()"
@@ -150,7 +152,10 @@ export class NotificationsComponent implements OnInit {
   readonly settings = signal<NotificationSettings | null>(null);
   readonly loading = signal(true);
   readonly loadFailed = signal(false);
-  readonly saving = signal(false);
+  /** The control being saved, so only that one shows it is working. */
+  readonly busy = signal<'email' | 'push' | 'language' | null>(null);
+  /** Anything is being saved: every control holds still meanwhile. */
+  readonly saving = computed(() => this.busy() !== null);
   refreshing = false;
 
   @ViewChild('emailLanguageDropdown') private emailLanguageDropdown?: UiDropdown;
@@ -203,11 +208,11 @@ export class NotificationsComponent implements OnInit {
     if (!previous || previous.email_language === language) return;
 
     this.settings.set({ ...previous, email_language: language });
-    this.saving.set(true);
+    this.busy.set('language');
     this.accountService.updateNotificationSettings({ email_language: language }).subscribe({
       next: (saved) => {
         this.settings.set(saved);
-        this.saving.set(false);
+        this.busy.set(null);
         this.toast.success(this.i18n.t('acct.notifySaved'));
       },
       error: (err) => {
@@ -215,7 +220,7 @@ export class NotificationsComponent implements OnInit {
         // Same reason as the switch below: the binding may not see a change
         // to put back, so tell the dropdown directly.
         this.emailLanguageDropdown?.writeValue(previous.email_language);
-        this.saving.set(false);
+        this.busy.set(null);
         this.toast.error(parseApiError(err, this.i18n, 'acct.notifySaveFailed'));
       },
     });
@@ -229,11 +234,11 @@ export class NotificationsComponent implements OnInit {
     // Show the new position straight away; put it back if the save fails, so
     // the switch never claims a setting the server does not have.
     this.settings.set({ ...previous, new_message_email: enabled });
-    this.saving.set(true);
+    this.busy.set('email');
     this.accountService.updateNotificationSettings({ new_message_email: enabled }).subscribe({
       next: (saved) => {
         this.settings.set(saved);
-        this.saving.set(false);
+        this.busy.set(null);
         this.toast.success(this.i18n.t('acct.notifySaved'));
       },
       error: (err) => {
@@ -242,7 +247,7 @@ export class NotificationsComponent implements OnInit {
         // the optimistic value, [checked] sees no change and leaves the box
         // where the click put it.
         input.checked = previous.new_message_email;
-        this.saving.set(false);
+        this.busy.set(null);
         this.toast.error(parseApiError(err, this.i18n, 'acct.notifySaveFailed'));
       },
     });
@@ -254,14 +259,14 @@ export class NotificationsComponent implements OnInit {
     const userId = this.authStore.user()?.id;
     if (!previous || userId === undefined) return;
 
-    this.saving.set(true);
+    this.busy.set('push');
     if (enabled) {
       // The browser's permission prompt and the token come first: the account
       // switch should only turn on once this browser can really receive.
       const result = await this.push.enable(userId);
       if (result !== 'enabled') {
         input.checked = false;
-        this.saving.set(false);
+        this.busy.set(null);
         if (result === 'denied') this.pushAvailability.set(await this.push.availability());
         this.toast.error(this.i18n.t(result === 'denied' ? 'acct.notifyPushDenied' : 'acct.notifyPushFailed'));
         return;
@@ -273,7 +278,7 @@ export class NotificationsComponent implements OnInit {
         this.settings.set(saved);
         if (!enabled) await this.push.disable();
         this.syncPushOn();
-        this.saving.set(false);
+        this.busy.set(null);
         this.toast.success(this.i18n.t('acct.notifySaved'));
       },
       error: (err) => {
@@ -282,7 +287,7 @@ export class NotificationsComponent implements OnInit {
         if (enabled) this.push.disable();
         input.checked = previous.push && this.push.isEnabledHere(userId);
         this.syncPushOn();
-        this.saving.set(false);
+        this.busy.set(null);
         this.toast.error(parseApiError(err, this.i18n, 'acct.notifySaveFailed'));
       },
     });
