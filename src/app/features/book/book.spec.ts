@@ -79,7 +79,7 @@ describe('Book page data source footer', () => {
         { provide: ActivatedRoute, useValue: { queryParamMap: queryParamMap$ } },
         { provide: BookService, useValue: { getBook } },
         { provide: I18nService, useValue: i18n },
-        { provide: AuthStore, useValue: { isLoggedIn: () => false, user: () => null } },
+        { provide: AuthStore, useValue: { isLoggedIn: () => false, isAuthenticated: () => false, user: () => null } },
         { provide: RegionService, useValue: { region: () => 'tw', currency: () => ({ code: 'TWD', decimal_places: 0, symbol: 'NT$' }) } },
         {
           provide: SchoolStateService,
